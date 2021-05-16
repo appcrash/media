@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package rpc;
+
+option go_package="github.com/appcrash/media/server/rpc";
+
+message Peer {
+  string ip = 1;
+  uint32 port = 2;
+}
+
+message MediaStream {
+  string stream_id = 1;
+  uint32 local_rtp_port = 2;
+  string peer_ip = 3 ;
+  uint32 peer_rtp_port = 4;
+}
+
+
+service MediaApi {
+  rpc PrepareMediaStream(Peer) returns (MediaStream) {}
+}
