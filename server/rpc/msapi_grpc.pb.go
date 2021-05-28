@@ -19,6 +19,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MediaApiClient interface {
 	PrepareMediaStream(ctx context.Context, in *Peer, opts ...grpc.CallOption) (*MediaStream, error)
+	ExecuteAction(ctx context.Context, in *MediaAction, opts ...grpc.CallOption) (*MediaActionResult, error)
 }
 
 type mediaApiClient struct {
@@ -38,11 +39,21 @@ func (c *mediaApiClient) PrepareMediaStream(ctx context.Context, in *Peer, opts 
 	return out, nil
 }
 
+func (c *mediaApiClient) ExecuteAction(ctx context.Context, in *MediaAction, opts ...grpc.CallOption) (*MediaActionResult, error) {
+	out := new(MediaActionResult)
+	err := c.cc.Invoke(ctx, "/rpc.MediaApi/ExecuteAction", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MediaApiServer is the server API for MediaApi service.
 // All implementations must embed UnimplementedMediaApiServer
 // for forward compatibility
 type MediaApiServer interface {
 	PrepareMediaStream(context.Context, *Peer) (*MediaStream, error)
+	ExecuteAction(context.Context, *MediaAction) (*MediaActionResult, error)
 	mustEmbedUnimplementedMediaApiServer()
 }
 
@@ -52,6 +63,9 @@ type UnimplementedMediaApiServer struct {
 
 func (UnimplementedMediaApiServer) PrepareMediaStream(context.Context, *Peer) (*MediaStream, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PrepareMediaStream not implemented")
+}
+func (UnimplementedMediaApiServer) ExecuteAction(context.Context, *MediaAction) (*MediaActionResult, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExecuteAction not implemented")
 }
 func (UnimplementedMediaApiServer) mustEmbedUnimplementedMediaApiServer() {}
 
@@ -84,6 +98,24 @@ func _MediaApi_PrepareMediaStream_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MediaApi_ExecuteAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MediaAction)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MediaApiServer).ExecuteAction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpc.MediaApi/ExecuteAction",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MediaApiServer).ExecuteAction(ctx, req.(*MediaAction))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MediaApi_ServiceDesc is the grpc.ServiceDesc for MediaApi service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -95,7 +127,11 @@ var MediaApi_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "PrepareMediaStream",
 			Handler:    _MediaApi_PrepareMediaStream_Handler,
 		},
+		{
+			MethodName: "ExecuteAction",
+			Handler:    _MediaApi_ExecuteAction_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api.proto",
+	Metadata: "msapi.proto",
 }

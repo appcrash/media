@@ -16,7 +16,23 @@ message MediaStream {
   uint32 peer_rtp_port = 4;
 }
 
+message MediaAction {
+  string stream_id = 1;
+  string action = 2;
+}
+
+message MediaActionResult {
+  string stream_id = 1;
+  string result = 2;
+}
+
+message MediaEvent {
+  string stream_id = 1;
+  string event = 2;
+}
+
 
 service MediaApi {
   rpc PrepareMediaStream(Peer) returns (MediaStream) {}
+  rpc ExecuteAction(MediaAction) returns (MediaActionResult) {}
 }
