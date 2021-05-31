@@ -2,14 +2,12 @@ package server
 
 import (
 	"fmt"
-	"github.com/go-audio/wav"
 	"github.com/google/uuid"
 	cmap "github.com/orcaman/concurrent-map"
 	"github.com/wernerd/GoRTP/src/net/rtp"
 	"io/ioutil"
 	"math"
 	"net"
-	"os"
 	"time"
 )
 
@@ -18,6 +16,8 @@ type MediaSession struct {
 	rtpSession *rtp.Session
 	sndCtrlC   chan string
 	rcvCtrlC   chan string
+
+	sinkerList []Sinker
 }
 
 var sessionMap = cmap.New()
@@ -68,8 +68,6 @@ func (session *MediaSession) receivePacketLocal() {
 	rtpSession := session.rtpSession
 	dataReceiver := rtpSession.CreateDataReceiveChan()
 	var cnt int
-	of,_ := os.Create("record.wav")
-	encoder := wav.NewEncoder(of,8000,8,1,6)
 	for {
 		select {
 		case rp := <-dataReceiver:
@@ -77,15 +75,19 @@ func (session *MediaSession) receivePacketLocal() {
 				println("Remote receiver got:", cnt, "packets")
 			}
 			data := rp.Payload()
-			for _,d := range data {
-				encoder.WriteFrame(d)
+
+			// send received data to all sinkers, then free the packet
+			for _,s := range session.sinkerList {
+				if shouldContinue := s.HandleData(session,data); !shouldContinue {
+					break
+				}
 			}
+
 			cnt++
 			rp.FreePacket()
 		case cmd := <-session.rcvCtrlC:
 			if cmd == "stop" {
 				println("stop local receive")
-				encoder.Close()
 			}
 			return
 		}

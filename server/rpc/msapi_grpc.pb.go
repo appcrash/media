@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion7
 type MediaApiClient interface {
 	PrepareMediaStream(ctx context.Context, in *Peer, opts ...grpc.CallOption) (*MediaStream, error)
 	ExecuteAction(ctx context.Context, in *MediaAction, opts ...grpc.CallOption) (*MediaActionResult, error)
+	ExecuteActionWithNotify(ctx context.Context, in *MediaAction, opts ...grpc.CallOption) (MediaApi_ExecuteActionWithNotifyClient, error)
 }
 
 type mediaApiClient struct {
@@ -48,12 +49,45 @@ func (c *mediaApiClient) ExecuteAction(ctx context.Context, in *MediaAction, opt
 	return out, nil
 }
 
+func (c *mediaApiClient) ExecuteActionWithNotify(ctx context.Context, in *MediaAction, opts ...grpc.CallOption) (MediaApi_ExecuteActionWithNotifyClient, error) {
+	stream, err := c.cc.NewStream(ctx, &MediaApi_ServiceDesc.Streams[0], "/rpc.MediaApi/ExecuteActionWithNotify", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &mediaApiExecuteActionWithNotifyClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type MediaApi_ExecuteActionWithNotifyClient interface {
+	Recv() (*MediaActionEvent, error)
+	grpc.ClientStream
+}
+
+type mediaApiExecuteActionWithNotifyClient struct {
+	grpc.ClientStream
+}
+
+func (x *mediaApiExecuteActionWithNotifyClient) Recv() (*MediaActionEvent, error) {
+	m := new(MediaActionEvent)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // MediaApiServer is the server API for MediaApi service.
 // All implementations must embed UnimplementedMediaApiServer
 // for forward compatibility
 type MediaApiServer interface {
 	PrepareMediaStream(context.Context, *Peer) (*MediaStream, error)
 	ExecuteAction(context.Context, *MediaAction) (*MediaActionResult, error)
+	ExecuteActionWithNotify(*MediaAction, MediaApi_ExecuteActionWithNotifyServer) error
 	mustEmbedUnimplementedMediaApiServer()
 }
 
@@ -66,6 +100,9 @@ func (UnimplementedMediaApiServer) PrepareMediaStream(context.Context, *Peer) (*
 }
 func (UnimplementedMediaApiServer) ExecuteAction(context.Context, *MediaAction) (*MediaActionResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ExecuteAction not implemented")
+}
+func (UnimplementedMediaApiServer) ExecuteActionWithNotify(*MediaAction, MediaApi_ExecuteActionWithNotifyServer) error {
+	return status.Errorf(codes.Unimplemented, "method ExecuteActionWithNotify not implemented")
 }
 func (UnimplementedMediaApiServer) mustEmbedUnimplementedMediaApiServer() {}
 
@@ -116,6 +153,27 @@ func _MediaApi_ExecuteAction_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MediaApi_ExecuteActionWithNotify_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(MediaAction)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(MediaApiServer).ExecuteActionWithNotify(m, &mediaApiExecuteActionWithNotifyServer{stream})
+}
+
+type MediaApi_ExecuteActionWithNotifyServer interface {
+	Send(*MediaActionEvent) error
+	grpc.ServerStream
+}
+
+type mediaApiExecuteActionWithNotifyServer struct {
+	grpc.ServerStream
+}
+
+func (x *mediaApiExecuteActionWithNotifyServer) Send(m *MediaActionEvent) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 // MediaApi_ServiceDesc is the grpc.ServiceDesc for MediaApi service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -132,6 +190,12 @@ var MediaApi_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _MediaApi_ExecuteAction_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "ExecuteActionWithNotify",
+			Handler:       _MediaApi_ExecuteActionWithNotify_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "msapi.proto",
 }

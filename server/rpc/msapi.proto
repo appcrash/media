@@ -18,15 +18,16 @@ message MediaStream {
 
 message MediaAction {
   string stream_id = 1;
-  string action = 2;
+  string cmd = 2;
+  string cmd_arg = 3;
 }
 
 message MediaActionResult {
   string stream_id = 1;
-  string result = 2;
+  string state = 2;
 }
 
-message MediaEvent {
+message MediaActionEvent {
   string stream_id = 1;
   string event = 2;
 }
@@ -35,4 +36,5 @@ message MediaEvent {
 service MediaApi {
   rpc PrepareMediaStream(Peer) returns (MediaStream) {}
   rpc ExecuteAction(MediaAction) returns (MediaActionResult) {}
+  rpc ExecuteActionWithNotify(MediaAction) returns (stream MediaActionEvent) {}
 }
