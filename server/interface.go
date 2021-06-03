@@ -1,7 +1,7 @@
 package server
 
 type TraitEnum uint8
-type ExecutorCtrlChan chan string
+type ExecuteCtrlChan chan string
 
 const (
 	CMD_TRAIT_SIMPLE = iota
@@ -13,21 +13,26 @@ type CommandTrait struct {
 	CmdTrait TraitEnum
 }
 
-type CommandExecutor interface {
+type CommandExecute interface {
 	Execute(s *MediaSession,cmd string,args string)
-	ExecuteWithNotify(s *MediaSession,cmd string,args string,ctrlIn ExecutorCtrlChan,ctrlOut ExecutorCtrlChan)
+	ExecuteWithNotify(s *MediaSession,cmd string,args string,ctrlIn ExecuteCtrlChan,ctrlOut ExecuteCtrlChan)
 	GetCommandTrait() []CommandTrait
 }
 
-type Sourcer interface {
-	// TODO: add methods
+type Source interface {
+	PullData(s *MediaSession) (data []byte,timestampAdvanced uint32)
 }
 
-type Sinker interface {
-	Init(s *MediaSession)
+type Sink interface {
 	HandleData(s *MediaSession,data []byte) (shouldContinue bool)
 }
 
+type SourceFactory interface {
+	NewSource(s *MediaSession) Source
+}
+type SinkFactory interface {
+	NewSink(s *MediaSession) Sink
+}
 
 
 
