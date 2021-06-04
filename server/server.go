@@ -7,6 +7,7 @@ import (
 	"github.com/appcrash/media/server/rpc"
 	"google.golang.org/grpc"
 	"net"
+	"runtime/debug"
 	"sync"
 )
 
@@ -51,6 +52,13 @@ func (msrv *MediaServer) ExecuteAction(ctx context.Context,action *rpc.MediaActi
 		StreamId: sessionId,
 	}
 
+	defer func() {
+		if r := recover(); r != nil {
+			debug.PrintStack()
+			fmt.Errorf("ExecuteAction panic(recovered)")
+		}
+	}()
+
 	if ok {
 		session := s.(*MediaSession)
 		cmd := action.GetCmd()
@@ -74,6 +82,13 @@ func (msrv *MediaServer) ExecuteActionWithNotify(action *rpc.MediaAction,stream 
 		StreamId: sessionId,
 	}
 
+	defer func() {
+		if r := recover(); r != nil {
+			debug.PrintStack()
+			fmt.Errorf("ExecuteActionWithNotify panic(recovered)")
+		}
+	}()
+
 	if ok {
 		session := s.(*MediaSession)
 		cmd := action.GetCmd()
@@ -85,6 +100,8 @@ func (msrv *MediaServer) ExecuteActionWithNotify(action *rpc.MediaAction,stream 
 			go exec.ExecuteWithNotify(session,cmd,arg,ctrlIn,ctrlOut)
 
 			shouldExit := false
+
+outLoop:
 			for {
 				select {
 				case msg,more := <- ctrlOut:
@@ -101,7 +118,7 @@ func (msrv *MediaServer) ExecuteActionWithNotify(action *rpc.MediaAction,stream 
 						// either executor runs out of message or send stream with error, exit the loop
 						// notify executor by closing the ctrl channel
 						close(ctrlIn)
-						break
+						break outLoop
 					}
 				}
 			}

@@ -6,6 +6,7 @@ import (
 	cmap "github.com/orcaman/concurrent-map"
 	"github.com/wernerd/GoRTP/src/net/rtp"
 	"net"
+	"runtime/debug"
 	"time"
 )
 
@@ -73,19 +74,42 @@ func (session *MediaSession) GetSink() Sink {
 	return session.sink
 }
 
+// receive rtcp packet
+func (session *MediaSession) receiveCtrlLoop() {
+	ctrlReceiver := session.rtpSession.CreateCtrlEventChan()
+	for {
+		select {
+		case eventArray := <- ctrlReceiver:
+			for _,event := range eventArray {
+				if event.EventType == rtp.RtcpBye {
+					// peer send bye, notify data send/receive loop to stop
+					session.sndCtrlC <- "stop"
+					session.rcvCtrlC <- "stop"
+					// and also terminate myself
+					return
+				}
+			}
+		}
+	}
+}
+
 func (session *MediaSession) receivePacketLoop() {
 	// Create and store the data receive channel.
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Errorf("receivePacketLoop panic(recovered)")
+			debug.PrintStack()
+		}
+	}()
+
 	rtpSession := session.rtpSession
 	dataReceiver := rtpSession.CreateDataReceiveChan()
-	var cnt int
+
+outLoop:
 	for {
 		select {
 		case rp := <-dataReceiver:
-			if (cnt % 50) == 0 {
-				println("Remote receiver got:", cnt, "packets")
-			}
 			data := rp.Payload()
-
 			// send received data to all sinkers, then free the packet
 			//for _,s := range session.sinkerList {
 			//	if shouldContinue := s.HandleData(session,data); !shouldContinue {
@@ -93,49 +117,39 @@ func (session *MediaSession) receivePacketLoop() {
 			//	}
 			//}
 			session.sink.HandleData(session,data)
-
-			cnt++
 			rp.FreePacket()
 		case cmd := <-session.rcvCtrlC:
 			if cmd == "stop" {
-				println("stop local receive")
+				fmt.Println("stop local receive")
 			}
-			return
+			break outLoop
 		}
 	}
+
+	// TODO: clean up here
 }
 
 func (session *MediaSession) sendPacketLoop() {
-	//sendBuffer := []byte{}
-	//sendPtr := int(math.MaxInt32)
-	//sendStep := int(0)
 	var ts uint32 = 0
-
 	ticker := time.NewTicker(20 * time.Millisecond)
 
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("sendPacketLoop panic %v",r)
+			debug.PrintStack()
+		}
+	}()
+
+outLoop:
 	for {
 		select {
 			case <- ticker.C:
-				// if send buffer is done, stop the ticker until send buffer activated again
-				// otherwise forward the send point and feed the data to rtp
-				//if sendPtr >= len(sendBuffer) {
-				//	fmt.Println("sendPtr out of buffer range, stop ticker")
-				//	ticker.Stop()
-				//} else {
-				//	nextPtr := sendPtr + sendStep
-				//	if nextPtr > len(sendBuffer) {
-				//		nextPtr = len(sendBuffer)
-				//	}
-				//	payload := sendBuffer[sendPtr : nextPtr]
-				//	packet := session.rtpSession.NewDataPacket(ts)
-				//	ts += uint32(sendStep)  // TODO: use real timestamp step
-				//	packet.SetPayload(payload)
-				//	session.rtpSession.WriteData(packet)
-				//	packet.FreePacket()
-				//	sendPtr = nextPtr
-				//}
 				data,tsAdv := session.source.PullData(session)
 				if data != nil {
+					if session.rtpSession == nil {
+						fmt.Println("########################")
+					}
+					session.rtpSession.SsrcStreamClose()
 					packet := session.rtpSession.NewDataPacket(ts)
 					packet.SetPayload(data)
 					session.rtpSession.WriteData(packet)
@@ -143,30 +157,19 @@ func (session *MediaSession) sendPacketLoop() {
 					ts += tsAdv
 				}
 			case cmd := <-session.sndCtrlC:
-				//if cmd == "stop" {
-				//	break
-				//} else {
-				//	if mediaData, err := ioutil.ReadFile(cmd); err == nil {
-				//		fmt.Println("start playing file: %v",cmd)
-				//		wavData := WavPayload(mediaData)
-				//		sendBuffer = wavData
-				//		sendPtr = 0
-				//		sendStep = PCMAPayLoadLength
-				//		ticker.Reset(20 * time.Millisecond)
-				//	} else {
-				//		fmt.Println("error: can not find file %v when change send buffer",cmd)
-				//	}
-				//}
 				if cmd == "stop" {
-					break
+					break outLoop
 				}
 		}
 	}
+
+	// TODO: clean up here
 
 }
 
 func (session *MediaSession) StartSession() {
 	session.rtpSession.StartSession()
+	go session.receiveCtrlLoop()
 	go session.receivePacketLoop()
 	go session.sendPacketLoop()
 }
@@ -174,8 +177,8 @@ func (session *MediaSession) StartSession() {
 func (session *MediaSession) AddRemote(ip string, port int) {
 	ipaddr := net.ParseIP(ip)
 
-	println("peer ip port ",ipaddr,port)
-	println("session is ", session)
+	//println("peer ip port ",ipaddr,port)
+	//println("session is ", session)
 	session.rtpSession.AddRemote(&rtp.Address{
 		IPAddr:   ipaddr,
 		DataPort: port,
