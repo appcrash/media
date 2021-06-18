@@ -83,8 +83,10 @@ func (session *MediaSession) receiveCtrlLoop() {
 			for _,event := range eventArray {
 				if event.EventType == rtp.RtcpBye {
 					// peer send bye, notify data send/receive loop to stop
+					fmt.Println("rtp peer says bye")
 					session.sndCtrlC <- "stop"
 					session.rcvCtrlC <- "stop"
+					fmt.Println("sent stop cmd to send/recv loops")
 					// and also terminate myself
 					return
 				}

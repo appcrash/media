@@ -3,46 +3,36 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <string.h>
-#include <libavformat/avformat.h>
-#include <libavcodec/avcodec.h>
-#include <libavutil/avutil.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "codec.h"
 
 struct DecodedFrame *convert_format(char *pcma_payload,int plen)
-{ /* FILE *fp; */
-    /* size_t plen; */
-    /* uint8_t *payload = av_malloc(PSIZE); */
-
-    /* fp = fopen("/home/yh/develop/xmedia/media_dir/100203.wav","rb"); */
-    /* plen = fread(payload,1,PSIZE,fp); */
-    /* fclose(fp); */
-
-    /* uint8_t *orig_payload = payload; */
-    /* payload = (uint8_t*)memmem(payload,plen,"data",4); */
-    /* unsigned int diff = (payload - orig_payload); */
-    /* plen -= diff; */
-    /* payload = orig_payload + diff; */
-
-
+{
     AVCodec *codec = avcodec_find_decoder(AV_CODEC_ID_PCM_ALAW);
-    AVCodecContext *context = avcodec_alloc_context3(codec);
-    AVPacket *packet = av_packet_alloc();
-    AVFrame *frame = av_frame_alloc();
-    av_packet_from_data(packet, (uint8_t*)pcma_payload, plen);
+    AVCodecContext *context;
+    AVPacket *packet;
+    packet = av_packet_alloc();
+    if (av_new_packet(packet, plen) != 0) {
+        fprintf(stderr,"packet cannot be alloc/initialized\n");
+        return NULL;
+    }
+    memcpy(packet->data,pcma_payload,plen);
 
+    context = avcodec_alloc_context3(codec);
     context->sample_rate = 8000;
-    //context->sample_fmt = AV_SAMPLE_FMT_S32;
     context->channels = 1;
+    //context->sample_fmt = AV_SAMPLE_FMT_S32;
     //context->channel_layout = AV_CH_LAYOUT_MONO;
 
     if (avcodec_open2(context, codec, NULL) < 0) {
-        printf("avcodec_open2 error");
+        fprintf(stderr,"avcodec_open2 error\n");
         exit(1);
     }
 
-
     int ret;
+    AVFrame *frame = av_frame_alloc();
     ret = avcodec_send_packet(context, packet);
     //printf("avcodec_send_packet ret %d\n",ret);
     ret = avcodec_receive_frame(context, frame);
@@ -59,14 +49,145 @@ struct DecodedFrame *convert_format(char *pcma_payload,int plen)
     df->data = decoded_copy;
     df->size = decoded_size;
 
-
-    /* fp = fopen("pcm-s16.output","wb"); */
-    /* fwrite(decoded_data,sample_size,frame->nb_samples,fp); */
-    /* fclose(fp); */
-
     avcodec_free_context(&context);
     av_packet_free(&packet);
     av_frame_free(&frame);
 
     return df;
+}
+
+struct Payload* read_media_file(const char* file_path)
+{
+    AVFormatContext *ctx = NULL;
+    int ret;
+    AVPacket pkt;
+    struct Payload *payload = NULL;
+    struct stat fstat;
+
+    if (!file_path) {
+        fprintf(stderr,"read media file with file_path null\n");
+        goto error;
+    }
+    if (stat(file_path,&fstat) < 0) {
+        fprintf(stderr,"read media file %s with stat error\n",file_path);
+        goto error;
+    }
+    if (fstat.st_size == 0) {
+        fprintf(stderr,"read media file %s with size 0\n",file_path);
+        goto error;
+    }
+    // ensure payload buffer is enough to hold all data
+    // as it will be freed in go soon, wasting some bytes is ok
+    payload = malloc(sizeof(struct Payload));
+    payload->data = (char*)malloc(fstat.st_size);
+    payload->size = 0;
+
+    ret = avformat_open_input(&ctx, file_path, NULL, NULL);
+    if (ret < 0) {
+        fprintf(stderr,"read media file error\n");
+        goto error;
+    }
+    ret = avformat_find_stream_info(ctx, NULL);
+    if (ret < 0) {
+        fprintf(stderr,"find stream info failed\n");
+        goto error;
+    }
+    payload->bitrate = ctx->bit_rate;
+
+    printf("nbstream is %d\nbitrate is %ld\npacket size is %d\nduration is %ld\n",
+           ctx->nb_streams,ctx->bit_rate,ctx->packet_size,ctx->duration);
+    printf("codec_id is %d\n",ctx->streams[0]->codecpar->codec_id);
+    while(1) {
+        ret = av_read_frame(ctx,&pkt);
+        if (ret == AVERROR_EOF) {
+            printf("eof is met, return\n");
+            break;
+        }
+        //printf("pkt size is %d\n",pkt.size);
+        memcpy(&payload->data[payload->size],pkt.data,pkt.size);
+        payload->size += pkt.size;
+    }
+
+    avformat_close_input(&ctx);
+    return payload;
+
+error:
+    if (ctx) {
+        avformat_close_input(&ctx);
+    }
+    if (payload) {
+        if (payload->data) {
+            free(payload->data);
+        }
+        free(payload);
+    }
+    return NULL;
+}
+
+// support one channel only
+int write_media_file(char *payload,int length,const char *file_path,int codec_id)
+{
+    AVFormatContext *ctx = NULL;
+    AVStream *ostream = NULL;
+    AVPacket pkt;
+    int ret;
+
+    ret = avformat_alloc_output_context2(&ctx,NULL,NULL,file_path);
+    if (ret < 0) {
+        fprintf(stderr,"avformat_alloc_output_context2 failed\n");
+        goto error;
+    }
+    ostream = avformat_new_stream(ctx, NULL);
+    if (!ostream) {
+        fprintf(stderr,"avformat_new_stream failed\n");
+        goto error;
+    }
+
+    AVCodecParameters *cp = ostream->codecpar;
+
+    cp->channels = 1;
+    cp->sample_rate = 8000;
+    cp->codec_id = codec_id;
+    cp->codec_type = AVMEDIA_TYPE_AUDIO;
+
+    printf("file path is %s\n",file_path);
+    printf("format is %s\n",ctx->oformat->name);
+
+    if (!(ctx->oformat->flags & AVFMT_NOFILE)) {
+        printf("oformat flags is %x\n",ctx->oformat->flags);
+        ret = avio_open(&ctx->pb, file_path, AVIO_FLAG_WRITE);
+        if (ret < 0) {
+            fprintf(stderr, "Could not open output file '%s'", file_path);
+            goto error;
+        }
+    }
+
+
+    ret = avformat_write_header(ctx, NULL);
+    if (ret < 0) {
+        fprintf(stderr, "avformat_write_header failed\n");
+        goto error;
+    }
+    printf(".....4\n");
+
+    pkt.data = (uint8_t*)payload;
+    pkt.size = length;
+    pkt.stream_index = 0;
+    pkt.duration = 6380000;
+
+    ret = av_write_frame(ctx, &pkt);
+    if (ret < 0) {
+        fprintf(stderr,"av_write_frame failed\n");
+        goto error;
+    }
+    av_write_trailer(ctx);
+    avformat_free_context(ctx);
+
+    return 0;
+
+error:
+    if (ctx) {
+        avformat_free_context(ctx);
+    }
+    return -1;
 }

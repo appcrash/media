@@ -1,5 +1,7 @@
 .idea/
 main
 
+compile_commands.json
+
 *.wav
 
