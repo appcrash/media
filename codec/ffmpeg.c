@@ -125,7 +125,7 @@ error:
 }
 
 // support one channel only
-int write_media_file(char *payload,int length,const char *file_path,int codec_id)
+int write_media_file(char *payload,int length,const char *file_path,int codec_id,int duration)
 {
     AVFormatContext *ctx = NULL;
     AVStream *ostream = NULL;
@@ -152,12 +152,13 @@ int write_media_file(char *payload,int length,const char *file_path,int codec_id
 
     printf("file path is %s\n",file_path);
     printf("format is %s\n",ctx->oformat->name);
+    printf("length is %d, duration is %d\n",length,duration);
 
     if (!(ctx->oformat->flags & AVFMT_NOFILE)) {
         printf("oformat flags is %x\n",ctx->oformat->flags);
         ret = avio_open(&ctx->pb, file_path, AVIO_FLAG_WRITE);
         if (ret < 0) {
-            fprintf(stderr, "Could not open output file '%s'", file_path);
+            PERR("Could not open output file '%s'", file_path);
             goto error;
         }
     }
@@ -165,19 +166,18 @@ int write_media_file(char *payload,int length,const char *file_path,int codec_id
 
     ret = avformat_write_header(ctx, NULL);
     if (ret < 0) {
-        fprintf(stderr, "avformat_write_header failed\n");
+        PERR("avformat_write_header failed");
         goto error;
     }
-    printf(".....4\n");
 
     pkt.data = (uint8_t*)payload;
     pkt.size = length;
     pkt.stream_index = 0;
-    pkt.duration = 6380000;
+    pkt.duration = duration;
 
     ret = av_write_frame(ctx, &pkt);
     if (ret < 0) {
-        fprintf(stderr,"av_write_frame failed\n");
+        PERR("av_write_frame failed");
         goto error;
     }
     av_write_trailer(ctx);

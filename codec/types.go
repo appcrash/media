@@ -3,6 +3,12 @@ package codec
 //#include <libavformat/avformat.h>
 import "C"
 
+const(
+	EAGAIN = C.EAGAIN
+)
+
+
+// CODEC ID
 const (
 	AV_CODEC_ID_NONE               = C.AV_CODEC_ID_NONE
 	AV_CODEC_ID_MPEG1VIDEO         = C.AV_CODEC_ID_MPEG1VIDEO
@@ -456,4 +462,24 @@ const (
 	AV_CODEC_ID_MPEG4SYSTEMS       = C.AV_CODEC_ID_MPEG4SYSTEMS
 	AV_CODEC_ID_FFMETADATA         = C.AV_CODEC_ID_FFMETADATA
 	AV_CODEC_ID_WRAPPED_AVFRAME    = C.AV_CODEC_ID_WRAPPED_AVFRAME
+)
+
+// SAMPLE FORMAT
+const (
+    AV_SAMPLE_FMT_NONE = C.AV_SAMPLE_FMT_NONE
+    AV_SAMPLE_FMT_U8 = C.AV_SAMPLE_FMT_U8          ///< unsigned 8 bit
+    AV_SAMPLE_FMT_S16 = C.AV_SAMPLE_FMT_S16         ///< signed 16 bit
+    AV_SAMPLE_FMT_S32 = C.AV_SAMPLE_FMT_S32         ///< signed 32 bit
+    AV_SAMPLE_FMT_FLT = C.AV_SAMPLE_FMT_FLT         ///< floa
+    AV_SAMPLE_FMT_DBL = C.AV_SAMPLE_FMT_DBL         ///< doubl
+
+    AV_SAMPLE_FMT_U8P = C.AV_SAMPLE_FMT_U8P         ///< unsigned 8 bits, plana
+    AV_SAMPLE_FMT_S16P = C.AV_SAMPLE_FMT_S16P        ///< signed 16 bits, plana
+    AV_SAMPLE_FMT_S32P = C.AV_SAMPLE_FMT_S32P        ///< signed 32 bits, plana
+    AV_SAMPLE_FMT_FLTP = C.AV_SAMPLE_FMT_FLTP        ///< float, plana
+    AV_SAMPLE_FMT_DBLP = C.AV_SAMPLE_FMT_DBLP        ///< double, plana
+    AV_SAMPLE_FMT_S64 = C.AV_SAMPLE_FMT_S64         ///< signed 64 bit
+    AV_SAMPLE_FMT_S64P = C.AV_SAMPLE_FMT_S64P        ///< signed 64 bits, plana
+
+    AV_SAMPLE_FMT_NB  = C.AV_SAMPLE_FMT_NB           ///< Numb
 )

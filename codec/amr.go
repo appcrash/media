@@ -26,3 +26,14 @@ func AmrSplitToFrames(payload []byte) (frames [][]byte) {
 	}
 	return
 }
+
+func AmrFrameToRtpPayload(payload [][]byte) (rtpPayload [][]byte) {
+	for _,p := range payload {
+		toc := []byte{p[0] & 0x7f} // set F bit zero, so this is the last frame in the payload(only one)
+		header := []byte{0xf0}   // CMR is 15, no mode change required
+		rp := append(header,toc...)
+		rp = append(rp,p[1:]...)
+		rtpPayload = append(rtpPayload,rp)
+	}
+	return
+}

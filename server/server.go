@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/appcrash/media/server/rpc"
+	"github.com/wernerd/GoRTP/src/net/rtp"
 	"google.golang.org/grpc"
 	"net"
 	"runtime/debug"
@@ -17,21 +18,29 @@ type MediaServer struct {
 	simpleExecutorMap sync.Map
 	streamExecutorMap sync.Map
 
-	sourceF SourceFactory
-	sinkF SinkFactory
+	sourceF []SourceFactory
+	sinkF []SinkFactory
 }
 
 var local, _ = net.ResolveIPAddr("ip", "127.0.0.1")
-
 
 
 func (msrv *MediaServer) PrepareMediaStream(ctx context.Context, peer *rpc.Peer) (*rpc.MediaStream, error) {
 	fmt.Println("peer is ",peer)
 	port := getNextPort()
 
-	session := createSession(int(port))
-	session.source = msrv.sourceF.NewSource(session)
-	session.sink = msrv.sinkF.NewSink(session)
+	session := createSession(int(port),peer.GetPayloadType())
+
+	// initialize source/sink list for each session
+	// the factory's order is important
+	for _,factory := range msrv.sourceF {
+		src := factory.NewSource(session)
+		session.source = append(session.source,src)
+	}
+	for _,factory := range msrv.sinkF {
+		sink := factory.NewSink(session)
+		session.sink = append(session.sink,sink)
+	}
 
 	session.AddRemote(peer.GetIp(),int(peer.GetPort()))
 	session.StartSession()
@@ -100,7 +109,6 @@ func (msrv *MediaServer) ExecuteActionWithNotify(action *rpc.MediaAction,stream 
 			go exec.ExecuteWithNotify(session,cmd,arg,ctrlIn,ctrlOut)
 
 			shouldExit := false
-
 outLoop:
 			for {
 				select {
@@ -130,8 +138,17 @@ outLoop:
 	return errors.New("cmd not exist")
 }
 
+var rtpPatched = false
+func patchRtpStack() {
+	if (!rtpPatched) {
+		pmap := rtp.PayloadFormatMap
+		pmap[96] = &rtp.PayloadFormat{96, rtp.Audio, 8000, 1, "AMR"}
+		rtpPatched = true
+	}
+}
 
-func InitServer(port uint16,executorList []CommandExecute,sourceF SourceFactory,sinkF SinkFactory){
+func InitServer(port uint16,executorList []CommandExecute,sourceF []SourceFactory,sinkF []SinkFactory){
+	patchRtpStack()
 	lis, _ := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
 	server := MediaServer{
 		listenPort: port,

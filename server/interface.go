@@ -19,10 +19,19 @@ type CommandExecute interface {
 	GetCommandTrait() []CommandTrait
 }
 
+// source provides data for RTP session
+// either generates data by it own or append/change data from previous source
+// data from last source in source-list would be used by RTP send loop ultimately
+// so be careful to order of sources
+// NOTE: the first source would get previousData as nil, previousTs as 0
 type Source interface {
-	PullData(s *MediaSession) (data []byte,timestampAdvanced uint32)
+	PullData(s *MediaSession,previousData []byte,previousTs uint32) (data []byte,timestampAdvanced uint32)
 }
 
+// sink consumes data from RTP session
+// receive loop fetches rtp payload and feeds it to all sink in sink-list
+// each sink should return true if the payload can be used by following sinks or
+// return false to stop this process (so following sinks can not get the payload)
 type Sink interface {
 	HandleData(s *MediaSession,data []byte) (shouldContinue bool)
 }

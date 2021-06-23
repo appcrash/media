@@ -1,5 +1,7 @@
 package codec
+
 //#cgo pkg-config: libavformat libavcodec libavutil
+//
 //#include <stdio.h>
 //#include <stdlib.h>
 //#include <inttypes.h>
@@ -14,15 +16,16 @@ import (
 )
 
 type (
-	DecodedFrame = C.struct_DecodedFrame
+	DecodedFrame     = C.struct_DecodedFrame
+	TranscodeContext = C.struct_TranscodeContext
 )
 
 func ConvertFormat(payload []byte) []byte {
 	cpayload := C.CBytes(payload)
 	defer C.free(unsafe.Pointer(cpayload))
-	var df *DecodedFrame = (*DecodedFrame)(C.convert_format((*C.char)(cpayload),C.int(len(payload))))
+	var df *DecodedFrame = (*DecodedFrame)(C.convert_format((*C.char)(cpayload), C.int(len(payload))))
 
-	var converted []byte = C.GoBytes(unsafe.Pointer(df.data),df.size)
+	var converted []byte = C.GoBytes(unsafe.Pointer(df.data), df.size)
 	C.free(unsafe.Pointer(df.data))
 	C.free(unsafe.Pointer(df))
 	return converted
@@ -33,10 +36,10 @@ func GetPayloadFromFile(fp string) []byte {
 	payload := (*C.struct_Payload)(C.read_media_file(cfp))
 	C.free(unsafe.Pointer(cfp))
 
-	fmt.Printf("data is size:%v,bitrate:%v,frame_size:%v\n",payload.size,payload.bitrate,
-		BitrateToFrameSize(float64(payload.bitrate),20))
+	fmt.Printf("data is size:%v,bitrate:%v,frame_size:%v\n", payload.size, payload.bitrate,
+		BitrateToFrameSize(float64(payload.bitrate), 20))
 	if payload != nil {
-		data := C.GoBytes(unsafe.Pointer(payload.data),payload.size)
+		data := C.GoBytes(unsafe.Pointer(payload.data), payload.size)
 		C.free(unsafe.Pointer(payload.data))
 		C.free(unsafe.Pointer(payload))
 		return data
@@ -44,10 +47,35 @@ func GetPayloadFromFile(fp string) []byte {
 	return nil
 }
 
-func WritePayloadToFile(payload []byte,fileName string,codecId int) (ret int){
+func WritePayloadToFile(payload []byte, fileName string, codecId int,duration int) (ret int) {
 	cfileName := C.CString(fileName)
-	v := C.write_media_file((*C.char)(unsafe.Pointer(&payload[0])),C.int(len(payload)),(*C.char)(cfileName),C.int(codecId))
+	v := C.write_media_file((*C.char)(unsafe.Pointer(&payload[0])), C.int(len(payload)), (*C.char)(cfileName), C.int(codecId),C.int(duration))
 	ret = int(v)
 	C.free(unsafe.Pointer(cfileName))
 	return
+}
+
+func (frame *DecodedFrame) ToBytes() []byte {
+	return C.GoBytes(unsafe.Pointer(frame.data), frame.size)
+}
+func (frame *DecodedFrame) Free() {
+	C.free(unsafe.Pointer(frame))
+}
+
+
+func TranscodeNew(fromCodecName string, fromFrameRate int, toCodecId int) *TranscodeContext{
+	name := C.CString(fromCodecName)
+	defer C.free(unsafe.Pointer(name))
+	return (*TranscodeContext)(C.transcode_init_context(name,C.int(fromFrameRate),C.int(toCodecId)))
+}
+
+func (context *TranscodeContext) Iterate(data []byte) (frame *DecodedFrame,reason int) {
+	dataLen := len(data)
+	frame = C.transcode_iterate(context,(*C.char)(unsafe.Pointer(&data[0])),
+		C.int(dataLen),(*C.int)(unsafe.Pointer(&reason)))
+	return
+}
+
+func (context *TranscodeContext) Free() {
+	C.transcode_free(context)
 }

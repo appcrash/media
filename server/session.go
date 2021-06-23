@@ -6,6 +6,7 @@ import (
 	cmap "github.com/orcaman/concurrent-map"
 	"github.com/wernerd/GoRTP/src/net/rtp"
 	"net"
+	"os"
 	"runtime/debug"
 	"time"
 )
@@ -13,11 +14,13 @@ import (
 type MediaSession struct {
 	sessionId  string
 	rtpSession *rtp.Session
+	payloadType uint32
+
 	sndCtrlC   chan string
 	rcvCtrlC   chan string
 
-	source Source
-	sink Sink
+	source []Source
+	sink []Sink
 }
 
 var sessionMap = cmap.New()
@@ -41,7 +44,7 @@ func WavPayload(wavData []byte) (rtpPayload []byte) {
 }
 
 
-func createSession(localPort int) *MediaSession{
+func createSession(localPort int,payloadType uint32) *MediaSession{
 	tpLocal, _ := rtp.NewTransportUDP(local, localPort,"")
 	session := rtp.NewSession(tpLocal, tpLocal)
 	strLocalIdx, _ := session.NewSsrcStreamOut(&rtp.Address{
@@ -50,11 +53,12 @@ func createSession(localPort int) *MediaSession{
 		CtrlPort: 1 + localPort,
 		Zone : "",
 	}, 0, 0)
-	session.SsrcStreamOutForIndex(strLocalIdx).SetPayloadType(8)
+	session.SsrcStreamOutForIndex(strLocalIdx).SetPayloadType(byte(payloadType))
 
 	ms := MediaSession{
 			sessionId:  uuid.New().String(),
 			rtpSession: session,
+			payloadType: payloadType,
 			sndCtrlC:   make(chan string,2),  // use buffered version avoiding deadlock
 			rcvCtrlC:   make(chan string,2),
 	}
@@ -66,11 +70,15 @@ func (session *MediaSession) GetSessionId() string {
 	return session.sessionId
 }
 
-func (session *MediaSession) GetSource() Source {
+func (session *MediaSession) GetPayloadType() uint32 {
+	return session.payloadType
+}
+
+func (session *MediaSession) GetSource() []Source {
 	return session.source
 }
 
-func (session *MediaSession) GetSink() Sink {
+func (session *MediaSession) GetSink() []Sink {
 	return session.sink
 }
 
@@ -107,18 +115,21 @@ func (session *MediaSession) receivePacketLoop() {
 	rtpSession := session.rtpSession
 	dataReceiver := rtpSession.CreateDataReceiveChan()
 
+
+
 outLoop:
 	for {
 		select {
 		case rp := <-dataReceiver:
 			data := rp.Payload()
-			// send received data to all sinkers, then free the packet
-			//for _,s := range session.sinkerList {
-			//	if shouldContinue := s.HandleData(session,data); !shouldContinue {
-			//		break
-			//	}
-			//}
-			session.sink.HandleData(session,data)
+
+			//fmt.Printf("data len is %v",len(data))
+			// push received data to all sinkers, then free the packet
+			for _,s := range session.sink {
+				if shouldContinue := s.HandleData(session,data); !shouldContinue {
+					break
+				}
+			}
 			rp.FreePacket()
 		case cmd := <-session.rcvCtrlC:
 			if cmd == "stop" {
@@ -142,21 +153,36 @@ func (session *MediaSession) sendPacketLoop() {
 		}
 	}()
 
+	file, _ := os.Create("/home/yh/Downloads/out.amr")
+	defer file.Close()
+	file.Write([]byte("#!AMR\n"))
+
 outLoop:
 	for {
 		select {
 			case <- ticker.C:
-				data,tsAdv := session.source.PullData(session)
+				var payload,data []byte
+				var tsDelta uint32
+
+				// pull data from all sources
+				for _,source := range session.source {
+					data,tsDelta = source.PullData(session,payload,tsDelta)
+				}
 				if data != nil {
 					if session.rtpSession == nil {
 						fmt.Println("########################")
 					}
-					session.rtpSession.SsrcStreamClose()
+					//session.rtpSession.SsrcStreamClose()
+					//toc := data[1] & 0x7f
+					//file.Write([]byte{toc})
+					//file.Write(data[2:])
+
 					packet := session.rtpSession.NewDataPacket(ts)
 					packet.SetPayload(data)
+
 					session.rtpSession.WriteData(packet)
 					packet.FreePacket()
-					ts += tsAdv
+					ts += tsDelta
 				}
 			case cmd := <-session.sndCtrlC:
 				if cmd == "stop" {
@@ -170,6 +196,7 @@ outLoop:
 }
 
 func (session *MediaSession) StartSession() {
+	session.rtpSession.RtcpSessionBandwidth = 5000
 	session.rtpSession.StartSession()
 	go session.receiveCtrlLoop()
 	go session.receivePacketLoop()
