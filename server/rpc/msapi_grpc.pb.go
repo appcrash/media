@@ -18,7 +18,9 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MediaApiClient interface {
-	PrepareMediaStream(ctx context.Context, in *Peer, opts ...grpc.CallOption) (*MediaStream, error)
+	PrepareMediaStream(ctx context.Context, in *MediaParam, opts ...grpc.CallOption) (*MediaStream, error)
+	StartSession(ctx context.Context, in *SessionParam, opts ...grpc.CallOption) (*SessionStatus, error)
+	StopSession(ctx context.Context, in *SessionParam, opts ...grpc.CallOption) (*SessionStatus, error)
 	ExecuteAction(ctx context.Context, in *MediaAction, opts ...grpc.CallOption) (*MediaActionResult, error)
 	ExecuteActionWithNotify(ctx context.Context, in *MediaAction, opts ...grpc.CallOption) (MediaApi_ExecuteActionWithNotifyClient, error)
 }
@@ -31,9 +33,27 @@ func NewMediaApiClient(cc grpc.ClientConnInterface) MediaApiClient {
 	return &mediaApiClient{cc}
 }
 
-func (c *mediaApiClient) PrepareMediaStream(ctx context.Context, in *Peer, opts ...grpc.CallOption) (*MediaStream, error) {
+func (c *mediaApiClient) PrepareMediaStream(ctx context.Context, in *MediaParam, opts ...grpc.CallOption) (*MediaStream, error) {
 	out := new(MediaStream)
 	err := c.cc.Invoke(ctx, "/rpc.MediaApi/PrepareMediaStream", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mediaApiClient) StartSession(ctx context.Context, in *SessionParam, opts ...grpc.CallOption) (*SessionStatus, error) {
+	out := new(SessionStatus)
+	err := c.cc.Invoke(ctx, "/rpc.MediaApi/StartSession", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mediaApiClient) StopSession(ctx context.Context, in *SessionParam, opts ...grpc.CallOption) (*SessionStatus, error) {
+	out := new(SessionStatus)
+	err := c.cc.Invoke(ctx, "/rpc.MediaApi/StopSession", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +105,9 @@ func (x *mediaApiExecuteActionWithNotifyClient) Recv() (*MediaActionEvent, error
 // All implementations must embed UnimplementedMediaApiServer
 // for forward compatibility
 type MediaApiServer interface {
-	PrepareMediaStream(context.Context, *Peer) (*MediaStream, error)
+	PrepareMediaStream(context.Context, *MediaParam) (*MediaStream, error)
+	StartSession(context.Context, *SessionParam) (*SessionStatus, error)
+	StopSession(context.Context, *SessionParam) (*SessionStatus, error)
 	ExecuteAction(context.Context, *MediaAction) (*MediaActionResult, error)
 	ExecuteActionWithNotify(*MediaAction, MediaApi_ExecuteActionWithNotifyServer) error
 	mustEmbedUnimplementedMediaApiServer()
@@ -95,8 +117,14 @@ type MediaApiServer interface {
 type UnimplementedMediaApiServer struct {
 }
 
-func (UnimplementedMediaApiServer) PrepareMediaStream(context.Context, *Peer) (*MediaStream, error) {
+func (UnimplementedMediaApiServer) PrepareMediaStream(context.Context, *MediaParam) (*MediaStream, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PrepareMediaStream not implemented")
+}
+func (UnimplementedMediaApiServer) StartSession(context.Context, *SessionParam) (*SessionStatus, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StartSession not implemented")
+}
+func (UnimplementedMediaApiServer) StopSession(context.Context, *SessionParam) (*SessionStatus, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StopSession not implemented")
 }
 func (UnimplementedMediaApiServer) ExecuteAction(context.Context, *MediaAction) (*MediaActionResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ExecuteAction not implemented")
@@ -118,7 +146,7 @@ func RegisterMediaApiServer(s grpc.ServiceRegistrar, srv MediaApiServer) {
 }
 
 func _MediaApi_PrepareMediaStream_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Peer)
+	in := new(MediaParam)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -130,7 +158,43 @@ func _MediaApi_PrepareMediaStream_Handler(srv interface{}, ctx context.Context, 
 		FullMethod: "/rpc.MediaApi/PrepareMediaStream",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MediaApiServer).PrepareMediaStream(ctx, req.(*Peer))
+		return srv.(MediaApiServer).PrepareMediaStream(ctx, req.(*MediaParam))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MediaApi_StartSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SessionParam)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MediaApiServer).StartSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpc.MediaApi/StartSession",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MediaApiServer).StartSession(ctx, req.(*SessionParam))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MediaApi_StopSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SessionParam)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MediaApiServer).StopSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpc.MediaApi/StopSession",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MediaApiServer).StopSession(ctx, req.(*SessionParam))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -184,6 +248,14 @@ var MediaApi_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PrepareMediaStream",
 			Handler:    _MediaApi_PrepareMediaStream_Handler,
+		},
+		{
+			MethodName: "StartSession",
+			Handler:    _MediaApi_StartSession_Handler,
+		},
+		{
+			MethodName: "StopSession",
+			Handler:    _MediaApi_StopSession_Handler,
 		},
 		{
 			MethodName: "ExecuteAction",

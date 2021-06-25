@@ -22,14 +22,14 @@ type MediaServer struct {
 	sinkF []SinkFactory
 }
 
-var local, _ = net.ResolveIPAddr("ip", "127.0.0.1")
+const MYIP = "127.0.0.1"
+
+var local, _ = net.ResolveIPAddr("ip", MYIP)
 
 
-func (msrv *MediaServer) PrepareMediaStream(ctx context.Context, peer *rpc.Peer) (*rpc.MediaStream, error) {
-	fmt.Println("peer is ",peer)
+func (msrv *MediaServer) PrepareMediaStream(ctx context.Context, param *rpc.MediaParam) (*rpc.MediaStream, error) {
 	port := getNextPort()
-
-	session := createSession(int(port),peer.GetPayloadType())
+	session := createSession(int(port), param)
 
 	// initialize source/sink list for each session
 	// the factory's order is important
@@ -42,16 +42,46 @@ func (msrv *MediaServer) PrepareMediaStream(ctx context.Context, peer *rpc.Peer)
 		session.sink = append(session.sink,sink)
 	}
 
-	session.AddRemote(peer.GetIp(),int(peer.GetPort()))
-	session.StartSession()
+	session.AddRemote(param.GetPeerIp(),int(param.GetPeerPort()))
 
 	ms := rpc.MediaStream{}
 	ms.StreamId = session.sessionId
-	ms.PeerIp = peer.GetIp()
+	ms.PeerIp = param.GetPeerIp()
 	ms.LocalRtpPort = uint32(port)
-	ms.PeerRtpPort = peer.GetPort()
+	ms.LocalIp = MYIP
+	ms.PeerRtpPort = param.GetPeerPort()
 
 	return &ms,nil
+}
+
+func (msrv *MediaServer) StartSession(ctx context.Context,param *rpc.SessionParam) (*rpc.SessionStatus, error) {
+	status := rpc.SessionStatus{Status : "not exist"}
+	sessionId := param.GetSessionId()
+	if obj,exist := sessionMap.Get(sessionId); exist {
+		if session, ok := obj.(*MediaSession); ok {
+			session.Start()
+			status.Status = "ok"
+		} else {
+			status.Status = "not a session object"
+		}
+	}
+
+	return &status,nil
+}
+
+func (msrv *MediaServer) StopSession(ctx context.Context,param *rpc.SessionParam) (*rpc.SessionStatus, error) {
+	status := rpc.SessionStatus{Status : "not exist"}
+	sessionId := param.GetSessionId()
+	if obj,exist := sessionMap.Get(sessionId); exist {
+		if session, ok := obj.(*MediaSession); ok {
+			session.Stop()
+			status.Status = "ok"
+		} else {
+			status.Status = "not a session object"
+		}
+	}
+
+	return &status,nil
 }
 
 func (msrv *MediaServer) ExecuteAction(ctx context.Context,action *rpc.MediaAction) (*rpc.MediaActionResult, error) {
@@ -142,7 +172,7 @@ var rtpPatched = false
 func patchRtpStack() {
 	if (!rtpPatched) {
 		pmap := rtp.PayloadFormatMap
-		pmap[96] = &rtp.PayloadFormat{96, rtp.Audio, 8000, 1, "AMR"}
+		pmap[96] = &rtp.PayloadFormat{96, rtp.Audio, 8000, 1, "AMR-WB"}
 		rtpPatched = true
 	}
 }

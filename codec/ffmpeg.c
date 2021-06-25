@@ -65,15 +65,15 @@ struct Payload* read_media_file(const char* file_path)
     struct stat fstat;
 
     if (!file_path) {
-        fprintf(stderr,"read media file with file_path null\n");
+        PERR("read media file with file_path null");
         goto error;
     }
     if (stat(file_path,&fstat) < 0) {
-        fprintf(stderr,"read media file %s with stat error\n",file_path);
+        PERR("read media file %s with stat error",file_path);
         goto error;
     }
     if (fstat.st_size == 0) {
-        fprintf(stderr,"read media file %s with size 0\n",file_path);
+        PERR("read media file %s with size 0",file_path);
         goto error;
     }
     // ensure payload buffer is enough to hold all data
@@ -84,12 +84,12 @@ struct Payload* read_media_file(const char* file_path)
 
     ret = avformat_open_input(&ctx, file_path, NULL, NULL);
     if (ret < 0) {
-        fprintf(stderr,"read media file error\n");
+        PERR("read media file error");
         goto error;
     }
     ret = avformat_find_stream_info(ctx, NULL);
     if (ret < 0) {
-        fprintf(stderr,"find stream info failed\n");
+        PERR("find stream info failed");
         goto error;
     }
     payload->bitrate = ctx->bit_rate;
@@ -132,14 +132,15 @@ int write_media_file(char *payload,int length,const char *file_path,int codec_id
     AVPacket pkt;
     int ret;
 
+    av_init_packet(&pkt);
     ret = avformat_alloc_output_context2(&ctx,NULL,NULL,file_path);
     if (ret < 0) {
-        fprintf(stderr,"avformat_alloc_output_context2 failed\n");
+        PERR("avformat_alloc_output_context2 failed");
         goto error;
     }
     ostream = avformat_new_stream(ctx, NULL);
     if (!ostream) {
-        fprintf(stderr,"avformat_new_stream failed\n");
+        PERR("avformat_new_stream failed");
         goto error;
     }
 
@@ -176,6 +177,8 @@ int write_media_file(char *payload,int length,const char *file_path,int codec_id
     pkt.duration = duration;
 
     ret = av_write_frame(ctx, &pkt);
+    printf("av_write_frame done...\n");
+
     if (ret < 0) {
         PERR("av_write_frame failed");
         goto error;

@@ -4,17 +4,35 @@ package rpc;
 
 option go_package="github.com/appcrash/media/server/rpc";
 
-message Peer {
-  string ip = 1;
-  uint32 port = 2;
-  uint32 payload_type = 3;
+enum CodecType {
+  RAW = 0;     // raw data
+  PCM_ALAW = 1;
+  AMRNB = 2;
+  AMRWB = 3;
+}
+
+message MediaParam {
+  string peer_ip = 1;            // remote rtp ip
+  uint32 peer_port = 2;          // remote rtp port
+  uint32 payload_rtp_type = 3;   // negotiated payload to use, fixed or dynamic(96 ~ 127)
+  CodecType record_type = 4;     // codec used to record file
+  string record_file = 5;        // empty if needs not recording
+}
+
+message SessionParam {
+  string session_id = 1;
+}
+
+message SessionStatus {
+  string status = 1;
 }
 
 message MediaStream {
   string stream_id = 1;
-  uint32 local_rtp_port = 2;
-  string peer_ip = 3 ;
-  uint32 peer_rtp_port = 4;
+  string local_ip = 2;
+  uint32 local_rtp_port = 3;
+  string peer_ip = 4 ;
+  uint32 peer_rtp_port = 5;
 }
 
 message MediaAction {
@@ -35,7 +53,9 @@ message MediaActionEvent {
 
 
 service MediaApi {
-  rpc PrepareMediaStream(Peer) returns (MediaStream) {}
+  rpc PrepareMediaStream(MediaParam) returns (MediaStream) {}
+  rpc StartSession(SessionParam) returns (SessionStatus) {}
+  rpc StopSession(SessionParam) returns (SessionStatus) {}
   rpc ExecuteAction(MediaAction) returns (MediaActionResult) {}
   rpc ExecuteActionWithNotify(MediaAction) returns (stream MediaActionEvent) {}
 }

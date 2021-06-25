@@ -63,10 +63,12 @@ func (frame *DecodedFrame) Free() {
 }
 
 
-func TranscodeNew(fromCodecName string, fromFrameRate int, toCodecId int) *TranscodeContext{
-	name := C.CString(fromCodecName)
-	defer C.free(unsafe.Pointer(name))
-	return (*TranscodeContext)(C.transcode_init_context(name,C.int(fromFrameRate),C.int(toCodecId)))
+func TranscodeNew(fromCodecName string, toCodecName string) *TranscodeContext{
+	fname := C.CString(fromCodecName)
+	tname := C.CString(toCodecName)
+	defer C.free(unsafe.Pointer(fname))
+	defer C.free(unsafe.Pointer(tname))
+	return (*TranscodeContext)(C.transcode_init_context(fname,tname))
 }
 
 func (context *TranscodeContext) Iterate(data []byte) (frame *DecodedFrame,reason int) {

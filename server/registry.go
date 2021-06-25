@@ -7,8 +7,8 @@ import (
 
 // APIs that allow plugging in method to:
 // 1. handle command(take new actions), listen to state change
-// 2. handle incoming data(audio,video), which is a sinker
-// 3. generate outgoing data, which is a sourcer
+// 2. handle incoming data(audio,video), which is a sink
+// 3. generate outgoing data, which is a source
 
 func (msrv *MediaServer) registerCommandExecutor(e CommandExecute) {
 	cmdTrait := e.GetCommandTrait()
