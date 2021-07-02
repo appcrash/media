@@ -1,6 +1,6 @@
 package codec
 
-//#cgo pkg-config: libavformat libavcodec libavutil
+//#cgo pkg-config: libavformat libavcodec libavutil libswresample
 //
 //#include <stdio.h>
 //#include <stdlib.h>
@@ -17,6 +17,7 @@ import (
 
 type (
 	DecodedFrame     = C.struct_DecodedFrame
+	DataBuffer       = C.struct_DataBuffer
 	TranscodeContext = C.struct_TranscodeContext
 )
 
@@ -47,9 +48,9 @@ func GetPayloadFromFile(fp string) []byte {
 	return nil
 }
 
-func WritePayloadToFile(payload []byte, fileName string, codecId int,duration int) (ret int) {
+func WritePayloadToFile(payload []byte, fileName string, codecId int, duration int) (ret int) {
 	cfileName := C.CString(fileName)
-	v := C.write_media_file((*C.char)(unsafe.Pointer(&payload[0])), C.int(len(payload)), (*C.char)(cfileName), C.int(codecId),C.int(duration))
+	v := C.write_media_file((*C.char)(unsafe.Pointer(&payload[0])), C.int(len(payload)), (*C.char)(cfileName), C.int(codecId), C.int(duration))
 	ret = int(v)
 	C.free(unsafe.Pointer(cfileName))
 	return
@@ -62,19 +63,22 @@ func (frame *DecodedFrame) Free() {
 	C.free(unsafe.Pointer(frame))
 }
 
-
-func TranscodeNew(fromCodecName string, toCodecName string) *TranscodeContext{
+func TranscodeNew(fromCodecName string, toCodecName string) *TranscodeContext {
 	fname := C.CString(fromCodecName)
 	tname := C.CString(toCodecName)
 	defer C.free(unsafe.Pointer(fname))
 	defer C.free(unsafe.Pointer(tname))
-	return (*TranscodeContext)(C.transcode_init_context(fname,tname))
+	return (*TranscodeContext)(C.transcode_init_context(fname, tname))
 }
 
-func (context *TranscodeContext) Iterate(data []byte) (frame *DecodedFrame,reason int) {
+func (context *TranscodeContext) Iterate(data []byte) (transcodedData []byte, reason int) {
 	dataLen := len(data)
-	frame = C.transcode_iterate(context,(*C.char)(unsafe.Pointer(&data[0])),
-		C.int(dataLen),(*C.int)(unsafe.Pointer(&reason)))
+	C.transcode_iterate(context, (*C.char)(unsafe.Pointer(&data[0])),
+		C.int(dataLen), (*C.int)(unsafe.Pointer(&reason)))
+	buffer := context.out_buffer
+	if buffer.size > 0 {
+		transcodedData = C.GoBytes(unsafe.Pointer(buffer.data),buffer.size)
+	}
 	return
 }
 
