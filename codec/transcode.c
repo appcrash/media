@@ -21,14 +21,13 @@ int decode_resample(struct TranscodeContext *trans_ctx,AVPacket *packet)
     AVCodecContext *enc_ctx = trans_ctx->encode_ctx;
     AVCodecContext *dec_ctx = trans_ctx->decode_ctx;
     SwrContext *resample_ctx = trans_ctx->resample_ctx;
-    AVFrame *frame = trans_ctx->frame;
+    AVFrame *frame = av_frame_alloc();
     int src_rate = dec_ctx->sample_rate;
     int dst_rate = enc_ctx->sample_rate;
     int dst_sample_number;
     int ret;
 
     ret = avcodec_send_packet(trans_ctx->decode_ctx, packet);
-    //while (av_audio_fifo_size(fifo) < enc_ctx->frame_size) {
     while(1) {
         ret = avcodec_receive_frame(dec_ctx, frame);
         if (AVERROR(EAGAIN) == ret) {
@@ -43,12 +42,14 @@ int decode_resample(struct TranscodeContext *trans_ctx,AVPacket *packet)
                 int linesize;
                 dst_sample_number = av_rescale_rnd(swr_get_delay(trans_ctx->resample_ctx, src_rate) + frame->nb_samples,
                                                    dst_rate,src_rate,AV_ROUND_UP);
-                printf("resample: dst_sample_number is %d\n",dst_sample_number);
+                //printf("resample: samples changes:  %d => %d",frame->nb_samples,dst_sample_number);
                 if (dst_sample_number > trans_ctx->resample_max_sample_number) {
                     if (trans_ctx->resample_buff[0]) {
                         free(trans_ctx->resample_buff[0]);
                     }
                     ret = av_samples_alloc(trans_ctx->resample_buff, &linesize, 1, dst_sample_number, enc_ctx->sample_fmt, 1);
+                    //printf("new linesize is %d\n",linesize);
+
                     if (ret < 0) {
                         PERR("av_samples_alloc failed");
                         goto error;
@@ -61,11 +62,6 @@ int decode_resample(struct TranscodeContext *trans_ctx,AVPacket *packet)
                     goto error;
                 }
 
-                if ((ret = av_audio_fifo_realloc(fifo, av_audio_fifo_size(fifo) + dst_sample_number)) < 0) {
-                    PERR("av_audio_fifo_realloc failed");
-                    goto error;
-                }
-
                 /* put converted samples to fifo queue */
                 if (av_audio_fifo_write(fifo, (void **)trans_ctx->resample_buff,dst_sample_number) < dst_sample_number) {
                     PERR("av_audio_fifo_write failed");
@@ -73,11 +69,8 @@ int decode_resample(struct TranscodeContext *trans_ctx,AVPacket *packet)
                 }
             } else {
                 // the decoded frame contains just the samples required by encoder, no resampling needed
-                uint8_t *datap[1] = {0};
-                datap[0] = (uint8_t*)frame->extended_data;
-                dst_sample_number = frame->nb_samples;
                 //printf("dst_sample_number is %d\n",dst_sample_number);
-                if (av_audio_fifo_write(fifo,(void**)datap,dst_sample_number) < dst_sample_number) {
+                if (av_audio_fifo_write(fifo,(void **)frame->extended_data,frame->nb_samples) < frame->nb_samples) {
                     PERR("av_audio_fifo_write failed");
                     goto error;
                 }
@@ -87,10 +80,12 @@ int decode_resample(struct TranscodeContext *trans_ctx,AVPacket *packet)
 
     }
 
+    av_frame_unref(frame);
     return 0;
 eof:
 
 error:
+    av_frame_unref(frame);
     return -1;
 }
 
@@ -112,7 +107,7 @@ int encode(struct TranscodeContext *trans_ctx)
         sample_number = FFMIN(sample_number,enc_ctx->frame_size);
     }
 
-    //printf("sample number is %d\n",sample_number);
+    //printf("encoder sample number is %d\n",sample_number);
     frame->nb_samples = sample_number;
     frame->channel_layout = AV_CH_LAYOUT_MONO;
     frame->format = enc_ctx->sample_fmt;
@@ -151,8 +146,11 @@ int encode(struct TranscodeContext *trans_ctx)
         } else if (AVERROR_EOF == ret) {
             goto cleanup;
         } else if (ret < 0) {
+            PERR("avcodec_receive_packet failed");
             goto error;
         } else {
+            //printf("encoded packet size is %d\n",pkt.size);
+
             if (pkt.size > buff->capacity - buff->size) {
                 /* enlarge buffer to receive encoded data */
                 int newcap = FFMAX(buff->capacity * 2,pkt.size);
@@ -164,6 +162,9 @@ int encode(struct TranscodeContext *trans_ctx)
             }
             memcpy(&buff->data[buff->size],pkt.data,pkt.size);
             buff->size += pkt.size;
+            //memcpy(&buff->data[buff->size],frame->data[0],sample_number * 2);
+            //buff->size += sample_number * 2;
+
         }
         av_packet_unref(&pkt);
     }
@@ -176,15 +177,13 @@ error:
 }
 
 // transcode audio, only support 1 channel for each format
-struct TranscodeContext *transcode_init_context(const char *from_codec_name,const char *to_codec_name)
+struct TranscodeContext *transcode_init_context(const char *from_codec_name,int from_sample_rate,const char *to_codec_name,int to_sample_rate)
 {
     AVCodecContext *encode_ctx = NULL;
     AVCodecContext *decode_ctx = NULL;
     SwrContext *resample_ctx = NULL;
     uint8_t **resample_buff = NULL;
     struct TranscodeContext *trans_ctx = NULL;
-    AVPacket *packet = NULL;
-    AVFrame *frame = NULL;
     AVCodec *fcodec = NULL,*tcodec = NULL;
     struct DataBuffer *data_buff = NULL;
 
@@ -201,21 +200,24 @@ struct TranscodeContext *transcode_init_context(const char *from_codec_name,cons
 
 
     decode_ctx = avcodec_alloc_context3(fcodec);
-    //decode_ctx->channels = 1;
+    decode_ctx->channels = 1;
+    if (from_sample_rate) {
+        decode_ctx->sample_rate = from_sample_rate;
+    }
     if (avcodec_open2(decode_ctx, fcodec, NULL) < 0) {
         PERR("avcodec_open2 failed");
         goto error;
     }
     encode_ctx = avcodec_alloc_context3(tcodec);
-    encode_ctx->sample_rate = 8000;
+    encode_ctx->sample_rate = to_sample_rate;
     encode_ctx->channels = 1;
     encode_ctx->sample_fmt = tcodec->sample_fmts[0];
     if (avcodec_open2(encode_ctx,tcodec,NULL) < 0) {
         PERR("avcodec_open2 failed");
         goto error;
     }
-    printf("encoder sample_rate: %d, decoder sample_rate: %d\n",encode_ctx->sample_rate,decode_ctx->sample_rate);
-    printf("encoder sample_fmt: %d, decoder sample_fmt: %d\n",encode_ctx->sample_fmt,decode_ctx->sample_fmt);
+    //printf("encoder sample_rate: %d, decoder sample_rate: %d\n",encode_ctx->sample_rate,decode_ctx->sample_rate);
+    //printf("encoder sample_fmt: %d, decoder sample_fmt: %d\n",encode_ctx->sample_fmt,decode_ctx->sample_fmt);
 
     // if decoded samples are not same as the one required by encoder, resample is needed
     if (need_resample(decode_ctx->sample_fmt, decode_ctx->sample_rate, encode_ctx->sample_fmt,encode_ctx->sample_rate)) {
@@ -236,17 +238,6 @@ struct TranscodeContext *transcode_init_context(const char *from_codec_name,cons
                encode_ctx->sample_fmt,encode_ctx->sample_rate);
     }
 
-
-    packet = av_packet_alloc();
-    if (!packet) {
-        PERR("packet alloc failed");
-        goto error;
-    }
-    frame = av_frame_alloc();
-    if (!frame) {
-        PERR("frame alloc failed");
-        goto error;
-    }
     data_buff = malloc(sizeof(struct DataBuffer));
     data_buff->data = malloc(1024);
     data_buff->size = 0;
@@ -262,20 +253,12 @@ struct TranscodeContext *transcode_init_context(const char *from_codec_name,cons
     trans_ctx->decode_ctx = decode_ctx;
     trans_ctx->resample_ctx = resample_ctx;
     trans_ctx->resample_buff = resample_buff;
-    trans_ctx->packet = packet;
-    trans_ctx->frame = frame;
 
     trans_ctx->fifo_queue = av_audio_fifo_alloc(decode_ctx->sample_fmt, 1, 1);
     trans_ctx->out_buffer = data_buff;
 
     return trans_ctx;
 error:
-    if (packet) {
-        av_packet_free(&packet);
-    }
-    if (frame) {
-        av_frame_free(&frame);
-    }
     if (encode_ctx) {
         avcodec_free_context(&encode_ctx);
     }
@@ -300,9 +283,11 @@ void transcode_iterate(struct TranscodeContext *trans_ctx,const char *compressed
         goto error;
     }
     memcpy(packet.data,compressed_data,compressed_size);
+    packet.size = compressed_size;
 
-    /* decode the packet, get all decoded frames until EOF or EAGAIN is met,
-     * resample them if decoded sample format or rate not the same as one
+    /*
+     * decode the packet, get all decoded frames until EOF or EAGAIN is met,
+     * resample them if decoded sample format or rate not the same as the one
      * required by encoder, and put samples into fifo queue
      */
     decode_resample(trans_ctx,&packet);
@@ -321,13 +306,6 @@ void transcode_free(struct TranscodeContext *trans_ctx)
     if (!trans_ctx) {
         PERR("free NULL transcode context");
         return;
-    }
-
-    if (trans_ctx->packet) {
-        av_packet_free(&trans_ctx->packet);
-    }
-    if (trans_ctx->frame) {
-        av_frame_free(&trans_ctx->frame);
     }
     if (trans_ctx->decode_ctx) {
         avcodec_free_context(&trans_ctx->decode_ctx);

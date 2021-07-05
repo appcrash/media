@@ -63,12 +63,13 @@ func (frame *DecodedFrame) Free() {
 	C.free(unsafe.Pointer(frame))
 }
 
-func TranscodeNew(fromCodecName string, toCodecName string) *TranscodeContext {
+func TranscodeNew(fromCodecName string, fromSampleRate int, toCodecName string, toSampleRate int) *TranscodeContext {
 	fname := C.CString(fromCodecName)
 	tname := C.CString(toCodecName)
 	defer C.free(unsafe.Pointer(fname))
 	defer C.free(unsafe.Pointer(tname))
-	return (*TranscodeContext)(C.transcode_init_context(fname, tname))
+	return (*TranscodeContext)(C.transcode_init_context(fname, (C.int)(fromSampleRate),
+		tname, (C.int)(toSampleRate)))
 }
 
 func (context *TranscodeContext) Iterate(data []byte) (transcodedData []byte, reason int) {
@@ -77,7 +78,7 @@ func (context *TranscodeContext) Iterate(data []byte) (transcodedData []byte, re
 		C.int(dataLen), (*C.int)(unsafe.Pointer(&reason)))
 	buffer := context.out_buffer
 	if buffer.size > 0 {
-		transcodedData = C.GoBytes(unsafe.Pointer(buffer.data),buffer.size)
+		transcodedData = C.GoBytes(unsafe.Pointer(buffer.data), buffer.size)
 	}
 	return
 }

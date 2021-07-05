@@ -10,14 +10,17 @@ var amrwbPackedSize = [16]int{
 	18, 24, 33, 37, 41, 47, 51, 59, 61, 6, 1, 1, 1, 1, 1, 1,
 }
 
-func AmrSplitToFrames(payload []byte) (frames [][]byte) {
+func AmrSplitToFrames(payload []byte,isAmrwb bool) (frames [][]byte) {
 	plen := len(payload)
 	var i int
+	packedSize := amrnbPackedSize
+	if isAmrwb {
+		packedSize = amrwbPackedSize
+	}
 	for i < plen {
 		toc := payload[i]
 		mode := (toc >> 3) & 0x0f
-		//frameLen := amrnbPackedSize[mode] // TODO: support amr-wb
-		frameLen := amrwbPackedSize[mode] // TODO: support amr-wb
+		frameLen := packedSize[mode]
 		frameEnd := i + frameLen
 		if frameEnd > plen {
 			break

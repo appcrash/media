@@ -36,8 +36,6 @@ struct TranscodeContext
     int resample_max_sample_number;
 
     AVAudioFifo *fifo_queue;
-    AVPacket *packet;
-    AVFrame *frame;
 
     struct DataBuffer *out_buffer;
 };
@@ -49,6 +47,6 @@ struct Payload* read_media_file(const char* file_path);
 int write_media_file(char *payload,int length,const char *file_path,int codec_id,int duration);
 
 
-struct TranscodeContext *transcode_init_context(const char *from_codec_name,const char *to_codec_name);
+struct TranscodeContext *transcode_init_context(const char *from_codec_name,int from_sample_rate,const char *to_codec_name,int to_sample_rate);
 void transcode_iterate(struct TranscodeContext *trans_ctx,const char *compressed_data,int compressed_size,int *reason);
 void transcode_free(struct TranscodeContext *trans_ctx);
