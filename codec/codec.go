@@ -63,15 +63,23 @@ func (frame *DecodedFrame) Free() {
 	C.free(unsafe.Pointer(frame))
 }
 
-func TranscodeNew(fromCodecName string, fromSampleRate int, toCodecName string, toSampleRate int) *TranscodeContext {
+
+// @param toSampleBitrate is optional, set to 0 if not used by encoder
+func TranscodeNewExt(fromCodecName string, fromSampleRate int, toCodecName string, toSampleRate int,toSampleBitrate int) *TranscodeContext {
 	fname := C.CString(fromCodecName)
 	tname := C.CString(toCodecName)
 	defer C.free(unsafe.Pointer(fname))
 	defer C.free(unsafe.Pointer(tname))
 	return (*TranscodeContext)(C.transcode_init_context(fname, (C.int)(fromSampleRate),
-		tname, (C.int)(toSampleRate)))
+		tname, (C.int)(toSampleRate),(C.int)(toSampleBitrate)))
 }
 
+func TranscodeNew(fromCodecName string, fromSampleRate int, toCodecName string, toSampleRate int) *TranscodeContext {
+	return TranscodeNewExt(fromCodecName,fromSampleRate,toCodecName,toSampleRate,0)
+}
+
+// @param data  the audio data of source codec, set to nil to get the remaining transcoded data
+// @return transcodedData  the encoded data of destination codec
 func (context *TranscodeContext) Iterate(data []byte) (transcodedData []byte, reason int) {
 	dataLen := len(data)
 	C.transcode_iterate(context, (*C.char)(unsafe.Pointer(&data[0])),
