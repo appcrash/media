@@ -172,7 +172,7 @@ var rtpPatched = false
 func patchRtpStack() {
 	if (!rtpPatched) {
 		pmap := rtp.PayloadFormatMap
-		pmap[96] = &rtp.PayloadFormat{96, rtp.Audio, 8000, 1, "AMR-WB"}
+		pmap[96] = &rtp.PayloadFormat{96, rtp.Audio, 16000, 1, "AMR-WB"}
 		rtpPatched = true
 	}
 }

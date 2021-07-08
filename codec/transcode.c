@@ -118,6 +118,7 @@ int encode(struct TranscodeContext *trans_ctx)
     if (av_frame_get_buffer(frame, 0) < 0) {
         PERR("av_frame_get_buffer failed");
         av_frame_free(&frame);
+        frame = NULL;
         goto error;
     }
     /*
@@ -140,6 +141,7 @@ int encode(struct TranscodeContext *trans_ctx)
     }
     outbuff->size = 0;             /* reset the buffer, append encoded data into it */
     av_init_packet(&pkt);
+    pkt.buf = NULL;
     pkt.data = NULL;
     pkt.size = 0;
 
@@ -166,15 +168,17 @@ int encode(struct TranscodeContext *trans_ctx)
             }
             memcpy(&outbuff->data[outbuff->size],pkt.data,pkt.size);
             outbuff->size += pkt.size;
+            av_packet_unref(&pkt);
         }
-        av_packet_unref(&pkt);
     }
 
     av_frame_free(&frame);
     return 0;
 cleanup:
 error:
-    av_packet_unref(&pkt);
+    if (pkt.buf) {
+        av_packet_unref(&pkt);
+    }
     if (frame) {
         av_frame_unref(frame);
     }
@@ -225,8 +229,8 @@ struct TranscodeContext *transcode_init_context(const char *from_codec_name,int 
         PERR("avcodec_open2 failed");
         goto error;
     }
-    //printf("encoder sample_rate: %d, decoder sample_rate: %d\n",encode_ctx->sample_rate,decode_ctx->sample_rate);
-    //printf("encoder sample_fmt: %d, decoder sample_fmt: %d\n",encode_ctx->sample_fmt,decode_ctx->sample_fmt);
+    printf("encoder sample_rate: %d, decoder sample_rate: %d\n",encode_ctx->sample_rate,decode_ctx->sample_rate);
+    printf("encoder sample_fmt: %d, decoder sample_fmt: %d\n",encode_ctx->sample_fmt,decode_ctx->sample_fmt);
 
     // if decoded samples are not same as the one required by encoder, resample is needed
     if (need_resample(decode_ctx->sample_fmt, decode_ctx->sample_rate, encode_ctx->sample_fmt,encode_ctx->sample_rate)) {

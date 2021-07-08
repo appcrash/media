@@ -78,7 +78,9 @@ func TranscodeNew(fromCodecName string, fromSampleRate int, toCodecName string, 
 	return TranscodeNewExt(fromCodecName,fromSampleRate,toCodecName,toSampleRate,0)
 }
 
-// @param data  the audio data of source codec, set to nil to get the remaining transcoded data
+// @param data
+// the audio data of source codec, set to nil to get the remaining transcoded data
+// it should be of one frame length (normally 20ms), multiple frames are not supported now
 // @return transcodedData  the encoded data of destination codec
 func (context *TranscodeContext) Iterate(data []byte) (transcodedData []byte, reason int) {
 	dataLen := len(data)

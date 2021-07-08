@@ -145,12 +145,14 @@ outLoop:
 	for {
 		select {
 		case rp := <-dataReceiver:
+			var shouldContinue bool
 			data := rp.Payload()
 
 			//fmt.Printf("data len is %v",len(data))
 			// push received data to all sinkers, then free the packet
 			for _, s := range session.sink {
-				if shouldContinue := s.HandleData(session, data); !shouldContinue {
+				data,shouldContinue = s.HandleData(session, data)
+				if !shouldContinue {
 					break
 				}
 			}
@@ -182,12 +184,12 @@ outLoop:
 	for {
 		select {
 		case <-ticker.C:
-			var payload, data []byte
+			var data []byte
 			var tsDelta uint32
 
 			// pull data from all sources
 			for _, source := range session.source {
-				data, tsDelta = source.PullData(session, payload, tsDelta)
+				data, tsDelta = source.PullData(session, data, tsDelta)
 			}
 			if data != nil {
 				if session.rtpSession == nil {

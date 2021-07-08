@@ -33,7 +33,7 @@ type Source interface {
 // each sink should return true if the payload can be used by following sinks or
 // return false to stop this process (so following sinks can not get the payload)
 type Sink interface {
-	HandleData(s *MediaSession,data []byte) (shouldContinue bool)
+	HandleData(s *MediaSession,previousData []byte) (data []byte,shouldContinue bool)
 }
 
 type SourceFactory interface {

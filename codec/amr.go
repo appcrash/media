@@ -1,5 +1,6 @@
 package codec
 
+
 // shamelessly copied from ffmpeg(amr.c)  :)
 
 var amrnbPackedSize = [16]int{
@@ -52,6 +53,15 @@ func AmrFrameToRtpPayload(payload [][]byte) (rtpPayload [][]byte) {
 		rp := append([]byte{0xf0},toc...)
 		rp = append(rp,p[1:]...)
 		rtpPayload = append(rtpPayload,rp)
+	}
+	return
+}
+
+func AmrRtpPayloadToFrame(payload [][]byte) (frame [][]byte) {
+	for _,p := range payload {
+		f := []byte{p[1] & 0x7f}
+		f = append(f,p[2:]...)
+		frame = append(frame,f)
 	}
 	return
 }
