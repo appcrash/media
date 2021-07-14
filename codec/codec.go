@@ -1,6 +1,6 @@
 package codec
 
-//#cgo pkg-config: libavformat libavcodec libavutil libswresample
+//#cgo pkg-config: libavformat libavcodec libavutil libswresample libavfilter
 //
 //#include <stdio.h>
 //#include <stdlib.h>
@@ -16,21 +16,9 @@ import (
 )
 
 type (
-	DecodedFrame     = C.struct_DecodedFrame
 	DataBuffer       = C.struct_DataBuffer
 	TranscodeContext = C.struct_TranscodeContext
 )
-
-func ConvertFormat(payload []byte) []byte {
-	cpayload := C.CBytes(payload)
-	defer C.free(unsafe.Pointer(cpayload))
-	var df *DecodedFrame = (*DecodedFrame)(C.convert_format((*C.char)(cpayload), C.int(len(payload))))
-
-	var converted []byte = C.GoBytes(unsafe.Pointer(df.data), df.size)
-	C.free(unsafe.Pointer(df.data))
-	C.free(unsafe.Pointer(df))
-	return converted
-}
 
 func GetPayloadFromFile(fp string) []byte {
 	cfp := C.CString(fp)
@@ -56,26 +44,22 @@ func WritePayloadToFile(payload []byte, fileName string, codecId int, duration i
 	return
 }
 
-func (frame *DecodedFrame) ToBytes() []byte {
-	return C.GoBytes(unsafe.Pointer(frame.data), frame.size)
-}
-func (frame *DecodedFrame) Free() {
-	C.free(unsafe.Pointer(frame))
-}
 
 
 // @param toSampleBitrate is optional, set to 0 if not used by encoder
-func TranscodeNewExt(fromCodecName string, fromSampleRate int, toCodecName string, toSampleRate int,toSampleBitrate int) *TranscodeContext {
+func TranscodeNewExt(fromCodecName string, fromSampleRate int, toCodecName string, toSampleRate int,toSampleBitrate int,graphDesc string) *TranscodeContext {
 	fname := C.CString(fromCodecName)
 	tname := C.CString(toCodecName)
+	graph := C.CString(graphDesc)
 	defer C.free(unsafe.Pointer(fname))
 	defer C.free(unsafe.Pointer(tname))
+	defer C.free(unsafe.Pointer(graph))
 	return (*TranscodeContext)(C.transcode_init_context(fname, (C.int)(fromSampleRate),
-		tname, (C.int)(toSampleRate),(C.int)(toSampleBitrate)))
+		tname, (C.int)(toSampleRate),(C.int)(toSampleBitrate),graph))
 }
 
 func TranscodeNew(fromCodecName string, fromSampleRate int, toCodecName string, toSampleRate int) *TranscodeContext {
-	return TranscodeNewExt(fromCodecName,fromSampleRate,toCodecName,toSampleRate,0)
+	return TranscodeNewExt(fromCodecName,fromSampleRate,toCodecName,toSampleRate,0,"")
 }
 
 // @param data
