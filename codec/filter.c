@@ -97,7 +97,7 @@ Usually, a filter graph has implicit label link on both endpoints [in]/[out], an
 
                   |                              |
       [abuffer]<--+                              +--> [abuffersink]
-      (argument outputs)                              (argument inputs)
+      (parameter outputs)                             (parameter inputs)
 
 
 Feed data to abuffer, retrieve filtered data from abuffersink.
@@ -113,11 +113,15 @@ int init_filter_graph(struct TranscodeContext *trans_ctx,const char *graph_desc_
     AVCodecContext *decode_ctx = trans_ctx->decode_ctx;
     AVFilterInOut *inputs = avfilter_inout_alloc();
     AVFilterInOut *outputs = avfilter_inout_alloc();
-    char args[512];
+    char args[256];
 
+    if (!decode_ctx->channel_layout) {
+        decode_ctx->channel_layout = av_get_default_channel_layout(decode_ctx->channels);
+    }
     trans_ctx->filter_graph = avfilter_graph_alloc();
-    snprintf(args, sizeof(args), "time_base=1/%d:sample_rate=%d:sample_fmt=%s:channel_layout=mono",
-             decode_ctx->sample_rate,decode_ctx->sample_rate,av_get_sample_fmt_name(decode_ctx->sample_fmt));
+    snprintf(args, sizeof(args), "time_base=1/%d:sample_rate=%d:sample_fmt=%s:channel_layout=0x%"PRIx64,
+             decode_ctx->sample_rate,decode_ctx->sample_rate,
+             av_get_sample_fmt_name(decode_ctx->sample_fmt),decode_ctx->channel_layout);
     if (avfilter_graph_create_filter(&trans_ctx->bufsrc_ctx, avfilter_get_by_name("abuffer"),
                                      "in", args, NULL, trans_ctx->filter_graph) < 0) {
         PERR("create abuffer filter failed");
@@ -129,12 +133,25 @@ int init_filter_graph(struct TranscodeContext *trans_ctx,const char *graph_desc_
         goto error;
     }
 
-    const enum AVSampleFormat out_sample_fmts[] = {AV_SAMPLE_FMT_S16,-1};
-    const int sample_rates[] = {16000,-1};
-    const int64_t channel_layouts[] = {AV_CH_LAYOUT_MONO,-1};
-    av_opt_set_int_list(trans_ctx->bufsink_ctx,"sample_fmts",out_sample_fmts,-1,AV_OPT_SEARCH_CHILDREN);
-    av_opt_set_int_list(trans_ctx->bufsink_ctx,"sample_rates",sample_rates,-1,AV_OPT_SEARCH_CHILDREN);
-    av_opt_set_int_list(trans_ctx->bufsink_ctx,"channel_layouts",channel_layouts,-1,AV_OPT_SEARCH_CHILDREN);
+    /* abuffersink has different way to set options, as its attributes are plural */
+    if (av_opt_set_bin(trans_ctx->bufsink_ctx,"sample_fmts",(uint8_t*)&encode_ctx->sample_fmt,
+                       sizeof(encode_ctx->sample_fmt),AV_OPT_SEARCH_CHILDREN) < 0) {
+        PERR("set abuffersink sample_fmts failed");
+        goto error;
+    }
+    if (av_opt_set_bin(trans_ctx->bufsink_ctx,"sample_rates",(uint8_t*)&encode_ctx->sample_rate,
+                       sizeof(encode_ctx->sample_rate),AV_OPT_SEARCH_CHILDREN) < 0) {
+        PERR("set abuffersink sample_rate failed");
+        goto error;
+    }
+    if (!encode_ctx->channel_layout) {
+        encode_ctx->channel_layout = av_get_default_channel_layout(encode_ctx->channels);
+    }
+    if (av_opt_set_bin(trans_ctx->bufsink_ctx,"channel_layouts",(uint8_t*)&encode_ctx->channel_layout,
+                       sizeof(encode_ctx->channel_layout),AV_OPT_SEARCH_CHILDREN) < 0) {
+        PERR("set abuffersink channel_layout failed");
+        goto error;
+    }
 
     /* inputs/outputs  refer conclusion above */
     inputs->name = av_strdup("out");
@@ -164,8 +181,6 @@ int init_filter_graph(struct TranscodeContext *trans_ctx,const char *graph_desc_
         //printf("set sink frame size is %d\n",encode_ctx->frame_size);
         av_buffersink_set_frame_size(trans_ctx->bufsink_ctx, encode_ctx->frame_size);
     }
-
-
     avfilter_inout_free(&inputs);
     avfilter_inout_free(&outputs);
 

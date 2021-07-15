@@ -9,6 +9,9 @@
 #include <libavfilter/buffersrc.h>
 #include <libavfilter/buffersink.h>
 #include <libavutil/audio_fifo.h>
+#include <libavutil/avstring.h>
+#include <libavutil/opt.h>
+
 
 struct DataBuffer
 {
@@ -46,11 +49,14 @@ struct Payload* read_media_file(const char* file_path);
 int write_media_file(char *payload,int length,const char *file_path,int codec_id,int duration);
 
 /*
- * initialize trasncoding context, with src/dst codec names and sample properties
- * @param to_sample_bitrate is optional, ignored when set to 0
+ * initialize trasncoding context, with encoder/decoder names and sample properties
+ * @param param_string description string for encoder/decoder/filter_graph, for example:
+ *   encoder:pcm_alaw  sample_rate=8000,channels=1 \n
+ *   decoder:amrnb     sample_rate=8000,channels=1 \n
+ *   filter_graph: resample
+ * use av_opt_* APIs to initialize these context provided by the description string
  */
-struct TranscodeContext *transcode_init_context(const char *from_codec_name,int from_sample_rate,
-                                                const char *to_codec_name,int to_sample_rate,int to_sample_bitrate,const char *graph_desc_str);
+struct TranscodeContext *transcode_init_context(const char *param_string,int length);
 /*
  *
  */
