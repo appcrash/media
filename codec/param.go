@@ -216,14 +216,20 @@ func (tp *TranscodeParam) SampleRate(rate int) *TranscodeParam {
 	return tp
 }
 
+func (tp *TranscodeParam) BitRate(bitrate int) *TranscodeParam{
+	tp.checkCodec()
+	tp.currentConfig.setOption("b",strconv.Itoa(bitrate))
+	return tp
+}
+
 func (tp *TranscodeParam) ChannelCount(count int) *TranscodeParam{
 	tp.checkCodec()
 	tp.currentConfig.setOption("ac",strconv.Itoa(count))
 	return tp
 }
 
-func (tp *TranscodeParam) BitRate(bitrate int) *TranscodeParam{
+func (tp *TranscodeParam) ChannelLayout(layoutId int) *TranscodeParam {
 	tp.checkCodec()
-	tp.currentConfig.setOption("b",strconv.Itoa(bitrate))
+	tp.currentConfig.setOption("channel_layout",strconv.Itoa(layoutId))
 	return tp
 }

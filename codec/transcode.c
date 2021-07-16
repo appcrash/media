@@ -186,6 +186,9 @@ static int init_codec_context(AVCodecContext **ctx,const char *name,const char *
             codec_ctx->channel_layout = av_get_default_channel_layout(codec_ctx->channels);
         }
     }
+
+    /* to suppress experimental warnings for encoder/decoder, set this field */
+    codec_ctx->strict_std_compliance = -2;
     if (avcodec_open2(codec_ctx,codec,NULL) < 0) {
         PERR("avcodec_open2 failed");
     }

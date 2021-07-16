@@ -44,26 +44,7 @@ func WritePayloadToFile(payload []byte, fileName string, codecId int, duration i
 	return
 }
 
-func TranscodeNewFromParam(param string) *TranscodeContext {
-	p := C.CString(param)
-	defer C.free(unsafe.Pointer(p))
-	return (*TranscodeContext)(C.transcode_init_context(p,C.int(len(param))))
-}
-
-// @param toSampleBitrate is optional, set to 0 if not used by encoder
-func TranscodeNewExt(fromCodecName string, fromSampleRate int, toCodecName string, toSampleRate int,toSampleBitrate int,graphDesc string) *TranscodeContext {
-	fname := C.CString(fromCodecName)
-	tname := C.CString(toCodecName)
-	graph := C.CString(graphDesc)
-	defer C.free(unsafe.Pointer(fname))
-	defer C.free(unsafe.Pointer(tname))
-	defer C.free(unsafe.Pointer(graph))
-	//return (*TranscodeContext)(C.transcode_init_context(fname, (C.int)(fromSampleRate),
-	//	tname, (C.int)(toSampleRate),(C.int)(toSampleBitrate),graph))
-	return nil
-}
-
-func TranscodeNew(param *TranscodeParam) *TranscodeContext {
+func NewTranscodeContext(param *TranscodeParam) *TranscodeContext {
 	desc := param.GetDescription()
 	if desc == nil {
 		return nil
