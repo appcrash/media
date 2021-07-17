@@ -256,7 +256,7 @@ static void init_context_from_param(AVCodecContext **encode_ctx,AVCodecContext *
             next = end;
         }
         opts = av_strndup(start,next - start);
-        printf("type_name: (%s), codec_name: (%s), options: (%s)\n",type_name,codec_name,opts);
+        //printf("type_name: (%s), codec_name: (%s), options: (%s)\n",type_name,codec_name,opts);
         /* one line parsed, finish the actual work */
         if (!av_strncasecmp(type_name, "encoder",7)) {
             if (init_codec_context(encode_ctx, codec_name, opts, 1) < 0) {
@@ -305,40 +305,8 @@ struct TranscodeContext *transcode_init_context(const char *params_string,int le
         goto error;
     }
 
-    /* decoder = avcodec_find_decoder_by_name(from_codec_name); */
-    /* if (!decoder) { */
-    /*     PERR("decoder not available %s",from_codec_name); */
-    /*     goto error; */
-    /* } */
-    /* encoder = avcodec_find_encoder_by_name(to_codec_name); */
-    /* if (!encoder) { */
-    /*     PERR("encoder not available %s",to_codec_name); */
-    /*     goto error; */
-    /* } */
-
-
-    /* decode_ctx = avcodec_alloc_context3(decoder); */
-    /* decode_ctx->channels = 1; */
-    /* if (from_sample_rate) { */
-    /*     decode_ctx->sample_rate = from_sample_rate; */
-    /* } */
-    /* if (avcodec_open2(decode_ctx, decoder, NULL) < 0) { */
-    /*     PERR("avcodec_open2 failed"); */
-    /*     goto error; */
-    /* } */
-    /* encode_ctx = avcodec_alloc_context3(encoder); */
-    /* encode_ctx->sample_rate = to_sample_rate; */
-    /* encode_ctx->channels = 1; */
-    /* if (to_sample_bitrate != 0) { */
-    /*     encode_ctx->bit_rate = to_sample_bitrate; */
-    /* } */
-    /* encode_ctx->sample_fmt = encoder->sample_fmts[0]; /\* use the first supported format of encoder *\/ */
-    /* if (avcodec_open2(encode_ctx,encoder,NULL) < 0) { */
-    /*     PERR("avcodec_open2 failed"); */
-    /*     goto error; */
-    /* } */
-    printf("encoder sample_rate: %d, decoder sample_rate: %d\n",encode_ctx->sample_rate,decode_ctx->sample_rate);
-    printf("encoder sample_fmt: %d, decoder sample_fmt: %d\n",encode_ctx->sample_fmt,decode_ctx->sample_fmt);
+    //printf("encoder sample_rate: %d, decoder sample_rate: %d\n",encode_ctx->sample_rate,decode_ctx->sample_rate);
+    //printf("encoder sample_fmt: %d, decoder sample_fmt: %d\n",encode_ctx->sample_fmt,decode_ctx->sample_fmt);
 
     data_buff = malloc(sizeof(struct DataBuffer));
     data_buff->data = malloc(1024);
@@ -356,7 +324,7 @@ struct TranscodeContext *transcode_init_context(const char *params_string,int le
     trans_ctx->fifo_queue = av_audio_fifo_alloc(encode_ctx->sample_fmt, 1, 1);
     trans_ctx->out_buffer = data_buff;
 
-    printf("filter desc is %s\n",filter_graph_desc);
+    //printf("filter desc is %s\n",filter_graph_desc);
     if (init_filter_graph(trans_ctx,filter_graph_desc) < 0) {
         goto error;
     }
