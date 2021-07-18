@@ -14,7 +14,9 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Download Golang
-        run: curl -sSL https://golang.org/dl/go1.16.6.linux-amd64.tar.gz | tar zxf -C /opt
+        run: |
+          mkdir /opt
+          curl -sSL https://golang.org/dl/go1.16.6.linux-amd64.tar.gz | tar zxf -C /opt
 
       - name: Add Golang Path
         run: echo "/opt/go/bin" >> $GITHUB_PATH
