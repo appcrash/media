@@ -1,0 +1,27 @@
+name: Golang CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    container: appcrash/ffmpeg:centos7
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Download Golang
+        run: curl -sSL https://golang.org/dl/go1.16.6.linux-amd64.tar.gz | tar zxf -C /opt
+
+      - name: Add Golang Path
+        run: echo "/opt/go/bin" >> $GITHUB_PATH
+
+      - name: Test
+        run: go test -v -coverprofile=coverage.out ./codec
+
+      - name: Show Coverage
+        run: go tool cover -func=coverage.out
+
