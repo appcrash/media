@@ -2,9 +2,10 @@ package codec
 
 import (
 	"encoding/binary"
-	"math"
-	"testing"
 	"fmt"
+	"math"
+	"math/rand"
+	"testing"
 )
 
 const (
@@ -14,6 +15,7 @@ const (
 
 type codecSpec struct {
 	name         string
+	codecId      int
 	sampleRate   []int
 	channelCount int
 	bitrate      []int
@@ -21,52 +23,56 @@ type codecSpec struct {
 }
 
 type codecConfig struct {
-	name string
-	sampleRate int
+	name         string
+	codecId      int
+	sampleRate   int
 	channelCount int
-	bitrate int
-}
-
-type codecTask struct {
-	from codecConfig
-	to codecConfig
+	bitrate      int
 }
 
 var codecDb = []codecSpec{
-	{"pcm_f64le", []int{8000}, 1, nil, encoder | decoder},
-	{"pcm_s16le", []int{8000,16000}, 1, nil, encoder | decoder},
-	{"pcm_alaw", []int{8000}, 1, nil, encoder | decoder},
-	{"amrnb", []int{8000}, 1, nil, decoder},
-	{"amrwb", []int{16000}, 1, nil, decoder},
-	{"libopencore_amrnb", []int{8000}, 1, []int{4750, 5150, 5900, 6700, 7400, 7950, 10200, 12200}, encoder | decoder},
-	{"libopencore_amrwb", []int{16000}, 1, nil, decoder},
-	{"libvo_amrwbenc", []int{16000}, 1, []int{6600, 8850, 12650, 14250, 15850, 18250, 19850, 23050, 23850}, encoder},
+	{"pcm_f64le", AV_CODEC_ID_PCM_F64LE,
+		[]int{8000}, 1, nil, encoder | decoder},
+	{"pcm_s16le", AV_CODEC_ID_PCM_S16LE,
+		[]int{8000, 16000}, 1, nil, encoder | decoder},
+	{"pcm_alaw", AV_CODEC_ID_PCM_ALAW,
+		[]int{8000}, 1, nil, encoder | decoder},
+	{"amrnb", AV_CODEC_ID_AMR_NB,
+		[]int{8000}, 1, nil, decoder},
+	{"amrwb", AV_CODEC_ID_AMR_WB,
+		[]int{16000}, 1, nil, decoder},
+	{"libopencore_amrnb", AV_CODEC_ID_AMR_NB,
+		[]int{8000}, 1, []int{4750, 5150, 5900, 6700, 7400, 7950, 10200, 12200}, encoder | decoder},
+	{"libopencore_amrwb", AV_CODEC_ID_AMR_WB,
+		[]int{16000}, 1, nil, decoder},
+	{"libvo_amrwbenc", AV_CODEC_ID_AMR_WB,
+		[]int{16000}, 1, []int{6600, 8850, 12650, 14250, 15850, 18250, 19850, 23050, 23850}, encoder},
 }
 
-
 func (c codecConfig) String() string {
-	str := fmt.Sprintf("[%v]:ar(%v):ac(%v)",c.name,c.sampleRate,c.channelCount)
+	str := fmt.Sprintf("[%v]:ar(%v):ac(%v)", c.name, c.sampleRate, c.channelCount)
 	if c.bitrate != 0 {
-		str = str + fmt.Sprintf(":b(%v)",c.bitrate)
+		str = str + fmt.Sprintf(":b(%v)", c.bitrate)
 	}
 	return str
 }
 
 func specToConfig(s *codecSpec) (c []codecConfig) {
-	for _,rate := range s.sampleRate {
-		config := &codecConfig {
-			name : s.name,
-			sampleRate : rate,
-			channelCount : s.channelCount,
+	for _, rate := range s.sampleRate {
+		config := &codecConfig{
+			name:         s.name,
+			codecId:      s.codecId,
+			sampleRate:   rate,
+			channelCount: s.channelCount,
 		}
 		if s.bitrate != nil {
-			for _,b := range s.bitrate {
+			for _, b := range s.bitrate {
 				cb := *config
 				cb.bitrate = b
-				c = append(c,cb)
+				c = append(c, cb)
 			}
 		} else {
-			c = append(c,*config)
+			c = append(c, *config)
 		}
 	}
 	return
@@ -83,40 +89,78 @@ func generateSample(hz float64, sampleNum int, sampleRate int) (s []byte) {
 	return
 }
 
-
 func TestTranscode(t *testing.T) {
-	samples := generateSample(1200.0, 10000, 8000)
+	hz := rand.Intn(18000) + 440
+	sampleNum := rand.Intn(100000) + 100000
+	samples := generateSample(float64(hz), sampleNum, 8000)
+	t.Logf("sample Hz: %v,  number is %v",hz,sampleNum)
 	var decoders []codecConfig
 	var encoders []codecConfig
-	for _,spec := range codecDb {
+	for _, spec := range codecDb {
 		config := specToConfig(&spec)
-		if spec.capability & encoder != 0 {
-			encoders = append(encoders,config...)
+		if spec.capability&encoder != 0 {
+			encoders = append(encoders, config...)
 		}
-		if spec.capability & decoder != 0 {
-			decoders = append(decoders,config...)
+		if spec.capability&decoder != 0 {
+			decoders = append(decoders, config...)
 		}
 	}
 	// convert f64le samples to all formats that encoders support
-	for _,config := range encoders {
+	payloadMap := make(map[int][]byte)
+	for _, config := range encoders {
 		param := NewTranscodeParam().
-		Decoder("pcm_f64le").SampleRate(8000).ChannelCount(1).
-		Encoder(config.name).SampleRate(config.sampleRate).ChannelCount(config.channelCount)
+			Decoder("pcm_f64le").SampleRate(8000).ChannelCount(1).
+			Encoder(config.name).SampleRate(config.sampleRate).ChannelCount(config.channelCount)
 		if config.bitrate != 0 {
 			param = param.BitRate(config.bitrate)
 		}
 		param = param.NewFilter("aresample")
-		
+
 		ctx := NewTranscodeContext(param)
 		if ctx == nil {
 			t.Fatal("create transcode context failed")
 		}
-		_,ok := ctx.Iterate(samples)
+		payload, ok := ctx.Iterate(samples)
 		if ok != 0 {
 			t.Fatal("convert failed")
 		}
-		fmt.Printf("f16le => %v\n",config)
+		payloadMap[config.codecId] = payload
+		t.Logf("samples:f16le => %v\n", config)
 		ctx.Free()
 	}
-	
+
+	// encoded kinds of payloads now, then transcode them to all other codecs
+	for codecId,payload := range payloadMap {
+		// search all decoders that can decode this payload
+		for _,codec := range codecDb {
+			if codec.codecId == codecId {
+				for _,decodeConfig := range specToConfig(&codec) {
+					// 1:many transcode
+					for _,encodec := range codecDb {
+						for _,encodeConfig := range specToConfig(&encodec) {
+							param := NewTranscodeParam().
+								Decoder(decodeConfig.name).SampleRate(decodeConfig.sampleRate).ChannelCount(decodeConfig.channelCount).
+								Encoder(encodeConfig.name).SampleRate(encodeConfig.sampleRate).ChannelCount(encodeConfig.channelCount)
+							if encodeConfig.bitrate != 0 {
+								param = param.BitRate(encodeConfig.bitrate)
+							}
+							param = param.NewFilter("aresample")
+
+							ctx := NewTranscodeContext(param)
+							if ctx == nil {
+								t.Fatal("create transcode context failed")
+							}
+							t.Logf("transcode:%v => %v",decodeConfig,encodeConfig)
+							_, ok := ctx.Iterate(payload)
+							if ok != 0 {
+								t.Fatal("convert failed")
+							}
+							ctx.Free()
+						}
+					}
+				}
+			}
+		}
+	}
+
 }
