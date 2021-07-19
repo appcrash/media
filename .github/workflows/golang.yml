@@ -22,7 +22,6 @@ jobs:
       - name: Test
         run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./codec
 
-      - name: Codecov Upload
       - uses: codecov/codecov-action@v1.5.2
         with:
           files: ./coverage.txt
