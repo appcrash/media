@@ -40,6 +40,7 @@ struct TranscodeContext
     AVAudioFifo *fifo_queue;
 
     struct DataBuffer *out_buffer;
+    uint8_t is_draining;
 };
 
 #define PERR(format, ...) fprintf(stderr,"(%s:%d)#%s: "#format"\n",__FILE__,__LINE__,__FUNCTION__,## __VA_ARGS__)

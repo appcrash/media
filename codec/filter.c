@@ -85,10 +85,10 @@ Any input or output with the same name would find each other once parsing done. 
 long as you set the correct name of AVFilterInOut and pass them to *avfilter_graph_parse_ptr*. However the argument names of this
 function may cause confusion, so make it clear:
 
-inputs: they are not the input slots to the filter graph, but something that can be pluged into any output pad of any
+inputs: they are not the input slots to the filter graph, but something that can be plugged into any output pad of any
 filter context defined in the graph
 
-outputs: they are not the output slots to the filter graph, but something that can be pluged into any input pad of any
+outputs: they are not the output slots to the filter graph, but something that can be plugged into any input pad of any
 filter context defined in the graph
 
 Usually, a filter graph has implicit label link on both endpoints [in]/[out], and is not used alone but along with abuffer/abuffersink

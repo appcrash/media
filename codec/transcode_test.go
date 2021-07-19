@@ -90,8 +90,8 @@ func generateSample(hz float64, sampleNum int, sampleRate int) (s []byte) {
 }
 
 func TestTranscode(t *testing.T) {
-	hz := rand.Intn(18000) + 440
-	sampleNum := rand.Intn(100000) + 100000
+	hz := rand.Intn(18_000) + 440
+	sampleNum := rand.Intn(100_000) + 100_000
 	samples := generateSample(float64(hz), sampleNum, 8000)
 	t.Logf("sample Hz: %v,  number is %v", hz, sampleNum)
 	var decoders []codecConfig
@@ -157,6 +157,11 @@ func TestTranscode(t *testing.T) {
 							_, ok := ctx.Iterate(payload)
 							if ok != 0 {
 								t.Fatal("convert failed")
+							}
+							// drain remaining data
+							_, ok = ctx.Iterate(nil)
+							if ok != 0 {
+								t.Fatal("convert with last draining failed")
 							}
 							ctx.Free()
 						}

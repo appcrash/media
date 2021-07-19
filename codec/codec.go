@@ -56,11 +56,23 @@ func NewTranscodeContext(param *TranscodeParam) *TranscodeContext {
 
 // @param data
 // the audio data of source codec, set to nil to get the remaining transcoded data
-// it should be of one frame length (normally 20ms), multiple frames are not supported now
+// it should be of one frame length (normally 20ms)
+//
+// this method can be called multiple times as long as more data needs transcoding
+// you can pass n_frame length data at a time for better performance, but some decoders
+// that does not support AV_CODEC_CAP_SUBFRAMES would complain with warning
+// the data length should always be aligned with deocder's frame size for best compatibility
+// and in reasonable size:
+// ususally the duration of data should not exceeds 1s beyond which evident lags would occur
 // @return transcodedData  the encoded data of destination codec
 func (context *TranscodeContext) Iterate(data []byte) (transcodedData []byte, reason int) {
-	dataLen := len(data)
-	C.transcode_iterate(context, (*C.char)(unsafe.Pointer(&data[0])),
+	var dataLen int
+	var pdata *byte
+	if data != nil {
+		pdata = &data[0]
+		dataLen = len(data)
+	}
+	C.transcode_iterate(context, (*C.char)(unsafe.Pointer(pdata)),
 		C.int(dataLen), (*C.int)(unsafe.Pointer(&reason)))
 	buffer := context.out_buffer
 	if buffer.size > 0 {
