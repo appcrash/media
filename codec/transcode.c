@@ -8,11 +8,24 @@
 
 #include "codec.h"
 
-
-static int init_codec_context(AVCodecContext **ctx,const char *name,const char *opts,int is_encoder)
+/*
+ * desc_line:  <codec_name>  <options>(k1=v1,k2=v2,...)
+ */
+static int init_codec_context(AVCodecContext **ctx,const char *desc_line,int is_encoder)
 {
     AVCodec *codec;
     AVCodecContext *codec_ctx = NULL;
+    const char *buf = desc_line;
+    char *name = NULL,*opts = NULL;
+    int ret = 0;
+
+    name = av_get_token(&buf," \t");
+    if (!name) {
+        PERR("codec name is missing");
+        goto error;
+    }
+    buf += strspn(buf," \t");
+    opts = av_strdup(buf);
 
     if (is_encoder) {
         codec = avcodec_find_encoder_by_name(name);
@@ -25,6 +38,7 @@ static int init_codec_context(AVCodecContext **ctx,const char *name,const char *
     }
     codec_ctx = avcodec_alloc_context3(codec);
     if (!codec_ctx) {
+        PERR("allocate codec context failed");
         goto error;
     }
     /* set options to codec context here */
@@ -38,6 +52,7 @@ static int init_codec_context(AVCodecContext **ctx,const char *name,const char *
             /* use first supported format of encoder */
             codec_ctx->sample_fmt = codec->sample_fmts[0];
         } else {
+            PERR("encoder context has no supported format");
             goto error;
         }
         if (!codec_ctx->channel_layout) {
@@ -50,102 +65,56 @@ static int init_codec_context(AVCodecContext **ctx,const char *name,const char *
 
     if (avcodec_open2(codec_ctx,codec,NULL) < 0) {
         PERR("avcodec_open2 failed");
+        goto error;
     }
-    *ctx = codec_ctx;
-    return 0;
+    goto done;
+
 error:
+    ret = -1;
     if (codec_ctx) {
         avcodec_free_context(&codec_ctx);
+        codec_ctx = NULL;
     }
-    return -1;
+done:
+    if (name) {
+        av_free(name);
+    }
+    if (opts) {
+        av_free(opts);
+    }
+    *ctx = codec_ctx;
+    return ret;
 }
 
 
 static void init_context_from_param(AVCodecContext **encode_ctx,AVCodecContext **decode_ctx,char **fg_desc,const char *param_string,int length)
 {
-    const char *start = param_string;
-    const char *end = &param_string[length];
-    const char *next;
-    char *type_name,*codec_name,*opts;
-    int exit = 0;
+    AVDictionary *dict = NULL;
+    AVDictionaryEntry *t = NULL;
     *encode_ctx = *decode_ctx = NULL;
     *fg_desc = NULL;
 
-    /*
-     *  parse line by line
-     *  1. extract [encoder/decoder type,name,options] tuple, then allocate codec context, set it with options
-     *  2. in case of filter graph description, assign it to fg_desc for later use
-     */
-    while(start < end) {
-        type_name = codec_name = opts = NULL;
-        start += strspn(start," \t");
-        next = av_strnstr(start, ":", end - start);
-        if (!next) {
-            break;
-        }
-        /* extract type name */
-        type_name = av_strndup(start,next - start);
-        if (av_strncasecmp(type_name, "encoder", 7) &&
-            av_strncasecmp(type_name, "decoder", 7) &&
-            av_strncasecmp(type_name, "filter_graph",12)) {
-            /* type is not any one of them, stop parsing */
-            exit = 1;
-            goto cleanup;
-        }
-        start = next + 1; /* skip ":" */
-        if (start >= end) {
-            goto cleanup;
-        }
-        if (!av_strncasecmp(type_name,"filter_graph",12)) {
-            goto search_line_end;
-        }
-
-        next = av_strnstr(start," ",end - start);
-        if (!next) {
-            break;
-        }
-        codec_name = av_strndup(start,next - start);
-        start = next;
-    search_line_end:
-        start += strspn(start," \t");  /* forward to options */
-        next = av_strnstr(start,"\n",end - start);
-        if (!next) {
-            /* can not find line end, maybe already in the last line */
-            next = end;
-        }
-        opts = av_strndup(start,next - start);
-        //printf("type_name: (%s), codec_name: (%s), options: (%s)\n",type_name,codec_name,opts);
-        /* one line parsed, finish the actual work */
-        if (!av_strncasecmp(type_name, "encoder",7)) {
-            if (init_codec_context(encode_ctx, codec_name, opts, 1) < 0) {
-                exit = 1;
+    /*  parse line by line */
+    parse_param_string(param_string, length, &dict);
+    if (!dict) {
+        return;
+    }
+    while ((t = av_dict_get(dict, "", t, AV_DICT_IGNORE_SUFFIX))) {
+        /* finish the actual work */
+        if (!av_strncasecmp(t->key, "encoder",7)) {
+            if (init_codec_context(encode_ctx, t->value, 1) < 0) {
                 goto cleanup;
             }
-        } else if (!av_strncasecmp(type_name,"decoder",7)) {
-            if (init_codec_context(decode_ctx, codec_name, opts, 0) < 0) {
-                exit = 1;
+        } else if (!av_strncasecmp(t->key,"decoder",7)) {
+            if (init_codec_context(decode_ctx, t->value, 0) < 0) {
                 goto cleanup;
             }
-        } else {
-            *fg_desc = av_strdup(opts);
-        }
-
-        start = next + 1; /* skip "\n" */
-    cleanup:
-        if (type_name) {
-            av_free(type_name);
-        }
-        if (codec_name) {
-            av_free(codec_name);
-        }
-        if (opts) {
-            av_free(opts);
-        }
-        if (exit) {
-            break;
+        } else if (!av_strncasecmp(t->key,"filter_graph", 12)) {
+            *fg_desc = av_strdup(t->value);
         }
     }
-
+cleanup:
+    av_dict_free(&dict);
 }
 
 int decode_filter(struct TranscodeContext *trans_ctx,AVPacket *packet)
@@ -308,14 +277,10 @@ int encode(struct TranscodeContext *trans_ctx)
     if (trans_ctx->is_draining) {
         encode_append(trans_ctx, NULL);
     }
-    if (frame) {
-        av_frame_free(&frame);
-    }
+    av_frame_free(&frame);
     return 0;
 error:
-    if (frame) {
-        av_frame_free(&frame);
-    }
+    av_frame_free(&frame);
     return -1;
 }
 

@@ -60,7 +60,9 @@ func NewTranscodeContext(param *TranscodeParam) *TranscodeContext {
 //
 // this method can be called multiple times as long as more data needs transcoding
 // you can pass n_frame length data at a time for better performance, but some decoders
-// that does not support AV_CODEC_CAP_SUBFRAMES would complain with warning
+// that does not support AV_CODEC_CAP_SUBFRAMES would complain with warning:
+// "Multiple frames in a packet"
+//
 // the data length should always be aligned with deocder's frame size for best compatibility
 // and in reasonable size:
 // ususally the duration of data should not exceeds 1s beyond which evident lags would occur

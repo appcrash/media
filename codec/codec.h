@@ -45,9 +45,35 @@ struct TranscodeContext
 
 #define PERR(format, ...) fprintf(stderr,"(%s:%d)#%s: "#format"\n",__FILE__,__LINE__,__FUNCTION__,## __VA_ARGS__)
 
-struct DecodedFrame* convert_format(char *pcma_payload,int plen);
+/*
+ * format apis
+ */
 struct Payload* read_media_file(const char* file_path);
 int write_media_file(char *payload,int length,const char *file_path,int codec_id,int duration);
+
+
+/*
+ * param apis
+ *
+ * the parameter string contains lines of key/value item, ending with "\n" each line
+ * the parsing function would put them to AVDictionary.
+ *
+ * the goal of param apis is to minimize Golang/C binding, as new features added more
+ * and more options have be defined and handled, but the parameter passing should be
+ * kept simple and clean.
+ */
+
+/*
+ * @param str[in]  the param description string, for example:
+ *   encoder:pcm_alaw  sample_rate=8000,channels=1 \n
+ *   decoder:amrnb     sample_rate=8000,channels=1 \n
+ *   filter_graph: resample
+ *
+ *   each line is of <key>:<value> \n, the last line's \n is optional
+ *
+ * @param dict[out] parsed string would be saved in this AVDictionary as key/value pair
+ */
+void parse_param_string(const char *str,int length,AVDictionary **dict);
 
 /*
  * initialize trasncoding context, with encoder/decoder names and sample properties
