@@ -28,6 +28,9 @@ struct Payload
     int64_t bitrate;
 };
 
+/*
+ * transcode from A codec to B codec
+ */
 struct TranscodeContext
 {
     AVCodecContext *decode_ctx;
@@ -42,6 +45,24 @@ struct TranscodeContext
     struct DataBuffer *out_buffer;
     uint8_t is_draining;
 };
+
+/*
+ * mix two audio streams into one
+ */
+struct MixContext
+{
+    AVFilterGraph *filter_graph;
+    AVFilterContext *bufsrc1_ctx;
+    AVFilterContext *bufsrc2_ctx;
+    AVFilterContext *bufsink_ctx;
+
+    enum AVSampleFormat format1,format2;
+    int64_t sample_rate1,sample_rate2;
+
+    struct DataBuffer *out_buffer;
+};
+
+
 
 #define PERR(format, ...) fprintf(stderr,"(%s:%d)#%s: "#format"\n",__FILE__,__LINE__,__FUNCTION__,## __VA_ARGS__)
 
@@ -77,18 +98,28 @@ void parse_param_string(const char *str,int length,AVDictionary **dict);
 
 /*
  * initialize trasncoding context, with encoder/decoder names and sample properties
- * @param param_string description string for encoder/decoder/filter_graph, for example:
- *   encoder:pcm_alaw  sample_rate=8000,channels=1 \n
- *   decoder:amrnb     sample_rate=8000,channels=1 \n
- *   filter_graph: resample
- * use av_opt_* APIs to initialize these context provided by the description string
+ * @param param_string description string for encoder/decoder/filter_graph
  */
 struct TranscodeContext *transcode_init_context(const char *param_string,int length);
 /*
- *
+ * @param compressed_data  the source encoded audio data
+ * @param reason[out]  set to 0 only on success
  */
 void transcode_iterate(struct TranscodeContext *trans_ctx,char *compressed_data,int compressed_size,int *reason);
+/*
+ * free all allocated resources in this context
+ */
 void transcode_free(struct TranscodeContext *trans_ctx);
 
 
-int init_filter_graph(struct TranscodeContext *trans_ctx,const char *graph_desc_str);
+struct MixContext *mix_init_context(const char *param_string,int length);
+void mix_iterate(struct MixContext *mix_ctx,char *src1,int len1,char *src2,int len2,int nb_samples,int *reason);
+void mix_free(struct MixContext *mix_ctx);
+
+
+
+/*
+ * filter setup routines
+ */
+int init_transcode_filter_graph(struct TranscodeContext *trans_ctx,const char *graph_desc_str);
+int init_mix_filter_graph(struct MixContext *mix_ctx,AVDictionary *dict);

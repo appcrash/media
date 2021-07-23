@@ -233,3 +233,93 @@ func (tp *TranscodeParam) ChannelLayout(layoutId int) *TranscodeParam {
 	tp.currentConfig.setOption("channel_layout",strconv.Itoa(layoutId))
 	return tp
 }
+
+
+type MixParam struct {
+	input1 kvoption
+	input2 kvoption
+	output kvoption
+	current *kvoption
+	hasError bool
+}
+
+func NewMixParam() *MixParam{
+	return &MixParam{
+		input1 : make(kvoption),
+		input2 : make(kvoption),
+		output : make(kvoption),
+	}
+}
+
+func (mp *MixParam) Input1() *MixParam {
+	mp.current = &mp.input1
+	return mp
+}
+
+func (mp *MixParam) Input2() *MixParam {
+	mp.current = &mp.input2
+	return mp
+}
+
+func (mp *MixParam) Output() *MixParam {
+	mp.current = &mp.output
+	return mp
+}
+
+func (mp *MixParam) sanityCheck() bool {
+	if mp.current == nil {
+		mp.hasError = true
+		return false
+	}
+	return true
+}
+
+func (mp *MixParam) SampleRate(rate int) (m *MixParam){
+	m = mp
+	if !mp.sanityCheck() {
+		return
+	}
+	(*mp.current)["sample_rate"] = strconv.Itoa(rate)
+	return
+}
+
+func (mp *MixParam) SampleFormat(format int) (m *MixParam){
+	m = mp
+	if !mp.sanityCheck() {
+		return
+	}
+	(*mp.current)["sample_fmt"] = strconv.Itoa(format)
+	return
+}
+
+func (mp *MixParam) ChannelLayout(layout int) (m *MixParam){
+	m = mp
+	if !mp.sanityCheck() {
+		return
+	}
+	(*mp.current)["channel_layout"] = strconv.Itoa(layout)
+	return
+}
+
+func (mp *MixParam) GetDescription() *string {
+	if mp.hasError {
+		return nil
+	}
+
+	toString := func(typeName string,dict *kvoption) string {
+		var sb strings.Builder
+		for k,v := range *dict {
+			sb.WriteString(k)
+			sb.WriteString("=")
+			sb.WriteString(v)
+			sb.WriteString(":")
+		}
+		result := typeName + ":" + sb.String()
+		return result[:len(result)-1] // remove last ":"
+	}
+	input1 := toString("input1",&mp.input1)
+	input2 := toString("input2",&mp.input2)
+	output := toString("output",&mp.output)
+	result := strings.Join([]string{input1,input2,output},"\n")
+	return &result
+}

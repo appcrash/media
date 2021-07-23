@@ -2,7 +2,7 @@
 
 void parse_param_string(const char *param_string,int length,AVDictionary **dict)
 {
-    AVDictionary *d = NULL;
+    AVDictionary *d = NULL;     /* NOTE: dict must be initialized to NULL */
     const char *start = param_string;
     const char *end = &param_string[length];
     const char *next;
@@ -53,6 +53,5 @@ cleanup:
     if (value) {
         av_free(value);
     }
-
     *dict = d;
 }

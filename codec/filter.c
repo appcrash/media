@@ -107,7 +107,7 @@ Feed data to abuffer, retrieve filtered data from abuffersink.
 /*
  * prepare filter graph and connect abuffer/abuffersink to both endpoints
  */
-int init_filter_graph(struct TranscodeContext *trans_ctx,const char *graph_desc_str)
+int init_transcode_filter_graph(struct TranscodeContext *trans_ctx,const char *graph_desc_str)
 {
     AVCodecContext *encode_ctx = trans_ctx->encode_ctx;
     AVCodecContext *decode_ctx = trans_ctx->decode_ctx;
@@ -189,4 +189,126 @@ error:
     avfilter_inout_free(&inputs);
     avfilter_inout_free(&outputs);
     return -1;
+}
+
+
+static void config_mix_input(AVFilterGraph *filter_graph,AVFilterInOut **inputs,AVFilterContext **ctx,
+                             const char *opts,const char *filter_name,const char *inout_name)
+{
+    AVFilterInOut *inout;
+
+    if (!inputs) {
+        return;
+    }
+    if (avfilter_graph_create_filter(ctx, avfilter_get_by_name("abuffer"), filter_name, opts, NULL, filter_graph) < 0) {
+        PERR("create abuffer filter for mix input failed");
+        return;
+    }
+    inout = avfilter_inout_alloc();
+    inout->name = av_strdup(inout_name);
+    inout->filter_ctx = *ctx;
+    inout->pad_idx = 0;
+    inout->next = NULL;
+    if (*inputs) {
+        (*inputs)->next = inout;
+    } else {
+        *inputs = inout;
+    }
+}
+
+static void config_mix_output(AVFilterGraph *filter_graph,AVFilterInOut **outputs,AVFilterContext **ctx,
+                              const char *opts,const char *filter_name,const char *inout_name)
+{
+    AVFilterInOut *inout;
+    AVDictionary *dict = NULL;
+    AVDictionaryEntry *t = NULL;
+    enum AVSampleFormat fmts[1];
+    uint64_t channel_layouts[1];
+    int sample_rate[1];
+
+    if (avfilter_graph_create_filter(ctx, avfilter_get_by_name("abuffersink"), filter_name, NULL, NULL, filter_graph) < 0) {
+        PERR("create abuffer filter for mix output failed");
+        return;
+    }
+    if (av_dict_parse_string(&dict, opts, "=", ":", 0) < 0) {
+        PERR("output options of mix context invalid");
+        av_dict_free(&dict);
+        return;
+    }
+
+    while ((t = av_dict_get(dict, "", t, AV_DICT_IGNORE_SUFFIX))) {
+        if (!av_strcasecmp("sample_rate", t->key)) {
+            sample_rate[0] = atoi(t->value);
+        } else if (!av_strcasecmp("sample_fmt", t->key)){
+            fmts[0] = atoi(t->value);
+        } else if (!av_strcasecmp("channel_layout", t->key)) {
+            channel_layouts[0] = atoi(t->value);
+        }
+    }
+    av_dict_free(&dict);
+
+    av_opt_set_bin(*ctx,"sample_fmts",(uint8_t*)fmts,sizeof(uint64_t),AV_OPT_SEARCH_CHILDREN);
+    av_opt_set_bin(*ctx,"sample_rates",(uint8_t*)sample_rate,sizeof(int),AV_OPT_SEARCH_CHILDREN);
+    av_opt_set_bin(*ctx,"channel_layouts",(uint8_t*)channel_layouts,sizeof(uint64_t),AV_OPT_SEARCH_CHILDREN);
+
+    inout = avfilter_inout_alloc();
+    inout->name = av_strdup(inout_name);
+    inout->filter_ctx = *ctx;
+    inout->pad_idx = 0;
+    inout->next = NULL;
+    *outputs = inout;
+}
+
+/*
+ * use amix filter, prepare two source buffers and one sink buffer
+ */
+int init_mix_filter_graph(struct MixContext *mix_ctx,AVDictionary *dict)
+{
+    AVFilterInOut *inputs = NULL;
+    AVFilterInOut *outputs = NULL;
+    int configed_src = 0;
+    AVDictionaryEntry *t = NULL;
+    int ret = 0;
+    static const char *mixgraph_desc = "[in1][in2] amix=inputs=2 ";
+
+    mix_ctx->filter_graph = avfilter_graph_alloc();
+    while ((t = av_dict_get(dict, "", t, AV_DICT_IGNORE_SUFFIX))) {
+        /* setup inputs/outputs */
+        if (!av_strcasecmp(t->key, "input1")) {
+            /* snprintf(args,sizeof(args),"sample_rate=%d:sample_fmt=%d:channel_layout=%d", */
+            /*          8000,AV_SAMPLE_FMT_S16,4); */
+            /* NOTE: *inout_name* must be the same in the filter description string */
+            config_mix_input(mix_ctx->filter_graph, &outputs, &mix_ctx->bufsrc1_ctx, t->value, "input1", "in1");
+            configed_src++;
+        } else if (!av_strcasecmp(t->key, "input2")) {
+            /* snprintf(args,sizeof(args),"sample_rate=%d:sample_fmt=%s:channel_layout=0x%"PRIx64, */
+            /*          8000,"flt",4L); */
+            config_mix_input(mix_ctx->filter_graph, &outputs, &mix_ctx->bufsrc2_ctx, t->value, "input2", "in2");
+            configed_src++;
+        } else if (!av_strcasecmp(t->key, "output")) {
+            /* NOTE: "out" is the implicit name of amix filter output link */
+            config_mix_output(mix_ctx->filter_graph,&inputs,&mix_ctx->bufsink_ctx,t->value,"output","out");
+        }
+    }
+
+    if (configed_src != 2 || NULL == outputs) {
+        PERR("inputs or outputs config error");
+        goto error;
+    }
+    if (avfilter_graph_parse_ptr(mix_ctx->filter_graph, mixgraph_desc,&inputs,&outputs,NULL) < 0) {
+        PERR("parse mix filter graph error");
+        goto error;
+    }
+    if (avfilter_graph_config(mix_ctx->filter_graph, NULL) < 0) {
+        PERR("config mix filter graph error");
+        goto error;
+    }
+
+    goto done;
+error:
+    ret = -1;
+done:
+    avfilter_inout_free(&inputs);
+    avfilter_inout_free(&outputs);
+    return ret;
 }

@@ -94,7 +94,6 @@ static void init_context_from_param(AVCodecContext **encode_ctx,AVCodecContext *
     *encode_ctx = *decode_ctx = NULL;
     *fg_desc = NULL;
 
-    /*  parse line by line */
     parse_param_string(param_string, length, &dict);
     if (!dict) {
         return;
@@ -117,7 +116,7 @@ cleanup:
     av_dict_free(&dict);
 }
 
-int decode_filter(struct TranscodeContext *trans_ctx,AVPacket *packet)
+static int decode_filter(struct TranscodeContext *trans_ctx,AVPacket *packet)
 {
     AVAudioFifo *fifo = trans_ctx->fifo_queue;
     AVCodecContext *dec_ctx = trans_ctx->decode_ctx;
@@ -222,7 +221,7 @@ error:
 }
 
 
-int encode(struct TranscodeContext *trans_ctx)
+static int encode(struct TranscodeContext *trans_ctx)
 {
     AVAudioFifo *fifo = trans_ctx->fifo_queue;
     AVCodecContext *enc_ctx = trans_ctx->encode_ctx;
@@ -334,8 +333,7 @@ struct TranscodeContext *transcode_init_context(const char *params_string,int le
     trans_ctx->out_buffer = data_buff;
     trans_ctx->is_draining = 0;
 
-    //printf("filter desc is %s\n",filter_graph_desc);
-    if (init_filter_graph(trans_ctx,filter_graph_desc) < 0) {
+    if (init_transcode_filter_graph(trans_ctx,filter_graph_desc) < 0) {
         goto error;
     }
 

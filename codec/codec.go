@@ -18,6 +18,7 @@ import (
 type (
 	DataBuffer       = C.struct_DataBuffer
 	TranscodeContext = C.struct_TranscodeContext
+	MixContext       = C.struct_MixContext
 )
 
 func GetPayloadFromFile(fp string) []byte {
@@ -51,7 +52,7 @@ func NewTranscodeContext(param *TranscodeParam) *TranscodeContext {
 	}
 	p := C.CString(*desc)
 	defer C.free(unsafe.Pointer(p))
-	return (*TranscodeContext)(C.transcode_init_context(p,C.int(len(*desc))))
+	return (*TranscodeContext)(C.transcode_init_context(p, C.int(len(*desc))))
 }
 
 // @param data
@@ -85,4 +86,26 @@ func (context *TranscodeContext) Iterate(data []byte) (transcodedData []byte, re
 
 func (context *TranscodeContext) Free() {
 	C.transcode_free(context)
+}
+
+
+func NewMixContext(param string) *MixContext {
+	p := C.CString(param)
+	defer C.free(unsafe.Pointer(p))
+	return (*MixContext)(C.mix_init_context(p,C.int(len(param))))
+}
+
+func (context *MixContext) Iterate(data1 []byte,data2 []byte,samples int) (mixed []byte,reason int) {
+	C.mix_iterate(context,(*C.char)(unsafe.Pointer(&data1[0])),C.int(len(data1)),
+		(*C.char)(unsafe.Pointer(&data2[0])),C.int(len(data2)),
+		C.int(samples),(*C.int)(unsafe.Pointer(&reason)))
+	buffer := context.out_buffer
+	if buffer.size > 0 {
+		mixed = C.GoBytes(unsafe.Pointer(buffer.data), buffer.size)
+	}
+	return
+}
+
+func (context *MixContext) Free() {
+	C.mix_free(context)
 }
