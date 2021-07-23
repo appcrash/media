@@ -275,14 +275,10 @@ int init_mix_filter_graph(struct MixContext *mix_ctx,AVDictionary *dict)
     while ((t = av_dict_get(dict, "", t, AV_DICT_IGNORE_SUFFIX))) {
         /* setup inputs/outputs */
         if (!av_strcasecmp(t->key, "input1")) {
-            /* snprintf(args,sizeof(args),"sample_rate=%d:sample_fmt=%d:channel_layout=%d", */
-            /*          8000,AV_SAMPLE_FMT_S16,4); */
             /* NOTE: *inout_name* must be the same in the filter description string */
             config_mix_input(mix_ctx->filter_graph, &outputs, &mix_ctx->bufsrc1_ctx, t->value, "input1", "in1");
             configed_src++;
         } else if (!av_strcasecmp(t->key, "input2")) {
-            /* snprintf(args,sizeof(args),"sample_rate=%d:sample_fmt=%s:channel_layout=0x%"PRIx64, */
-            /*          8000,"flt",4L); */
             config_mix_input(mix_ctx->filter_graph, &outputs, &mix_ctx->bufsrc2_ctx, t->value, "input2", "in2");
             configed_src++;
         } else if (!av_strcasecmp(t->key, "output")) {

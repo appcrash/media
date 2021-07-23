@@ -10,10 +10,10 @@ struct MixContext *mix_init_context(const char *param_string,int length)
 
     mix_ctx = av_malloc(sizeof(*mix_ctx));
     bzero(mix_ctx, sizeof(*mix_ctx));
-    mix_ctx->out_buffer = av_malloc(sizeof(*mix_ctx->out_buffer));
-    mix_ctx->out_buffer->data = av_malloc(102400);
-    mix_ctx->out_buffer->size = 0;
-    mix_ctx->out_buffer->capacity = 102400;
+    mix_ctx->out_buffer = buffer_alloc(102400);
+    if (!mix_ctx->out_buffer) {
+        goto error;
+    }
 
     if (init_mix_filter_graph(mix_ctx, dict) < 0) {
         goto error;
@@ -96,12 +96,7 @@ void mix_iterate(struct MixContext *mix_ctx,char *src1,int len1,char *src2,int l
         PERR("get data from buffer sink failed");
         goto error;
     }
-    mix_ctx->out_buffer->size = output->linesize[0];
-    if (mix_ctx->out_buffer->size > mix_ctx->out_buffer->capacity) {
-        mix_ctx->out_buffer->size = mix_ctx->out_buffer->capacity;
-    }
-    memcpy(mix_ctx->out_buffer->data,output->extended_data[0],
-           mix_ctx->out_buffer->size);
+    buffer_fill(mix_ctx->out_buffer,(const char*)output->extended_data[0],output->linesize[0]);
     goto done;
 error:
     *reason = -1;
@@ -117,10 +112,7 @@ void mix_free(struct MixContext *mix_ctx)
         if (mix_ctx->filter_graph)  {
             avfilter_graph_free(&mix_ctx->filter_graph);
         }
-        if (mix_ctx->out_buffer) {
-
-        }
-
+        buffer_free(&mix_ctx->out_buffer);
         av_free(mix_ctx);
     }
 

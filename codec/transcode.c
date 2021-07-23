@@ -193,18 +193,7 @@ static int encode_append(struct TranscodeContext *trans_ctx,AVFrame *frame)
             goto error;
         } else {
             //printf("encoded packet size is %d\n",pkt.size);
-
-            if (pkt.size > outbuff->capacity - outbuff->size) {
-                /* enlarge buffer to receive encoded data */
-                int newcap = FFMAX(outbuff->capacity * 2,pkt.size);
-                uint8_t *newbuff = av_malloc(newcap);
-                memcpy(newbuff,outbuff->data,outbuff->size);
-                av_free(outbuff->data);
-                outbuff->data = newbuff;
-                outbuff->capacity = newcap;
-            }
-            memcpy(&outbuff->data[outbuff->size],pkt.data,pkt.size);
-            outbuff->size += pkt.size;
+            buffer_append(outbuff,(const char*)pkt.data,pkt.size);
             av_packet_unref(&pkt);
         }
     }
@@ -302,18 +291,11 @@ struct TranscodeContext *transcode_init_context(const char *params_string,int le
     //printf("encoder sample_rate: %d, decoder sample_rate: %d\n",encode_ctx->sample_rate,decode_ctx->sample_rate);
     //printf("encoder sample_fmt: %d, decoder sample_fmt: %d\n",encode_ctx->sample_fmt,decode_ctx->sample_fmt);
 
-    data_buff = av_malloc(sizeof(struct DataBuffer));
+    data_buff = buffer_alloc(1024);
     if (!data_buff) {
         PERR("allocate output buffer for transcode context failed");
         goto error;
     }
-    data_buff->data = av_malloc(1024);
-    if (!data_buff->data) {
-        PERR("allocate output buffer data for transcode context failed");
-        goto error;
-    }
-    data_buff->size = 0;
-    data_buff->capacity = 1024;
 
     fifo = av_audio_fifo_alloc(encode_ctx->sample_fmt, 1, 1);
     if (!fifo) {
@@ -345,12 +327,6 @@ error:
     if (decode_ctx) {
         avcodec_free_context(&decode_ctx);
     }
-    if (data_buff) {
-        if (data_buff->data) {
-            av_free(data_buff->data);
-        }
-        av_free(data_buff);
-    }
     if (fifo) {
         av_audio_fifo_free(fifo);
     }
@@ -360,7 +336,7 @@ error:
         }
         av_free(trans_ctx);
     }
-
+    buffer_free(&data_buff);
     return NULL;
 }
 
@@ -428,12 +404,7 @@ void transcode_free(struct TranscodeContext *trans_ctx)
     if (trans_ctx->filter_graph) {
         avfilter_graph_free(&trans_ctx->filter_graph);
     }
-    if (trans_ctx->out_buffer) {
-        if (trans_ctx->out_buffer->data) {
-            av_free(trans_ctx->out_buffer->data);
-        }
-        av_free(trans_ctx->out_buffer);
-    }
+    buffer_free(&trans_ctx->out_buffer);
 
     av_free(trans_ctx);
 }

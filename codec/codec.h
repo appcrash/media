@@ -74,6 +74,23 @@ int write_media_file(char *payload,int length,const char *file_path,int codec_id
 
 
 /*
+ * utility apis
+ *
+ * the buffer class is used to minimize allocate/free overhead when exchanging
+ * data between golang/c. allocate buffer and reuse it until no longer needed
+ *
+ * buffer_fill: fill data from the start of buffer, overwrite existing data
+ * buffer_append: keep old data, append data to its end
+ *
+ * both methods would take care of relocate underlying memory once the capacity
+ * can not fit the writing data's size
+ */
+struct DataBuffer *buffer_alloc(int capacity);
+int buffer_fill(struct DataBuffer *buff,const char *data,int size);
+int buffer_append(struct DataBuffer *buff,const char *data,int size);
+void buffer_free(struct DataBuffer **buff);
+
+/*
  * param apis
  *
  * the parameter string contains lines of key/value item, ending with "\n" each line
