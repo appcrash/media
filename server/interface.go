@@ -9,13 +9,13 @@ const (
 )
 
 type CommandTrait struct {
-	CmdName string
+	CmdName  string
 	CmdTrait TraitEnum
 }
 
 type CommandExecute interface {
-	Execute(s *MediaSession,cmd string,args string)
-	ExecuteWithNotify(s *MediaSession,cmd string,args string,ctrlIn ExecuteCtrlChan,ctrlOut ExecuteCtrlChan)
+	Execute(s *MediaSession, cmd string, args string)
+	ExecuteWithNotify(s *MediaSession, cmd string, args string, ctrlIn ExecuteCtrlChan, ctrlOut ExecuteCtrlChan)
 	GetCommandTrait() []CommandTrait
 }
 
@@ -25,7 +25,7 @@ type CommandExecute interface {
 // so be careful to order of sources
 // NOTE: the first source would get previousData as nil, previousTs as 0
 type Source interface {
-	PullData(s *MediaSession,previousData []byte,previousTs uint32) (data []byte,timestampAdvanced uint32)
+	PullData(s *MediaSession, previousData []byte, previousTs uint32) (data []byte, timestampAdvanced uint32)
 }
 
 // sink consumes data from RTP session
@@ -33,7 +33,7 @@ type Source interface {
 // each sink should return true if the payload can be used by following sinks or
 // return false to stop this process (so following sinks can not get the payload)
 type Sink interface {
-	HandleData(s *MediaSession,previousData []byte) (data []byte,shouldContinue bool)
+	HandleData(s *MediaSession, previousData []byte) (data []byte, shouldContinue bool)
 }
 
 type SourceFactory interface {
@@ -42,6 +42,4 @@ type SourceFactory interface {
 type SinkFactory interface {
 	NewSink(s *MediaSession) Sink
 }
-
-
 
