@@ -44,11 +44,12 @@ error:
     return NULL;
 }
 
-void mix_iterate(struct MixContext *mix_ctx,char *src1,int len1,char *src2,int len2,int nb_samples,int *reason)
+void mix_iterate(struct MixContext *mix_ctx,char *src1,int len1,char *src2,int len2,int samples1,int samples2,int *reason)
 {
     AVFrame *frame1 = av_frame_alloc();
     AVFrame *frame2 = av_frame_alloc();
     AVFrame *output = av_frame_alloc();
+    int ret = -1;
 
     *reason = 0;
     if (!frame1 || !frame2 || !output) {
@@ -56,7 +57,7 @@ void mix_iterate(struct MixContext *mix_ctx,char *src1,int len1,char *src2,int l
         goto error;
     }
 
-    frame1->nb_samples = nb_samples;
+    frame1->nb_samples = samples1;
     frame1->channels = 1;
     frame1->sample_rate = mix_ctx->sample_rate1;
     frame1->format = mix_ctx->format1;
@@ -65,11 +66,11 @@ void mix_iterate(struct MixContext *mix_ctx,char *src1,int len1,char *src2,int l
         goto error;
     }
     if (len1 != frame1->linesize[0]) {
-        PERR("mix input1 has wrong data length");
+        PERR("mix input1 has wrong data length,required %d, got %d",frame1->linesize[0],len1);
         goto error;
     }
     memcpy(frame1->extended_data[0],src1,len1);
-    frame2->nb_samples = nb_samples;
+    frame2->nb_samples = samples2;
     frame2->channels = 1;
     frame2->sample_rate = mix_ctx->sample_rate2;
     frame2->format = mix_ctx->format2;
@@ -78,7 +79,7 @@ void mix_iterate(struct MixContext *mix_ctx,char *src1,int len1,char *src2,int l
         goto error;
     }
     if (len2 != frame2->linesize[0]) {
-        PERR("mix input2 has wrong data length");
+        PERR("mix input2 has wrong data length,required %d, got %d",frame2->linesize[0],len2);
         goto error;
     }
     memcpy(frame2->extended_data[0],src2,len2);
@@ -92,14 +93,14 @@ void mix_iterate(struct MixContext *mix_ctx,char *src1,int len1,char *src2,int l
         goto error;
     }
 
-    if (av_buffersink_get_frame(mix_ctx->bufsink_ctx, output) < 0) {
+    if ((ret = av_buffersink_get_frame(mix_ctx->bufsink_ctx, output)) < 0) {
         PERR("get data from buffer sink failed");
         goto error;
     }
     buffer_fill(mix_ctx->out_buffer,(const char*)output->extended_data[0],output->linesize[0]);
     goto done;
 error:
-    *reason = -1;
+    *reason = ret;
 done:
     av_frame_free(&frame1);
     av_frame_free(&frame2);

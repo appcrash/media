@@ -1,11 +1,13 @@
-package codec
+package codec_test
 
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/appcrash/media/codec"
 	"math"
 	"math/rand"
 	"testing"
+	"time"
 )
 
 const (
@@ -31,21 +33,21 @@ type codecConfig struct {
 }
 
 var codecDb = []codecSpec{
-	{"pcm_f64le", AV_CODEC_ID_PCM_F64LE,
+	{"pcm_f64le", codec.AV_CODEC_ID_PCM_F64LE,
 		[]int{8000}, 1, nil, encoder | decoder},
-	{"pcm_s16le", AV_CODEC_ID_PCM_S16LE,
+	{"pcm_s16le", codec.AV_CODEC_ID_PCM_S16LE,
 		[]int{8000, 16000}, 1, nil, encoder | decoder},
-	{"pcm_alaw", AV_CODEC_ID_PCM_ALAW,
+	{"pcm_alaw", codec.AV_CODEC_ID_PCM_ALAW,
 		[]int{8000}, 1, nil, encoder | decoder},
-	{"amrnb", AV_CODEC_ID_AMR_NB,
+	{"amrnb", codec.AV_CODEC_ID_AMR_NB,
 		[]int{8000}, 1, nil, decoder},
-	{"amrwb", AV_CODEC_ID_AMR_WB,
+	{"amrwb", codec.AV_CODEC_ID_AMR_WB,
 		[]int{16000}, 1, nil, decoder},
-	{"libopencore_amrnb", AV_CODEC_ID_AMR_NB,
+	{"libopencore_amrnb", codec.AV_CODEC_ID_AMR_NB,
 		[]int{8000}, 1, []int{4750, 5150, 5900, 6700, 7400, 7950, 10200, 12200}, encoder | decoder},
-	{"libopencore_amrwb", AV_CODEC_ID_AMR_WB,
+	{"libopencore_amrwb", codec.AV_CODEC_ID_AMR_WB,
 		[]int{16000}, 1, nil, decoder},
-	{"libvo_amrwbenc", AV_CODEC_ID_AMR_WB,
+	{"libvo_amrwbenc", codec.AV_CODEC_ID_AMR_WB,
 		[]int{16000}, 1, []int{6600, 8850, 12650, 14250, 15850, 18250, 19850, 23050, 23850}, encoder},
 }
 
@@ -90,8 +92,9 @@ func generateSample(hz float64, sampleNum int, sampleRate int) (s []byte) {
 }
 
 func TestTranscode(t *testing.T) {
+	rand.Seed(time.Now().UTC().UnixNano())
 	hz := rand.Intn(18_000) + 440
-	sampleNum := rand.Intn(100_000) + 100_000
+	sampleNum := rand.Intn(10_000) + 10_000
 	samples := generateSample(float64(hz), sampleNum, 8000)
 	t.Logf("sample Hz: %v,  number is %v", hz, sampleNum)
 	var decoders []codecConfig
@@ -108,7 +111,7 @@ func TestTranscode(t *testing.T) {
 	// convert f64le samples to all formats that encoders support
 	payloadMap := make(map[int][]byte)
 	for _, config := range encoders {
-		param := NewTranscodeParam().
+		param := codec.NewTranscodeParam().
 			Decoder("pcm_f64le").SampleRate(8000).ChannelCount(1).
 			Encoder(config.name).SampleRate(config.sampleRate).ChannelCount(config.channelCount)
 		if config.bitrate != 0 {
@@ -116,7 +119,7 @@ func TestTranscode(t *testing.T) {
 		}
 		param = param.NewFilter("aresample")
 
-		ctx := NewTranscodeContext(param)
+		ctx := codec.NewTranscodeContext(param)
 		if ctx == nil {
 			t.Fatal("create transcode context failed")
 		}
@@ -132,16 +135,16 @@ func TestTranscode(t *testing.T) {
 	// encoded kinds of payloads now, then transcode them to all other codecs
 	for codecId, payload := range payloadMap {
 		// search all decoders that can decode this payload
-		for _, codec := range codecDb {
-			if codec.codecId == codecId && (codec.capability&decoder != 0) {
-				for _, decodeConfig := range specToConfig(&codec) {
+		for _, c := range codecDb {
+			if c.codecId == codecId && (c.capability&decoder != 0) {
+				for _, decodeConfig := range specToConfig(&c) {
 					// 1:many transcode
 					for _, encodec := range codecDb {
 						if encodec.capability&encoder == 0 {
 							continue
 						}
 						for _, encodeConfig := range specToConfig(&encodec) {
-							param := NewTranscodeParam().
+							param := codec.NewTranscodeParam().
 								Decoder(decodeConfig.name).SampleRate(decodeConfig.sampleRate).ChannelCount(decodeConfig.channelCount).
 								Encoder(encodeConfig.name).SampleRate(encodeConfig.sampleRate).ChannelCount(encodeConfig.channelCount)
 							if encodeConfig.bitrate != 0 {
@@ -150,7 +153,7 @@ func TestTranscode(t *testing.T) {
 							param = param.NewFilter("aresample")
 
 							t.Logf("transcode:%v => %v", decodeConfig, encodeConfig)
-							ctx := NewTranscodeContext(param)
+							ctx := codec.NewTranscodeContext(param)
 							if ctx == nil {
 								t.Fatal("create transcode context failed")
 							}

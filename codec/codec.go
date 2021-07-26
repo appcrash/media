@@ -95,10 +95,10 @@ func NewMixContext(param string) *MixContext {
 	return (*MixContext)(C.mix_init_context(p,C.int(len(param))))
 }
 
-func (context *MixContext) Iterate(data1 []byte,data2 []byte,samples int) (mixed []byte,reason int) {
+func (context *MixContext) Iterate(data1 []byte,data2 []byte,samples1 int,samples2 int) (mixed []byte,reason int) {
 	C.mix_iterate(context,(*C.char)(unsafe.Pointer(&data1[0])),C.int(len(data1)),
 		(*C.char)(unsafe.Pointer(&data2[0])),C.int(len(data2)),
-		C.int(samples),(*C.int)(unsafe.Pointer(&reason)))
+		C.int(samples1),C.int(samples2),(*C.int)(unsafe.Pointer(&reason)))
 	buffer := context.out_buffer
 	if buffer.size > 0 {
 		mixed = C.GoBytes(unsafe.Pointer(buffer.data), buffer.size)

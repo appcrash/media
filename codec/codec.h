@@ -130,7 +130,7 @@ void transcode_free(struct TranscodeContext *trans_ctx);
 
 
 struct MixContext *mix_init_context(const char *param_string,int length);
-void mix_iterate(struct MixContext *mix_ctx,char *src1,int len1,char *src2,int len2,int nb_samples,int *reason);
+void mix_iterate(struct MixContext *mix_ctx,char *src1,int len1,char *src2,int len2,int samples1,int samples2,int *reason);
 void mix_free(struct MixContext *mix_ctx);
 
 
