@@ -29,24 +29,6 @@ type MediaSession struct {
 
 var sessionMap = cmap.New()
 
-const PCMAPayLoadLength = 160
-
-func WavPayload(wavData []byte) (rtpPayload []byte) {
-	start := 0
-	for i := 36; i < len(wavData); i++ {
-		if string(wavData[i:i+4]) == "data" {
-			start = i + 8
-			break
-		}
-	}
-	if start == 0 {
-		fmt.Errorf("data ERROR")
-		return rtpPayload
-	}
-	rtpPayload = wavData[start:]
-	return rtpPayload
-}
-
 func createSession(localPort int, mediaParam *rpc.MediaParam) *MediaSession {
 	tpLocal, _ := rtp.NewTransportUDP(local, localPort, "")
 	session := rtp.NewSession(tpLocal, tpLocal)
@@ -194,6 +176,7 @@ outLoop:
 			if data != nil {
 				if session.rtpSession == nil {
 					fmt.Println("########################")
+					break outLoop
 				}
 
 				packet := session.rtpSession.NewDataPacket(ts)

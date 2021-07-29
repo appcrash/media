@@ -20,7 +20,7 @@ jobs:
         run: echo "/opt/go/bin" >> $GITHUB_PATH
 
       - name: Test
-        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./codec
+        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./codec ./server/event
 
       - uses: codecov/codecov-action@v1.5.2
         with:
