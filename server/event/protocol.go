@@ -20,6 +20,7 @@ const state_link_not_exist = state_success - 1
 const state_link_refuse = state_link_not_exist - 1
 const state_link_duplicated = state_link_refuse - 1
 const state_node_not_exist = state_link_duplicated - 1
+const state_node_exceed_max_link = state_node_not_exist - 1
 
 /* ------- request structs ------- */
 type linkUpRequest struct {

@@ -1,5 +1,9 @@
 package event
 
+import (
+	"reflect"
+)
+
 type scopeMapType map[string][]*NodeDelegate
 type linkSetType map[string]bool
 type nodeMapType map[string]*nodeInfo
@@ -15,6 +19,7 @@ type EventGraph struct {
 type nodeInfo struct {
 	inputLinks  []*dlink
 	outputLinks []*dlink
+	maxLink     int
 }
 
 func (eg *EventGraph) findNode(scope string, name string) *NodeDelegate {
@@ -28,14 +33,14 @@ func (eg *EventGraph) findNode(scope string, name string) *NodeDelegate {
 	return nil
 }
 
-func (eg *EventGraph) addNode(nd *NodeDelegate) {
+func (eg *EventGraph) addNode(nd *NodeDelegate, maxLink int) {
 	scope := nd.getNodeScope()
 	if nodeList, ok := eg.scopeMap[scope]; !ok {
 		eg.scopeMap[scope] = []*NodeDelegate{nd}
 	} else {
 		eg.scopeMap[scope] = append(nodeList, nd)
 	}
-	eg.nodeMap[nd.getId()] = &nodeInfo{}
+	eg.nodeMap[nd.getId()] = &nodeInfo{maxLink: maxLink}
 }
 
 func (eg *EventGraph) delNode(nd *NodeDelegate) {
@@ -172,8 +177,23 @@ func (eg *EventGraph) onEvent(evt *Event) {
 
 // add node to graph, and send node-add response to this node immediately
 func (eg *EventGraph) onAddNode(req *nodeAddRequest) {
-	delegate := newNodeDelegate(eg, req.node)
-	eg.addNode(delegate)
+	maxLink := defaultMaxLink
+	node := req.node
+	ps := reflect.ValueOf(node)
+	elem := ps.Elem()
+	if elem.Kind() == reflect.Struct {
+		field := elem.FieldByName("maxLink")
+		if field.IsValid() {
+			switch field.Kind() {
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				if ml := int(field.Int()); ml > 0 {
+					maxLink = ml
+				}
+			}
+		}
+	}
+	delegate := newNodeDelegate(eg, node, maxLink)
+	eg.addNode(delegate,maxLink)
 	// all gears up, rock it
 	go func(nd *NodeDelegate) {
 		nd.startEventLoop()
@@ -227,9 +247,14 @@ func (eg *EventGraph) onExitNode(req *nodeExitRequest) {
 func (eg *EventGraph) onLinkUp(req *linkUpRequest) {
 	nodeName := req.nodeName
 	scope := req.scope
-	toNode := eg.findNode(scope, nodeName)
 	fromNode := req.fromNode
 
+	ni :=  eg.nodeMap[fromNode.getId()]
+	if ni.maxLink == len(ni.outputLinks) {
+		req.fromNode.receiveCtrl(newLinkUpResponse(nil,state_node_exceed_max_link,scope,nodeName))
+		return
+	}
+	toNode := eg.findNode(scope, nodeName)
 	if toNode == nil {
 		req.fromNode.receiveCtrl(newLinkUpResponse(nil, state_node_not_exist, scope, nodeName))
 		return

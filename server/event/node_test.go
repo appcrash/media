@@ -18,7 +18,11 @@ func ExampleExceptionNode() {
 	rand.Seed(time.Now().UTC().UnixNano())
 	wg := &sync.WaitGroup{}
 	wg.Add(6)
+	initDone := make(chan int)
 	excpNode1 := testNode{scope: "exception", name: "node1",
+		onEnter: func(t *testNode) {
+			initDone <- 0
+		},
 		onEvent: func(t *testNode, evt *event.Event) {
 			cn := (*crashNode)(unsafe.Pointer(t))
 			cn.i++
@@ -28,35 +32,35 @@ func ExampleExceptionNode() {
 			}
 		},
 		onExit: func(t *testNode) {
-			fmt.Printf("%v exited\n",t.name)
+			fmt.Printf("%v exited\n", t.name)
 			wg.Done()
 		},
 	}
 	excpNode2 := excpNode1
 	excpNode2.name = "node2"
-	cn1,cn2 := crashNode{excpNode1,0,0},crashNode{excpNode2,0,0}
+	cn1, cn2 := crashNode{excpNode1, 0, 0}, crashNode{excpNode2, 0, 0}
 	cn1.n = 10000 + rand.Intn(20000)
 	cn2.n = 10000 + rand.Intn(20000)
 
-	normalNode := testNode{scope: "test",name:"normal",
+	normalNode := testNode{scope: "test", name: "normal",
 		onEnter: func(t *testNode) {
-			t.delegate.RequestLinkUp("exception","node1")
-			t.delegate.RequestLinkUp("exception","node2")
+			t.delegate.RequestLinkUp("exception", "node1")
+			t.delegate.RequestLinkUp("exception", "node2")
 		},
 		onLinkUp: func(t *testNode, linkId int, scope string, nodeName string) {
-			go func(id int,name string) {
+			go func(id int, name string) {
 				for {
-					evt := event.NewEvent(cmd_nothing,0)
-					if ok := t.delegate.Delivery(id,evt); !ok {
-						fmt.Printf("delivery stopped: %v\n",name)
+					evt := event.NewEvent(cmd_nothing, 0)
+					if ok := t.delegate.Delivery(id, evt); !ok {
+						fmt.Printf("delivery stopped: %v\n", name)
 						wg.Done()
 						return
 					}
 				}
-			}(linkId,nodeName)
+			}(linkId, nodeName)
 		},
 		onLinkDown: func(t *testNode, linkId int, scope string, nodeName string) {
-			fmt.Printf("link down with %v\n",nodeName)
+			fmt.Printf("link down with %v\n", nodeName)
 			wg.Done()
 		},
 	}
@@ -64,6 +68,7 @@ func ExampleExceptionNode() {
 	graph := event.NewEventGraph()
 	graph.AddNode(&cn1.test)
 	graph.AddNode(&cn2.test)
+	_, _ = <-initDone, <-initDone
 	graph.AddNode(&normalNode)
 	wg.Wait()
 

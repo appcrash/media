@@ -34,4 +34,13 @@ type Node interface {
 
 	// the finalizing method after node exits graph
 	OnExit()
+
+	// optional attributes if following fields defined in the node
+	// -----------------------------------------------------------
+	// maxLink int:
+	//   override default max output link number
+	// dataChannelSize int:
+	//   override default buffered event channel size
+	// deliveryTimeout time.Duration:
+	//   override default event delivery timeout
 }

@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-
-
 func ExampleSendEvent() {
 	done := make(chan int)
 	node1 := &testNode{scope: "scope1", name: "node1",
@@ -129,7 +127,7 @@ func ExampleReceiverExit() {
 			tn.delegate.RequestLinkUp("target", "bomb")
 		},
 		onLinkUp: func(tn *testNode, linkId int, scope string, nodeName string) {
-			fmt.Printf( "%v aiming %v:%v\n", tn.name, scope, nodeName)
+			fmt.Printf("%v aiming %v:%v\n", tn.name, scope, nodeName)
 			go func(nd *event.NodeDelegate) {
 				for {
 					// fire!
@@ -143,7 +141,7 @@ func ExampleReceiverExit() {
 							evt = event.NewEvent(cmd_nothing, nil)
 						}
 						if ok := nd.Delivery(linkId, evt); !ok {
-							fmt.Printf( "%v target missing\n", tn.name)
+							fmt.Printf("%v target missing\n", tn.name)
 							wg.Done()
 							return
 						}
@@ -153,14 +151,18 @@ func ExampleReceiverExit() {
 			}(tn.delegate)
 		},
 		onLinkDown: func(tn *testNode, linkId int, scope string, nodeName string) {
-			fmt.Printf( "%v shot down %v:%v\n", tn.name, scope, nodeName)
+			fmt.Printf("%v shot down %v:%v\n", tn.name, scope, nodeName)
 			wg.Done()
 		},
 	}
 	s2 := s1
 	s2.name = "shooter2"
 
+	initDone := make(chan int)
 	earlyExitNode := testNode{scope: "target", name: "bomb",
+		onEnter: func(t *testNode) {
+			initDone <- 0
+		},
 		onEvent: func(t *testNode, evt *event.Event) {
 			if evt.GetCmd() == cmd_explode {
 				t.delegate.RequestNodeExit()
@@ -174,6 +176,7 @@ func ExampleReceiverExit() {
 
 	graph := event.NewEventGraph()
 	graph.AddNode(&earlyExitNode)
+	<-initDone
 	graph.AddNode(&s1)
 	graph.AddNode(&s2)
 	wg.Wait()
