@@ -35,7 +35,7 @@ type Node interface {
 	// the finalizing method after node exits graph
 	OnExit()
 
-	// optional attributes if following fields defined in the node
+	// optional attributes if following fields defined in the node and large than zero
 	// -----------------------------------------------------------
 	// maxLink int:
 	//   override default max output link number

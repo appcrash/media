@@ -319,6 +319,8 @@ func (nd *NodeDelegate) finalize(err error, done chan int) {
 	// 2. request node exit to graph, the node would be notified
 	// output links are down and moved out of the graph, the node's
 	// system event loop would terminate when node-exit response received
+
+	//fmt.Errorf("finalizing node with error:%v\n",err)
 	done <- 0
 	nd.RequestNodeExit()
 }
@@ -335,7 +337,7 @@ func (nd *NodeDelegate) RequestLinkUp(scope string, nodeName string) (err error)
 	// graph will give error response if duplication happened
 	// i.e. (fromScope,fromName,toScope,toName) quaternion is unique across graph
 	if scope == "" || nodeName == "" {
-		err = errors.New("wrong dlink-up parameters")
+		err = errors.New("wrong link-up parameters")
 		return
 	}
 	evt := newLinkUpRequest(nd, scope, nodeName)

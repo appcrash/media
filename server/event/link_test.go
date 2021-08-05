@@ -14,7 +14,7 @@ func ExampleSendEvent() {
 	node1 := &testNode{scope: "scope1", name: "node1",
 		onEvent: func(t *testNode, evt *event.Event) {
 			if evt.GetCmd() == cmd_print_self {
-				fmt.Printf("scope:%v,name:%v", t.scope, t.name)
+				fmt.Printf("scope:%v,name:%v\n", t.scope, t.name)
 				done <- 0
 			}
 		}}
@@ -22,22 +22,34 @@ func ExampleSendEvent() {
 		onEnter: func(tn *testNode) {
 			tn.delegate.RequestLinkUp("scope1", "node1")
 		},
-		onLinkUp: func(tn *testNode, linkId int, _scope string, _nodeName string) {
+		onLinkUp: func(tn *testNode, linkId int, scope string, nodeName string) {
+			if linkId >= 0 {
+				fmt.Printf("got link %v:%v\n", scope, nodeName)
+			} else {
+				fmt.Printf("duplicated link %v:%v\n", scope, nodeName)
+				done <- 0
+				return
+			}
 			evt := event.NewEvent(cmd_print_self, nil)
 			tn.delegate.Delivery(linkId, evt)
+			tn.delegate.RequestLinkUp("scope1", "node1")
 		},
 	}
 	graph := event.NewEventGraph()
 	graph.AddNode(node1)
 	graph.AddNode(node2)
-	<-done
+	_, _ = <-done, <-done
 
-	// OUTPUT:
+	// Unordered OUTPUT:
 	// scope:scope1,name:node1
+	// got link scope1:node1
+	// duplicated link scope1:node1
 }
 
-func ExampleLinkDown() {
-	done := make(chan int)
+func ExampleLinkDownNonExistent() {
+	const loopNum = 5
+	wg := &sync.WaitGroup{}
+	wg.Add(loopNum)
 	downnode := &testNode{scope: "downscope", name: "downnode"}
 	baseNode := &testNode{scope: "ask_linkdown",
 		onEnter: func(tn *testNode) {
@@ -47,22 +59,24 @@ func ExampleLinkDown() {
 			tn.delegate.RequestLinkDown(linkId)
 		},
 		onLinkDown: func(tn *testNode, linkId int, _scope string, _nodeName string) {
-			fmt.Printf("linkdown: %v\n", tn.name)
-			done <- 0
+			if linkId >= 0 {
+				fmt.Printf("linkdown: %v\n", tn.name)
+				if err := tn.delegate.RequestLinkDown(linkId + 1); err != nil {
+					fmt.Printf("linkdown: non-existent link\n")
+				} // request wrong link id
+				wg.Done()
+			}
 		},
 	}
 
 	graph := event.NewEventGraph()
 	graph.AddNode(downnode)
-	const loopNum = 5
 	for i := 0; i < loopNum; i++ {
 		node := *baseNode
 		node.name = "node" + strconv.Itoa(i)
 		graph.AddNode(&node)
 	}
-	for i := 0; i < loopNum; i++ {
-		<-done
-	}
+	wg.Wait()
 
 	// Unordered output:
 	// linkdown: node0
@@ -70,6 +84,49 @@ func ExampleLinkDown() {
 	// linkdown: node2
 	// linkdown: node3
 	// linkdown: node4
+	// linkdown: non-existent link
+	// linkdown: non-existent link
+	// linkdown: non-existent link
+	// linkdown: non-existent link
+	// linkdown: non-existent link
+}
+
+func ExampleLinkDuplicated() {
+	done := make(chan int)
+	downnode := &testNode{scope: "downscope", name: "downnode"}
+	baseNode := &testNode{scope: "ask_linkdown", name: "down_same_link",
+		onEnter: func(tn *testNode) {
+			tn.delegate.RequestLinkUp("downscope", "downnode")
+			tn.delegate.RequestLinkUp("downscope", "downnode")
+		},
+		onLinkUp: func(tn *testNode, linkId int, _scope string, _nodeName string) {
+			if linkId >= 0 {
+				tn.delegate.RequestLinkDown(linkId)
+			} else {
+				fmt.Printf("linkup: request failed\n")
+				done <- 0
+			}
+		},
+		onLinkDown: func(tn *testNode, linkId int, _scope string, _nodeName string) {
+			if linkId >= 0 {
+				fmt.Printf("linkdown: %v\n", tn.name)
+				if err := tn.delegate.RequestLinkDown(linkId); err != nil {
+					fmt.Printf("linkdown: link already down\n")
+					done <- 0
+				}
+			}
+		},
+	}
+
+	graph := event.NewEventGraph()
+	graph.AddNode(downnode)
+	graph.AddNode(baseNode)
+	_, _ = <-done, <-done
+
+	// Unordered output:
+	// linkup: request failed
+	// linkdown: down_same_link
+	// linkdown: link already down
 }
 
 func ExampleMoreLink() {
@@ -190,3 +247,5 @@ func ExampleReceiverExit() {
 	// shooter1 shot down target:bomb
 	// shooter2 shot down target:bomb
 }
+
+

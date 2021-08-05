@@ -180,6 +180,7 @@ func (eg *EventGraph) onAddNode(req *nodeAddRequest) {
 	maxLink := defaultMaxLink
 	node := req.node
 	ps := reflect.ValueOf(node)
+
 	elem := ps.Elem()
 	if elem.Kind() == reflect.Struct {
 		field := elem.FieldByName("maxLink")
