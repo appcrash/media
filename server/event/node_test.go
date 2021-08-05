@@ -17,7 +17,7 @@ type crashNode struct {
 	i, n int
 }
 
-func ExampleExceptionNode() {
+func ExampleExceptionNodeOnEvent() {
 	rand.Seed(time.Now().UTC().UnixNano())
 	wg := &sync.WaitGroup{}
 	wg.Add(6)
@@ -82,6 +82,42 @@ func ExampleExceptionNode() {
 	// link down with node2
 	// node1 exited
 	// node2 exited
+}
+
+func ExampleExceptionNodeOnControl() {
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+	panicNode := &testNode{scope: "panic", name: "panic",
+		onEnter: func(t *testNode) {
+			panic("I am nervous!")
+		},
+		onExit: func(t *testNode) {
+			fmt.Println("panic exit")
+			wg.Done()
+		},
+	}
+	connPanicNode := &testNode{scope:"panic",name:"conn",
+		onEnter: func(t *testNode) {
+			t.delegate.RequestLinkUp("normal","normal")
+		},
+		onLinkUp: func(t *testNode, linkId int, scope string, nodeName string) {
+			panic("I am also nervous")
+		},
+		onExit: func(t *testNode) {
+			fmt.Println("conn panic exit")
+			wg.Done()
+		},
+	}
+	normalNode := &testNode{scope: "normal",name:"normal"}
+	graph := event.NewEventGraph()
+	graph.AddNode(panicNode)
+	graph.AddNode(normalNode)
+	graph.AddNode(connPanicNode)
+	wg.Wait()
+
+	// Unordered output:
+	// panic exit
+	// conn panic exit
 }
 
 func TestMaxLink(t *testing.T) {

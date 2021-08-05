@@ -46,9 +46,9 @@ const defaultDeliveryTimeout = 100 * time.Millisecond
 
 func newNodeDelegate(graph *EventGraph, node Node, maxLink int) *NodeDelegate {
 	delegate := &NodeDelegate{
-		nodeImpl:        node,
-		ctrlC:           make(chan *Event),
-		graph:           graph,
+		nodeImpl: node,
+		ctrlC:    make(chan *Event),
+		graph:    graph,
 	}
 	delegate.id = node.GetNodeScope() + ":" + node.GetNodeName()
 	delegate.inExit.Store(false)
@@ -85,7 +85,7 @@ func newNodeDelegate(graph *EventGraph, node Node, maxLink int) *NodeDelegate {
 	}
 
 	// only buffered channel can satisfy nonblock sending in most case
-	delegate.dataC = make(chan *Event,dataSize)
+	delegate.dataC = make(chan *Event, dataSize)
 	delegate.deliveryTimeout = deliveryTimeout
 	return delegate
 }
@@ -135,14 +135,16 @@ func (nd *NodeDelegate) receiveData(evt *Event, timeoutMs time.Duration) (ok boo
 }
 
 func (nd *NodeDelegate) startEventLoop() {
-	// buffered channel keep system loop from spinning after node exits
+	// buffered channel prevents system loop from spinning after node exits
 	// 2 = 1(system event loop) + 1(finalize)
 	doneC := make(chan int, 2)
 	go func(n *NodeDelegate, done chan int) {
 		err := nd.systemEventLoop()
 		if err != nil {
-			// come here means event graph has a serious bug
-			fmt.Errorf("[graph]: fatal error")
+			// come to here as graph has a bug
+			fmt.Errorf("[graph]: fatal error: %v\n", err)
+			nd.finalize(err, done)
+			return
 		}
 		// notify user event loop stop
 		done <- 0
@@ -182,6 +184,18 @@ func (nd *NodeDelegate) systemEventLoop() (err error) {
 	}
 }
 
+func (nd *NodeDelegate) preSystemInvoke() {
+	nd.invokeMutex.Lock()
+}
+func (nd *NodeDelegate) postSystemInvoke() {
+	if r := recover(); r != nil {
+		nd.invokeMutex.Unlock()
+		nd.RequestNodeExit()
+		return
+	}
+	nd.invokeMutex.Unlock()
+}
+
 func (nd *NodeDelegate) handleSystemEvent(evt *Event) {
 	switch evt.cmd {
 	case resp_node_add:
@@ -189,8 +203,8 @@ func (nd *NodeDelegate) handleSystemEvent(evt *Event) {
 			panic(errors.New("[graph]:node add response with wrong event object"))
 		} else {
 			go func(n *NodeDelegate) {
-				n.invokeMutex.Lock()
-				defer n.invokeMutex.Unlock()
+				n.preSystemInvoke()
+				defer n.postSystemInvoke()
 				n.nodeImpl.OnEnter(n)
 			}(resp.delegate)
 		}
@@ -199,8 +213,8 @@ func (nd *NodeDelegate) handleSystemEvent(evt *Event) {
 			panic(errors.New("[graph]:node exit response with wrong event object"))
 		} else {
 			go func(n *NodeDelegate) {
-				n.invokeMutex.Lock()
-				defer n.invokeMutex.Unlock()
+				n.preSystemInvoke()
+				defer n.postSystemInvoke()
 				n.nodeImpl.OnExit()
 			}(nd)
 		}
@@ -212,8 +226,8 @@ func (nd *NodeDelegate) handleSystemEvent(evt *Event) {
 			nodeName := resp.nodeName
 			if resp.state != 0 {
 				go func(n *NodeDelegate, s string, name string) {
-					n.invokeMutex.Lock()
-					defer n.invokeMutex.Unlock()
+					n.preSystemInvoke()
+					defer n.postSystemInvoke()
 					n.nodeImpl.OnLinkUp(-1, s, name)
 				}(nd, scope, nodeName)
 				return
@@ -234,16 +248,10 @@ func (nd *NodeDelegate) handleSystemEvent(evt *Event) {
 				// atomic rewrite old dlink info
 				val.Store(link)
 			}
-			//} else {
-			//	var v atomic.Value
-			//	v.Store(link)
-			//	newLinkId = len(nd.links)
-			//	nd.links = append(nd.links, &v)
-			//}
 
 			go func(n *NodeDelegate, id int, s string, name string) {
-				n.invokeMutex.Lock()
-				defer n.invokeMutex.Unlock()
+				n.preSystemInvoke()
+				defer n.postSystemInvoke()
 				n.nodeImpl.OnLinkUp(id, s, name)
 			}(nd, newLinkId, scope, nodeName)
 		}
@@ -271,8 +279,8 @@ func (nd *NodeDelegate) handleSystemEvent(evt *Event) {
 			scope := link.toNode.getNodeScope()
 			nodeName := link.toNode.getNodeName()
 			go func(n *NodeDelegate, id int, s string, name string) {
-				n.invokeMutex.Lock()
-				defer n.invokeMutex.Unlock()
+				n.preSystemInvoke()
+				defer n.postSystemInvoke()
 				n.nodeImpl.OnLinkDown(id, s, name)
 			}(nd, linkId, scope, nodeName)
 		}
@@ -398,4 +406,3 @@ func (nd *NodeDelegate) DeliveryWithTimeout(linkId int, evt *Event, timeout time
 func (nd *NodeDelegate) Delivery(linkId int, evt *Event) bool {
 	return nd.DeliveryWithTimeout(linkId, evt, nd.deliveryTimeout)
 }
-
