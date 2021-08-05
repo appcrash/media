@@ -20,7 +20,7 @@ type Node interface {
 	GetNodeScope() string
 
 	// following methods (On***) are never invoke concurrently
-	// all of them are called in multiple separate gorouting sequentially
+	// all of them are called in multiple separate goroutine sequentially
 
 	// normal event handling
 	OnEvent(evt *Event)
