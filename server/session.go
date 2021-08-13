@@ -6,7 +6,7 @@ import (
 	"github.com/appcrash/media/server/rpc"
 	"github.com/google/uuid"
 	cmap "github.com/orcaman/concurrent-map"
-	"github.com/wernerd/GoRTP/src/net/rtp"
+	"github.com/appcrash/GoRTP/rtp"
 	"net"
 	"runtime/debug"
 	"time"

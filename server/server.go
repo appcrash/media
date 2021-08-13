@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/appcrash/media/server/rpc"
-	"github.com/wernerd/GoRTP/src/net/rtp"
 	"google.golang.org/grpc"
 	"net"
 	"runtime/debug"
@@ -22,7 +21,7 @@ type MediaServer struct {
 	sinkF []SinkFactory
 }
 
-const MYIP = "127.0.0.1"
+const MYIP = "0.0.0.0"
 
 var local, _ = net.ResolveIPAddr("ip", MYIP)
 
@@ -168,17 +167,7 @@ outLoop:
 	return errors.New("cmd not exist")
 }
 
-var rtpPatched = false
-func patchRtpStack() {
-	if (!rtpPatched) {
-		pmap := rtp.PayloadFormatMap
-		pmap[96] = &rtp.PayloadFormat{96, rtp.Audio, 16000, 1, "AMR-WB"}
-		rtpPatched = true
-	}
-}
-
 func InitServer(port uint16,executorList []CommandExecute,sourceF []SourceFactory,sinkF []SinkFactory){
-	patchRtpStack()
 	lis, _ := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
 	server := MediaServer{
 		listenPort: port,
