@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package rpc;
 
-option go_package="github.com/appcrash/media/server/rpc";
+option go_package = "github.com/appcrash/media/server/rpc";
 
 enum CodecType {
   RAW = 0;     // raw data
@@ -12,11 +12,12 @@ enum CodecType {
 }
 
 message MediaParam {
-  string peer_ip = 1;            // remote rtp ip
-  uint32 peer_port = 2;          // remote rtp port
-  uint32 payload_rtp_type = 3;   // negotiated payload to use, fixed or dynamic(96 ~ 127)
-  CodecType record_type = 4;     // codec used to record file
-  string record_file = 5;        // empty if needs not recording
+  string peer_ip = 1;                // remote rtp ip
+  uint32 peer_port = 2;              // remote rtp port
+  uint32 payload_dynamic_type = 3;   // negotiated payload type, dynamic(96 ~ 127), fixed type will ignore this
+  CodecType payload_codec_type = 4;  // used to identify mime type, like "AMR","PCMA"
+  CodecType record_type = 5;         // codec used to record file
+  string record_file = 6;            // empty if needs not recording
 }
 
 message SessionParam {

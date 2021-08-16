@@ -2,15 +2,18 @@ package server
 
 import (
 	"fmt"
+	"github.com/appcrash/GoRTP/rtp"
 	"github.com/appcrash/media/codec"
+	"github.com/appcrash/media/server/event"
 	"github.com/appcrash/media/server/rpc"
 	"github.com/google/uuid"
-	cmap "github.com/orcaman/concurrent-map"
-	"github.com/appcrash/GoRTP/rtp"
 	"net"
 	"runtime/debug"
+	"sync"
 	"time"
 )
+
+var sessionMap = sync.Map{}
 
 type MediaSession struct {
 	sessionId         string
@@ -25,34 +28,51 @@ type MediaSession struct {
 
 	source []Source
 	sink   []Sink
+	graph  *event.EventGraph
 }
 
-var sessionMap = cmap.New()
+func profileOfCodec(c rpc.CodecType) (profile string) {
+	switch c {
+	case rpc.CodecType_PCM_ALAW:
+		profile = "PCMA"
+	case rpc.CodecType_AMRNB:
+		profile = "AMR"
+	case rpc.CodecType_AMRWB:
+		profile = "AMR-WB"
+	}
+	return
+}
 
-func createSession(localPort int, mediaParam *rpc.MediaParam) *MediaSession {
-	tpLocal, _ := rtp.NewTransportUDP(local, localPort, "")
+func createSession(ipAddr *net.IPAddr, localPort int, mediaParam *rpc.MediaParam) *MediaSession {
+	tpLocal, _ := rtp.NewTransportUDP(ipAddr, localPort, "")
 	session := rtp.NewSession(tpLocal, tpLocal)
 	strLocalIdx, _ := session.NewSsrcStreamOut(&rtp.Address{
-		IPAddr:   local.IP,
+		IPAddr:   ipAddr.IP,
 		DataPort: localPort,
 		CtrlPort: 1 + localPort,
 		Zone:     "",
 	}, 0, 0)
-	session.SsrcStreamOutForIndex(strLocalIdx).SetPayloadType(byte(mediaParam.GetPayloadRtpType()))
+
+	if profile := profileOfCodec(mediaParam.GetPayloadCodecType()); profile != "" {
+		session.SsrcStreamOutForIndex(strLocalIdx).SetProfile(profile, byte(mediaParam.GetPayloadDynamicType()))
+	} else {
+		session.CloseSession()
+		return nil
+	}
 
 	ms := MediaSession{
-		sessionId:   uuid.New().String(),
-		rtpSession:  session,
-		payloadTypeNumber: mediaParam.GetPayloadRtpType(),
-		payloadCodec: mediaParam.GetRecordType(),
-		recordFile: mediaParam.GetRecordFile(),
+		sessionId:         uuid.New().String(),
+		rtpSession:        session,
+		payloadTypeNumber: mediaParam.GetPayloadDynamicType(),
+		payloadCodec:      mediaParam.GetRecordType(),
+		recordFile:        mediaParam.GetRecordFile(),
 
-		// use buffered version avoiding deadlock
+		// use buffered version to avoid deadlock
 		sndCtrlC:     make(chan string, 2),
 		rcvCtrlC:     make(chan string, 2),
 		rcvRtcpCtrlC: make(chan string, 2),
 	}
-	sessionMap.Set(ms.sessionId, &ms)
+	sessionMap.Store(ms.sessionId, &ms)
 	return &ms
 }
 
@@ -89,10 +109,6 @@ func (session *MediaSession) receiveCtrlLoop() {
 		select {
 		case eventArray := <-rtcpReceiver:
 			for _, event := range eventArray {
-				//if packetType, exist := codec.RtcpPacketTypeMap[event.EventType]; exist {
-				//	fmt.Printf("rctp: [%v] --- reason %v \n", packetType, event.Reason)
-				//}
-
 				if event.EventType == rtp.RtcpBye {
 					// peer send bye, notify data send/receive loop to stop
 					fmt.Println("rtp peer says bye")
@@ -133,7 +149,7 @@ outLoop:
 			//fmt.Printf("data len is %v",len(data))
 			// push received data to all sinkers, then free the packet
 			for _, s := range session.sink {
-				data,shouldContinue = s.HandleData(session, data)
+				data, shouldContinue = s.HandleData(session, data)
 				if !shouldContinue {
 					break
 				}
@@ -175,7 +191,6 @@ outLoop:
 			}
 			if data != nil {
 				if session.rtpSession == nil {
-					fmt.Println("########################")
 					break outLoop
 				}
 
@@ -199,7 +214,6 @@ outLoop:
 }
 
 func (session *MediaSession) Start() {
-	session.rtpSession.RtcpSessionBandwidth = 5000
 	session.rtpSession.StartSession()
 	go session.receiveCtrlLoop()
 	go session.receivePacketLoop()
@@ -224,14 +238,18 @@ func (session *MediaSession) Stop() {
 		fmt.Errorf("send stop to session RTCP receive loop failed")
 	}
 	session.rtpSession.CloseSession()
-	sessionMap.Remove(session.GetSessionId())
+	sessionMap.Delete(session.GetSessionId())
 }
 
+// AddNode add an event node to server-wide event graph
+func (session *MediaSession) AddNode(node event.Node) {
+	session.graph.AddNode(node)
+}
+
+// AddRemote add rtp peer to communicate
 func (session *MediaSession) AddRemote(ip string, port int) {
 	ipaddr := net.ParseIP(ip)
 
-	//println("peer ip port ",ipaddr,port)
-	//println("session is ", session)
 	session.rtpSession.AddRemote(&rtp.Address{
 		IPAddr:   ipaddr,
 		DataPort: port,
