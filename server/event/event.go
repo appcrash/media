@@ -19,11 +19,11 @@ type Node interface {
 	GetNodeName() string
 	GetNodeScope() string
 
-	// following methods (On***) are never invoke concurrently
-	// all of them are called in multiple separate goroutine sequentially
-
 	// normal event handling
 	OnEvent(evt *Event)
+
+	// methods below (On***) are never invoke concurrently
+	// all of them are called in multiple separate goroutine sequentially
 
 	// dlink status change
 	OnLinkUp(linkId int, scope string, nodeName string)
