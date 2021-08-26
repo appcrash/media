@@ -406,3 +406,11 @@ func (nd *NodeDelegate) DeliveryWithTimeout(linkId int, evt *Event, timeout time
 func (nd *NodeDelegate) Delivery(linkId int, evt *Event) bool {
 	return nd.DeliveryWithTimeout(linkId, evt, nd.deliveryTimeout)
 }
+
+// DeliverySelf directly puts event to this node's event loop
+// it is a convenient way to talk to the node, and node can choose to expose api to let
+// caller who has a reference to this node directly sending message to node
+// from the node's perspective, it doesn't care about the source of every event
+func (nd *NodeDelegate) DeliverySelf(evt *Event) bool {
+	return nd.receiveData(evt,defaultDeliveryTimeout)
+}

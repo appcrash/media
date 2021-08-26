@@ -96,9 +96,9 @@ func ExampleExceptionNodeOnControl() {
 			wg.Done()
 		},
 	}
-	connPanicNode := &testNode{scope:"panic",name:"conn",
+	connPanicNode := &testNode{scope: "panic", name: "conn",
 		onEnter: func(t *testNode) {
-			t.delegate.RequestLinkUp("normal","normal")
+			t.delegate.RequestLinkUp("normal", "normal")
 		},
 		onLinkUp: func(t *testNode, linkId int, scope string, nodeName string) {
 			panic("I am also nervous")
@@ -108,7 +108,7 @@ func ExampleExceptionNodeOnControl() {
 			wg.Done()
 		},
 	}
-	normalNode := &testNode{scope: "normal",name:"normal"}
+	normalNode := &testNode{scope: "normal", name: "normal"}
 	graph := event.NewEventGraph()
 	graph.AddNode(panicNode)
 	graph.AddNode(normalNode)
@@ -195,4 +195,41 @@ func TestDataChannelSizeAndDeliveryTimeout(t *testing.T) {
 	<-done
 	blockC <- 0
 	blockC <- 0
+}
+
+type countNode testNode
+
+func (c *countNode) Count(i int) {
+	evt := event.NewEvent(cmd_nothing, i)
+	c.delegate.DeliverySelf(evt)
+}
+
+func TestSelfDelivery(t *testing.T) {
+	ready := make(chan int)
+	c := make(chan int)
+	node := &countNode{scope: "count", name: "count",
+		onEvent: func(t *testNode, evt *event.Event) {
+			c <- evt.GetObj().(int)
+		},
+		onEnter: func(t *testNode) {
+			ready <- 0
+		},
+	}
+
+	graph := event.NewEventGraph()
+	graph.AddNode((*testNode)(node))
+
+	go func() {
+		<-ready
+		for i := 1; i <= 500; i++ {
+			node.Count(i)
+		}
+	}()
+
+	for i := 1; i <= 500; i++ {
+		v := <-c
+		if v != i {
+			t.Errorf("delivered data wrong")
+		}
+	}
 }
