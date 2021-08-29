@@ -318,6 +318,10 @@ func (nd *NodeDelegate) userEventLoop(done chan int) (err error) {
 
 func (nd *NodeDelegate) handleUserEvent(evt *Event) {
 	nd.nodeImpl.OnEvent(evt)
+	// check call back and invoke it if necessary
+	if evt.cb != nil {
+		evt.cb()
+	}
 }
 
 func (nd *NodeDelegate) finalize(err error, done chan int) {

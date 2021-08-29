@@ -233,3 +233,39 @@ func TestSelfDelivery(t *testing.T) {
 		}
 	}
 }
+
+func TestSyncEvent(t *testing.T) {
+	ready := make(chan int)
+	c := make(chan int)
+	node := &countNode{scope: "count", name: "count",
+		onLinkUp: func(t *testNode, linkId int, scope string, nodeName string) {
+			for i := 1; i <= 500; i++ {
+				evt := event.NewEventWithCallback(cmd_nothing, nil, func() {
+					c <- 0
+				})
+				t.delegate.Delivery(linkId, evt)
+			}
+		},
+		onEnter: func(t *testNode) {
+			t.delegate.RequestLinkUp("nothing", "nothing")
+		},
+	}
+	nothing := &testNode{scope: "nothing", name: "nothing"}
+
+	graph := event.NewEventGraph()
+	graph.AddNode(nothing)
+	graph.AddNode((*testNode)(node))
+
+	go func() {
+		for i := 1; i <= 500; i++ {
+			<-c
+		}
+		ready <- 0
+	}()
+
+	select {
+	case <-ready:
+	case <-time.After(2 * time.Second):
+		t.Error("event callback not working")
+	}
+}

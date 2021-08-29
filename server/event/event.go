@@ -2,9 +2,12 @@ package event
 
 // event network structures
 
+type Callback func()
+
 type Event struct {
 	cmd int
 	obj interface{}
+	cb Callback
 }
 
 func (e *Event) GetCmd() int {
