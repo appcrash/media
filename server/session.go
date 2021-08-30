@@ -20,7 +20,7 @@ type MediaSession struct {
 	rtpSession        *rtp.Session
 	payloadTypeNumber uint32
 	payloadCodec      rpc.CodecType
-	recordFile        string
+	graphDesc         string
 
 	sndCtrlC     chan string
 	rcvCtrlC     chan string
@@ -64,8 +64,8 @@ func createSession(ipAddr *net.IPAddr, localPort int, mediaParam *rpc.MediaParam
 		sessionId:         uuid.New().String(),
 		rtpSession:        session,
 		payloadTypeNumber: mediaParam.GetPayloadDynamicType(),
-		payloadCodec:      mediaParam.GetRecordType(),
-		recordFile:        mediaParam.GetRecordFile(),
+		payloadCodec:      mediaParam.GetPayloadCodecType(),
+		graphDesc:         mediaParam.GetGraphDesc(),
 
 		// use buffered version to avoid deadlock
 		sndCtrlC:     make(chan string, 2),
@@ -88,8 +88,8 @@ func (session *MediaSession) GetCodecType() rpc.CodecType {
 	return session.payloadCodec
 }
 
-func (session *MediaSession) GetRecordFile() string {
-	return session.recordFile
+func (session *MediaSession) GetGraphDescription() string {
+	return session.graphDesc
 }
 
 func (session *MediaSession) GetSource() []Source {
