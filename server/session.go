@@ -100,6 +100,10 @@ func (session *MediaSession) GetSink() []Sink {
 	return session.sink
 }
 
+func (session *MediaSession) GetEventGraph() *event.EventGraph {
+	return session.graph
+}
+
 // receive rtcp packet
 func (session *MediaSession) receiveCtrlLoop() {
 	rtcpReceiver := session.rtpSession.CreateCtrlEventChan()

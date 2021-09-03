@@ -51,7 +51,7 @@ func (cp *codecParam) setOption(key string, value string) {
 	cp.option[key] = value
 }
 
-func (cp *codecParam) getOption() *kvoption{
+func (cp *codecParam) getOption() *kvoption {
 	return &cp.option
 }
 
@@ -71,7 +71,7 @@ func (fp *filterParam) setOption(key string, value string) {
 	}
 }
 
-func (fp *filterParam) getOption() *kvoption{
+func (fp *filterParam) getOption() *kvoption {
 	return &fp.option
 }
 
@@ -115,7 +115,7 @@ func (tp *TranscodeParam) saveFilter() {
 	tp.currentConfig = nil
 }
 
-func (tp *TranscodeParam) NewFilter(name string) *TranscodeParam{
+func (tp *TranscodeParam) NewFilter(name string) *TranscodeParam {
 	tp.saveFilter()
 	tp.currentConfig = &filterParam{
 		filterName: name,
@@ -148,16 +148,16 @@ func (tp *TranscodeParam) GetDescription() *string {
 	tp.saveFilter()
 
 	var sb strings.Builder
-	writeCodec := func(typeName string,codec configable,optLen int) {
+	writeCodec := func(typeName string, codec configable, optLen int) {
 		sb.WriteString(typeName + ":")
 		sb.WriteString(codec.getName())
 		sb.WriteString(" ")
 		i := 0
-		for k,v := range *codec.getOption() {
+		for k, v := range *codec.getOption() {
 			sb.WriteString(k)
 			sb.WriteString("=")
 			sb.WriteString(v)
-			if i == optLen - 1 {
+			if i == optLen-1 {
 				sb.WriteString("\n")
 			} else {
 				sb.WriteString(",")
@@ -165,14 +165,14 @@ func (tp *TranscodeParam) GetDescription() *string {
 			i++
 		}
 	}
-	writeCodec("encoder",tp.encoder,encoderLen)
-	writeCodec("decoder",tp.decoder,decoderLen)
+	writeCodec("encoder", tp.encoder, encoderLen)
+	writeCodec("decoder", tp.decoder, decoderLen)
 
 	fgLen := len(tp.filterGraph)
 	i := 0
 	if fgLen > 0 {
 		sb.WriteString("filter_graph: ")
-		for _,filter := range tp.filterGraph {
+		for _, filter := range tp.filterGraph {
 			if filter.immediateOption == "" && len(filter.option) == 0 {
 				// a filter without any value and option, just append its name
 				sb.WriteString(filter.getName())
@@ -181,17 +181,17 @@ func (tp *TranscodeParam) GetDescription() *string {
 				if len(filter.immediateOption) > 0 {
 					sb.WriteString(filter.immediateOption)
 					if len(filter.option) > 0 {
-						sb.WriteString(":")        // filter options separated by colon, parsed by libavfilter
+						sb.WriteString(":") // filter options separated by colon, parsed by libavfilter
 					}
 				}
-				for k,v := range filter.option {
+				for k, v := range filter.option {
 					sb.WriteString(":")
 					sb.WriteString(k)
 					sb.WriteString("=")
 					sb.WriteString(v)
 				}
 			}
-			if i != fgLen - 1 {
+			if i != fgLen-1 {
 				sb.WriteString(",") // filters are separated by comma, parsed by libavfilter
 			}
 			i++
@@ -204,7 +204,7 @@ func (tp *TranscodeParam) GetDescription() *string {
 
 // following methods are for convenience, used for codecParam only
 func (tp *TranscodeParam) checkCodec() {
-	if _,ok := tp.currentConfig.(*codecParam); !ok {
+	if _, ok := tp.currentConfig.(*codecParam); !ok {
 		tp.hasError = true
 	}
 }
@@ -212,42 +212,41 @@ func (tp *TranscodeParam) checkCodec() {
 // option names for AVCodecContext, see "libavcodec/options_table.h" in FFMPEG
 func (tp *TranscodeParam) SampleRate(rate int) *TranscodeParam {
 	tp.checkCodec()
-	tp.currentConfig.setOption("ar",strconv.Itoa(rate))
+	tp.currentConfig.setOption("ar", strconv.Itoa(rate))
 	return tp
 }
 
-func (tp *TranscodeParam) BitRate(bitrate int) *TranscodeParam{
+func (tp *TranscodeParam) BitRate(bitrate int) *TranscodeParam {
 	tp.checkCodec()
-	tp.currentConfig.setOption("b",strconv.Itoa(bitrate))
+	tp.currentConfig.setOption("b", strconv.Itoa(bitrate))
 	return tp
 }
 
-func (tp *TranscodeParam) ChannelCount(count int) *TranscodeParam{
+func (tp *TranscodeParam) ChannelCount(count int) *TranscodeParam {
 	tp.checkCodec()
-	tp.currentConfig.setOption("ac",strconv.Itoa(count))
+	tp.currentConfig.setOption("ac", strconv.Itoa(count))
 	return tp
 }
 
 func (tp *TranscodeParam) ChannelLayout(layoutId int) *TranscodeParam {
 	tp.checkCodec()
-	tp.currentConfig.setOption("channel_layout",strconv.Itoa(layoutId))
+	tp.currentConfig.setOption("channel_layout", strconv.Itoa(layoutId))
 	return tp
 }
 
-
 type MixParam struct {
-	input1 kvoption
-	input2 kvoption
-	output kvoption
-	current *kvoption
+	input1   kvoption
+	input2   kvoption
+	output   kvoption
+	current  *kvoption
 	hasError bool
 }
 
-func NewMixParam() *MixParam{
+func NewMixParam() *MixParam {
 	return &MixParam{
-		input1 : make(kvoption),
-		input2 : make(kvoption),
-		output : make(kvoption),
+		input1: make(kvoption),
+		input2: make(kvoption),
+		output: make(kvoption),
 	}
 }
 
@@ -274,7 +273,7 @@ func (mp *MixParam) sanityCheck() bool {
 	return true
 }
 
-func (mp *MixParam) SampleRate(rate int) (m *MixParam){
+func (mp *MixParam) SampleRate(rate int) (m *MixParam) {
 	m = mp
 	if !mp.sanityCheck() {
 		return
@@ -283,7 +282,7 @@ func (mp *MixParam) SampleRate(rate int) (m *MixParam){
 	return
 }
 
-func (mp *MixParam) SampleFormat(format int) (m *MixParam){
+func (mp *MixParam) SampleFormat(format int) (m *MixParam) {
 	m = mp
 	if !mp.sanityCheck() {
 		return
@@ -292,7 +291,7 @@ func (mp *MixParam) SampleFormat(format int) (m *MixParam){
 	return
 }
 
-func (mp *MixParam) ChannelLayout(layout int) (m *MixParam){
+func (mp *MixParam) ChannelLayout(layout int) (m *MixParam) {
 	m = mp
 	if !mp.sanityCheck() {
 		return
@@ -306,9 +305,9 @@ func (mp *MixParam) GetDescription() *string {
 		return nil
 	}
 
-	toString := func(typeName string,dict *kvoption) string {
+	toString := func(typeName string, dict *kvoption) string {
 		var sb strings.Builder
-		for k,v := range *dict {
+		for k, v := range *dict {
 			sb.WriteString(k)
 			sb.WriteString("=")
 			sb.WriteString(v)
@@ -317,9 +316,9 @@ func (mp *MixParam) GetDescription() *string {
 		result := typeName + ":" + sb.String()
 		return result[:len(result)-1] // remove last ":"
 	}
-	input1 := toString("input1",&mp.input1)
-	input2 := toString("input2",&mp.input2)
-	output := toString("output",&mp.output)
-	result := strings.Join([]string{input1,input2,output},"\n")
+	input1 := toString("input1", &mp.input1)
+	input2 := toString("input2", &mp.input2)
+	output := toString("output", &mp.output)
+	result := strings.Join([]string{input1, input2, output}, "\n")
 	return &result
 }

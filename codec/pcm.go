@@ -9,13 +9,13 @@ func PcmaSplitToFrames(payload []byte) (frames [][]byte) {
 	for i < plen {
 		frameEnd := i + frameLen
 		if frameEnd > plen {
-			if i < plen - 1 {
+			if i < plen-1 {
 				// remaining little frame
-				frames = append(frames,payload[i:plen])
+				frames = append(frames, payload[i:plen])
 			}
 			break
 		}
-		frames = append(frames,payload[i:frameEnd])
+		frames = append(frames, payload[i:frameEnd])
 		i = frameEnd
 	}
 	return

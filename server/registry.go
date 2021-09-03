@@ -14,34 +14,34 @@ func (msrv *MediaServer) registerCommandExecutor(e CommandExecute) {
 	cmdTrait := e.GetCommandTrait()
 	var cm *sync.Map
 
-	for _,trait := range cmdTrait {
+	for _, trait := range cmdTrait {
 		switch trait.CmdTrait {
 		case CMD_TRAIT_SIMPLE:
 			cm = &msrv.simpleExecutorMap
 		case CMD_TRAIT_STREAM:
 			cm = &msrv.streamExecutorMap
 		default:
-			fmt.Errorf("register command executor with wrong trait: %v",trait.CmdTrait)
+			fmt.Errorf("register command executor with wrong trait: %v", trait.CmdTrait)
 			return
 		}
-		if cmd,ok := cm.Load(trait.CmdName); ok {
-			fmt.Errorf("regsiter execute with command %v already registered",cmd)
+		if cmd, ok := cm.Load(trait.CmdName); ok {
+			fmt.Errorf("regsiter execute with command %v already registered", cmd)
 			continue
 		} else {
-			fmt.Printf("register execute with command %v\n",trait.CmdName)
-			cm.Store(trait.CmdName,e)
+			fmt.Printf("register execute with command %v\n", trait.CmdName)
+			cm.Store(trait.CmdName, e)
 		}
 	}
 }
 
-func (msrv *MediaServer) getExecutorFor(cmd string) (needNotify bool,ce CommandExecute) {
-	if e,ok := msrv.simpleExecutorMap.Load(cmd); ok {
+func (msrv *MediaServer) getExecutorFor(cmd string) (needNotify bool, ce CommandExecute) {
+	if e, ok := msrv.simpleExecutorMap.Load(cmd); ok {
 		needNotify = false
-		ce =  e.(CommandExecute)
+		ce = e.(CommandExecute)
 	}
-	if e,ok := msrv.streamExecutorMap.Load(cmd); ok {
+	if e, ok := msrv.streamExecutorMap.Load(cmd); ok {
 		needNotify = true
-		ce =  e.(CommandExecute)
+		ce = e.(CommandExecute)
 	}
 	needNotify = false
 	ce = nil

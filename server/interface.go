@@ -42,4 +42,3 @@ type SourceFactory interface {
 type SinkFactory interface {
 	NewSink(s *MediaSession) Sink
 }
-

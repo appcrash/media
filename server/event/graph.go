@@ -194,7 +194,7 @@ func (eg *EventGraph) onAddNode(req *nodeAddRequest) {
 		}
 	}
 	delegate := newNodeDelegate(eg, node, maxLink)
-	eg.addNode(delegate,maxLink)
+	eg.addNode(delegate, maxLink)
 	// all gears up, rock it
 	go func(nd *NodeDelegate) {
 		nd.startEventLoop()
@@ -250,9 +250,9 @@ func (eg *EventGraph) onLinkUp(req *linkUpRequest) {
 	scope := req.scope
 	fromNode := req.fromNode
 
-	ni :=  eg.nodeMap[fromNode.getId()]
+	ni := eg.nodeMap[fromNode.getId()]
 	if ni.maxLink == len(ni.outputLinks) {
-		req.fromNode.receiveCtrl(newLinkUpResponse(nil,state_node_exceed_max_link,scope,nodeName))
+		req.fromNode.receiveCtrl(newLinkUpResponse(nil, state_node_exceed_max_link, scope, nodeName))
 		return
 	}
 	toNode := eg.findNode(scope, nodeName)

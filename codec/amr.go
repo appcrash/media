@@ -1,6 +1,5 @@
 package codec
 
-
 // shamelessly copied from ffmpeg(amr.c)  :)
 
 var amrnbPackedSize = [16]int{
@@ -11,7 +10,7 @@ var amrwbPackedSize = [16]int{
 	18, 24, 33, 37, 41, 47, 51, 59, 61, 6, 1, 1, 1, 1, 1, 1,
 }
 
-func AmrSplitToFrames(payload []byte,isAmrwb bool) (frames [][]byte) {
+func AmrSplitToFrames(payload []byte, isAmrwb bool) (frames [][]byte) {
 	plen := len(payload)
 	var i int
 	packedSize := amrnbPackedSize
@@ -32,7 +31,6 @@ func AmrSplitToFrames(payload []byte,isAmrwb bool) (frames [][]byte) {
 	return
 }
 
-
 //  0 1 2 3 4 5 6 7
 // +-+-+-+-+-+-+-+-+
 // |F|  FT   |Q|P|P|
@@ -42,7 +40,7 @@ func AmrSplitToFrames(payload []byte,isAmrwb bool) (frames [][]byte) {
 // Q (1 bit): see definition in Section 4.3.2.
 // P bits: padding bits, MUST be set to zero, and MUST be ignored on
 func AmrFrameToRtpPayload(payload [][]byte) (rtpPayload [][]byte) {
-	for _,p := range payload {
+	for _, p := range payload {
 		toc := []byte{p[0] & 0x7f} // set F bit zero, so this is the last frame in the payload(only one)
 		//if i == 0 {
 		//	header = []byte{0x70}   // CMR mode 7 12.2kbit/s
@@ -50,18 +48,18 @@ func AmrFrameToRtpPayload(payload [][]byte) (rtpPayload [][]byte) {
 		//	header = []byte{0xf0}   // CMR is 15, no mode change required
 		//}
 
-		rp := append([]byte{0xf0},toc...)
-		rp = append(rp,p[1:]...)
-		rtpPayload = append(rtpPayload,rp)
+		rp := append([]byte{0xf0}, toc...)
+		rp = append(rp, p[1:]...)
+		rtpPayload = append(rtpPayload, rp)
 	}
 	return
 }
 
 func AmrRtpPayloadToFrame(payload [][]byte) (frame [][]byte) {
-	for _,p := range payload {
+	for _, p := range payload {
 		f := []byte{p[1] & 0x7f}
-		f = append(f,p[2:]...)
-		frame = append(frame,f)
+		f = append(f, p[2:]...)
+		frame = append(frame, f)
 	}
 	return
 }

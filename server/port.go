@@ -27,7 +27,7 @@ func (p *portPool) init(start uint16, end uint16) {
 func (p *portPool) get() (port uint16) {
 	// if pool is empty, return 0 as this port wouldn't be used by applications
 	select {
-	case port = <- p.freePortC:
+	case port = <-p.freePortC:
 	default:
 	}
 	return

@@ -9,9 +9,9 @@ import (
 
 func TestMix(t *testing.T) {
 	rand.Seed(time.Now().UTC().UnixNano())
-	testWithSampleRate(t,8000,8000,8000)
-	testWithSampleRate(t,8000,8000,16000)
-	testWithSampleRate(t,16000,16000,8000)
+	testWithSampleRate(t, 8000, 8000, 8000)
+	testWithSampleRate(t, 8000, 8000, 16000)
+	testWithSampleRate(t, 16000, 16000, 8000)
 
 	// TODO: support different sample rates
 	//testWithSampleRate(t,8000,16000,16000)
@@ -19,7 +19,7 @@ func TestMix(t *testing.T) {
 
 }
 
-func testWithSampleRate(t *testing.T,rate1 int,rate2 int,outRate int) {
+func testWithSampleRate(t *testing.T, rate1 int, rate2 int, outRate int) {
 	hz1 := rand.Intn(18_000) + 440
 	hz2 := rand.Intn(18_000) + 440
 	sampleNum := rand.Intn(1000) + 10000
@@ -33,7 +33,7 @@ func testWithSampleRate(t *testing.T,rate1 int,rate2 int,outRate int) {
 		GetDescription()
 
 	// sample1 and sample2 passed to iterate must have equal audio time length
-	sampleLen1,sampleLen2 := sampleNum,sampleNum
+	sampleLen1, sampleLen2 := sampleNum, sampleNum
 	//if rate1 > rate2 {
 	//	sampleLen1 = int(math.Floor(float64(sampleNum) / float64(rate1) * float64(rate2)))
 	//} else if rate2 > rate1 {
@@ -41,11 +41,9 @@ func testWithSampleRate(t *testing.T,rate1 int,rate2 int,outRate int) {
 	//	sampleLen2 -= 2000
 	//}
 	mixctx := codec.NewMixContext(*mixParam)
-	mixed,ok := mixctx.Iterate(samples1[:sampleLen1 * 8],samples2[:sampleLen2 * 8],sampleLen1,sampleLen2)
+	mixed, ok := mixctx.Iterate(samples1[:sampleLen1*8], samples2[:sampleLen2*8], sampleLen1, sampleLen2)
 	if ok != 0 || len(mixed) == 0 {
-		t.Fatalf("mix failed from rate: (%v,%v) to rate: %v, with samples: %v",rate1,rate2,outRate,sampleNum)
+		t.Fatalf("mix failed from rate: (%v,%v) to rate: %v, with samples: %v", rate1, rate2, outRate, sampleNum)
 	}
 	mixctx.Free()
 }
-
-

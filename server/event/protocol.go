@@ -65,12 +65,12 @@ type nodeExitResponse struct {
 // unluckily, golang doesn't support macro or meta-programming, we have to
 // craft each factory method by hand :(
 
-func NewEventWithCallback(cmd int, obj interface{},cb Callback) *Event {
-	return &Event{cmd: cmd, obj: obj,cb: cb}
+func NewEventWithCallback(cmd int, obj interface{}, cb Callback) *Event {
+	return &Event{cmd: cmd, obj: obj, cb: cb}
 }
 
 func NewEvent(cmd int, obj interface{}) *Event {
-	return NewEventWithCallback(cmd, obj,nil)
+	return NewEventWithCallback(cmd, obj, nil)
 }
 
 func newSystemEvent(cmd int, obj interface{}) *Event {

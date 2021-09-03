@@ -9,7 +9,7 @@ func BitrateToFrameSize(bitrate float64, frameIntervalMs float64) int32 {
 }
 
 // send time step in milliseconds
-func GetCodecTimeStep(codec rpc.CodecType) int{
+func GetCodecTimeStep(codec rpc.CodecType) int {
 	switch codec {
 	case rpc.CodecType_PCM_ALAW:
 		fallthrough
@@ -23,9 +23,9 @@ func GetCodecTimeStep(codec rpc.CodecType) int{
 	return 20
 }
 
-var RtcpPacketTypeMap = map[int]string {
-	200 : "SENDER REPORT",
-	201 : "RECEIVER REPORT",
-	202 : "SOURCE DESCRIPTION",
-	203 : "GOODBYE",
+var RtcpPacketTypeMap = map[int]string{
+	200: "SENDER REPORT",
+	201: "RECEIVER REPORT",
+	202: "SOURCE DESCRIPTION",
+	203: "GOODBYE",
 }

@@ -8,13 +8,12 @@ import (
 	"runtime/debug"
 )
 
-
 func (msrv *MediaServer) PrepareMediaStream(ctx context.Context, param *rpc.MediaParam) (*rpc.MediaStream, error) {
 	port := msrv.portPool.get()
 	if port == 0 {
-		return nil,errors.New("ports run out")
+		return nil, errors.New("ports run out")
 	}
-	session := createSession(msrv.rtpServerIpAddr,int(port), param)
+	session := createSession(msrv.rtpServerIpAddr, int(port), param)
 
 	// initialize source/sink list for each session
 	// the factory's order is important
@@ -152,7 +151,3 @@ func (msrv *MediaServer) ExecuteActionWithNotify(action *rpc.MediaAction, stream
 
 	return errors.New("cmd not exist")
 }
-
-
-
-

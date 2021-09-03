@@ -7,7 +7,7 @@ type Callback func()
 type Event struct {
 	cmd int
 	obj interface{}
-	cb Callback
+	cb  Callback
 }
 
 func (e *Event) GetCmd() int {

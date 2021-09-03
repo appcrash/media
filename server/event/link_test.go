@@ -247,5 +247,3 @@ func ExampleReceiverExit() {
 	// shooter1 shot down target:bomb
 	// shooter2 shot down target:bomb
 }
-
-

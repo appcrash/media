@@ -11,7 +11,7 @@ type dlink struct {
 
 	// index of nodeInfo's dlink array
 	fromIndex int
-	toIndex int
+	toIndex   int
 }
 
 func generateLinkName(fromScope string, fromNodeName string, toScope string, toNodeName string) string {
@@ -22,11 +22,11 @@ func newLink(graph *EventGraph, fromNode *NodeDelegate, toNode *NodeDelegate) *d
 	name := generateLinkName(fromNode.getNodeScope(), fromNode.getNodeName(),
 		toNode.getNodeScope(), toNode.getNodeName())
 	return &dlink{
-		graph:    graph,
-		name:     name,
-		fromNode: fromNode,
-		toNode:   toNode,
+		graph:     graph,
+		name:      name,
+		fromNode:  fromNode,
+		toNode:    toNode,
 		fromIndex: -1,
-		toIndex: -1,
+		toIndex:   -1,
 	}
 }
