@@ -111,7 +111,11 @@ func (session *MediaSession) receiveCtrlLoop() {
 
 	for {
 		select {
-		case eventArray := <-rtcpReceiver:
+		case eventArray, more := <-rtcpReceiver:
+			if !more {
+				// RTP stack closed rtcp channel, just return
+				return
+			}
 			for _, event := range eventArray {
 				if event.EventType == rtp.RtcpBye {
 					// peer send bye, notify data send/receive loop to stop
@@ -146,12 +150,15 @@ func (session *MediaSession) receivePacketLoop() {
 outLoop:
 	for {
 		select {
-		case rp := <-dataReceiver:
+		case rp, more := <-dataReceiver:
 			var shouldContinue bool
+			if !more {
+				// RTP stack closed this channel, so stop receiving anymore
+				return
+			}
 			data := rp.Payload()
 
-			//fmt.Printf("data len is %v",len(data))
-			// push received data to all sinkers, then free the packet
+			// push received data to all sinks, then free the packet
 			for _, s := range session.sink {
 				data, shouldContinue = s.HandleData(session, data)
 				if !shouldContinue {
@@ -167,7 +174,6 @@ outLoop:
 		}
 	}
 
-	// TODO: clean up here
 }
 
 func (session *MediaSession) sendPacketLoop() {
@@ -197,10 +203,8 @@ outLoop:
 				if session.rtpSession == nil {
 					break outLoop
 				}
-
 				packet := session.rtpSession.NewDataPacket(ts)
 				packet.SetPayload(data)
-
 				session.rtpSession.WriteData(packet)
 				packet.FreePacket()
 				ts += tsDelta
@@ -213,8 +217,7 @@ outLoop:
 		}
 	}
 
-	// TODO: clean up here
-
+	ticker.Stop()
 }
 
 func (session *MediaSession) Start() {
@@ -225,21 +228,22 @@ func (session *MediaSession) Start() {
 }
 
 func (session *MediaSession) Stop() {
-	// nonblock send message to loops
-	select {
-	case session.sndCtrlC <- "stop":
-	default:
-		fmt.Errorf("send stop to session send loop failed")
-	}
-	select {
-	case session.rcvCtrlC <- "stop":
-	default:
-		fmt.Errorf("send stop to session receive loop failed")
-	}
-	select {
-	case session.rcvRtcpCtrlC <- "stop":
-	default:
-		fmt.Errorf("send stop to session RTCP receive loop failed")
+	nbStopped := 0
+	for nbStopped < 3 {
+		select {
+		case session.sndCtrlC <- "stop":
+			session.sndCtrlC = nil
+			nbStopped++
+		case session.rcvCtrlC <- "stop":
+			session.rcvCtrlC = nil
+			nbStopped++
+		case session.rcvRtcpCtrlC <- "stop":
+			session.rcvRtcpCtrlC = nil
+			nbStopped++
+		case <-time.After(5 * time.Second):
+			// TODO: how to avoid memory leak
+			fmt.Errorf("session(%v) stops timeout", session.sessionId)
+		}
 	}
 	session.rtpSession.CloseSession()
 	sessionMap.Delete(session.GetSessionId())
