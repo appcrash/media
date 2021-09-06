@@ -2,7 +2,6 @@ package event_test
 
 import (
 	"github.com/appcrash/media/server/event"
-	"time"
 )
 
 type onEnterExitFuncType func(t *testNode)
@@ -26,9 +25,7 @@ type testNode struct {
 	onLinkDown onLinkFuncType
 
 	// optional attributes
-	maxLink         int
-	dataChannelSize int
-	deliveryTimeout time.Duration
+	event.NodeProperty
 }
 
 func (t *testNode) GetNodeName() string {

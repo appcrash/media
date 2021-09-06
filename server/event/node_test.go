@@ -136,8 +136,8 @@ func TestMaxLink(t *testing.T) {
 			}
 			wg.Done()
 		},
-		maxLink: 2,
 	}
+	tn.SetMaxLink(2)
 	graph := event.NewEventGraph()
 	for i := 1; i <= 3; i++ {
 		node := &testNode{scope: "test", name: "node" + strconv.Itoa(i)}
@@ -155,7 +155,7 @@ func TestDataChannelSizeAndDeliveryTimeout(t *testing.T) {
 	blockC := make(chan int)
 	initDone := make(chan int)
 	done := make(chan int)
-	blockNode := &testNode{scope: "block", name: "block", dataChannelSize: 1,
+	blockNode := &testNode{scope: "block", name: "block",
 		onEnter: func(t *testNode) {
 			initDone <- 0
 		},
@@ -164,7 +164,8 @@ func TestDataChannelSizeAndDeliveryTimeout(t *testing.T) {
 			<-blockC
 		},
 	}
-	sendNode := &testNode{scope: "send", name: "send", deliveryTimeout: timeout,
+	blockNode.SetDataChannelSize(1)
+	sendNode := &testNode{scope: "send", name: "send",
 		onEnter: func(t *testNode) {
 			t.delegate.RequestLinkUp("block", "block")
 		},
@@ -189,6 +190,7 @@ func TestDataChannelSizeAndDeliveryTimeout(t *testing.T) {
 			done <- 0
 		},
 	}
+	sendNode.SetDeliveryTimeout(timeout)
 	graph := event.NewEventGraph()
 	graph.AddNode(blockNode)
 	graph.AddNode(sendNode)
@@ -201,7 +203,7 @@ type countNode testNode
 
 func (c *countNode) Count(i int) {
 	evt := event.NewEvent(cmd_nothing, i)
-	c.delegate.DeliverySelf(evt)
+	c.delegate.DeliverSelf(evt)
 }
 
 func TestSelfDelivery(t *testing.T) {

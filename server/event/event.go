@@ -1,5 +1,7 @@
 package event
 
+import "time"
+
 // event network structures
 
 type Callback func()
@@ -37,13 +39,30 @@ type Node interface {
 
 	// the finalizing method after node exits graph
 	OnExit()
+}
 
-	// optional attributes if following fields defined in the node and large than zero
-	// -----------------------------------------------------------
-	// maxLink int:
-	//   override default max output link number
-	// dataChannelSize int:
-	//   override default buffered event channel size
-	// deliveryTimeout time.Duration:
-	//   override default event delivery timeout
+// NodeProperty embed it if node needs be customized
+// -----------------------------------------------------------
+// maxLink int:
+//   override default max output link number
+// dataChannelSize int:
+//   override default buffered event channel size
+// deliveryTimeout time.Duration:
+//   override default event delivery timeout
+type NodeProperty struct {
+	maxLink         int
+	dataChannelSize int
+	deliveryTimeout time.Duration
+}
+
+func (np *NodeProperty) SetMaxLink(m int) {
+	np.maxLink = m
+}
+
+func (np *NodeProperty) SetDataChannelSize(size int) {
+	np.dataChannelSize = size
+}
+
+func (np *NodeProperty) SetDeliveryTimeout(d time.Duration) {
+	np.deliveryTimeout = d
 }
