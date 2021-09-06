@@ -8,12 +8,20 @@ import (
 	"runtime/debug"
 )
 
-func (msrv *MediaServer) PrepareMediaStream(ctx context.Context, param *rpc.MediaParam) (*rpc.MediaStream, error) {
+func (msrv *MediaServer) PrepareMediaStream(_ context.Context, param *rpc.MediaParam) (*rpc.MediaStream, error) {
 	port := msrv.portPool.get()
 	if port == 0 {
 		return nil, errors.New("ports run out")
 	}
 	session := createSession(msrv.rtpServerIpAddr, int(port), param)
+
+	// recycle session resource when it is stopped
+	session.finalizer = func() {
+		msrv.portPool.put(session.rtpPort)
+	}
+
+	// enable session's event system
+	session.graph = msrv.graph
 
 	// initialize source/sink list for each session
 	// the factory's order is important
@@ -25,8 +33,6 @@ func (msrv *MediaServer) PrepareMediaStream(ctx context.Context, param *rpc.Medi
 		sink := factory.NewSink(session)
 		session.sink = append(session.sink, sink)
 	}
-	// enable session's event system
-	session.graph = msrv.graph
 
 	session.AddRemote(param.GetPeerIp(), int(param.GetPeerPort()))
 	ms := rpc.MediaStream{}
@@ -39,7 +45,7 @@ func (msrv *MediaServer) PrepareMediaStream(ctx context.Context, param *rpc.Medi
 	return &ms, nil
 }
 
-func (msrv *MediaServer) StartSession(ctx context.Context, param *rpc.SessionParam) (*rpc.SessionStatus, error) {
+func (msrv *MediaServer) StartSession(_ context.Context, param *rpc.SessionParam) (*rpc.SessionStatus, error) {
 	status := rpc.SessionStatus{Status: "not exist"}
 	sessionId := param.GetSessionId()
 	if obj, exist := sessionMap.Load(sessionId); exist {
@@ -54,7 +60,7 @@ func (msrv *MediaServer) StartSession(ctx context.Context, param *rpc.SessionPar
 	return &status, nil
 }
 
-func (msrv *MediaServer) StopSession(ctx context.Context, param *rpc.SessionParam) (*rpc.SessionStatus, error) {
+func (msrv *MediaServer) StopSession(_ context.Context, param *rpc.SessionParam) (*rpc.SessionStatus, error) {
 	status := rpc.SessionStatus{Status: "not exist"}
 	sessionId := param.GetSessionId()
 	if obj, exist := sessionMap.Load(sessionId); exist {
@@ -69,7 +75,7 @@ func (msrv *MediaServer) StopSession(ctx context.Context, param *rpc.SessionPara
 	return &status, nil
 }
 
-func (msrv *MediaServer) ExecuteAction(ctx context.Context, action *rpc.MediaAction) (*rpc.MediaActionResult, error) {
+func (msrv *MediaServer) ExecuteAction(_ context.Context, action *rpc.MediaAction) (*rpc.MediaActionResult, error) {
 	sessionId := action.StreamId
 	s, ok := sessionMap.Load(sessionId)
 	result := rpc.MediaActionResult{
@@ -79,7 +85,7 @@ func (msrv *MediaServer) ExecuteAction(ctx context.Context, action *rpc.MediaAct
 	defer func() {
 		if r := recover(); r != nil {
 			debug.PrintStack()
-			fmt.Errorf("ExecuteAction panic(recovered)")
+			fmt.Errorf("ExecuteAction panic(recovered)\n")
 		}
 	}()
 
@@ -101,14 +107,10 @@ func (msrv *MediaServer) ExecuteAction(ctx context.Context, action *rpc.MediaAct
 func (msrv *MediaServer) ExecuteActionWithNotify(action *rpc.MediaAction, stream rpc.MediaApi_ExecuteActionWithNotifyServer) error {
 	sessionId := action.StreamId
 	s, ok := sessionMap.Load(sessionId)
-	eventTemplate := rpc.MediaActionEvent{
-		StreamId: sessionId,
-	}
-
 	defer func() {
 		if r := recover(); r != nil {
 			debug.PrintStack()
-			fmt.Errorf("ExecuteActionWithNotify panic(recovered)")
+			fmt.Errorf("ExecuteActionWithNotify panic(recovered)\n")
 		}
 	}()
 
@@ -127,13 +129,15 @@ func (msrv *MediaServer) ExecuteActionWithNotify(action *rpc.MediaAction, stream
 			for {
 				select {
 				case msg, more := <-ctrlOut:
-					event := eventTemplate
-					event.Event = msg
+					event := rpc.MediaActionEvent{
+						StreamId: sessionId,
+						Event:    msg,
+					}
 					if !more {
 						shouldExit = true
 					}
 					if err := stream.Send(&event); err != nil {
-						fmt.Errorf("send action event of stream(%v) with event %v error", session, event)
+						fmt.Errorf("send action event of stream(%v) with event %v error\n", session, event)
 						shouldExit = true
 					}
 					if shouldExit {

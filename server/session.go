@@ -10,25 +10,32 @@ import (
 	"net"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 var sessionMap = sync.Map{}
 
+type sessionFinalizer func()
+
 type MediaSession struct {
 	sessionId         string
 	rtpSession        *rtp.Session
+	rtpPort           uint16
 	payloadTypeNumber uint32
 	payloadCodec      rpc.CodecType
 	graphDesc         string
+	stopCounter       uint32
 
 	sndCtrlC     chan string
 	rcvCtrlC     chan string
 	rcvRtcpCtrlC chan string
+	doneC        chan string // notify this channel when loop is done
 
-	source []Source
-	sink   []Sink
-	graph  *event.EventGraph
+	source    []Source
+	sink      []Sink
+	finalizer sessionFinalizer
+	graph     *event.EventGraph
 }
 
 func profileOfCodec(c rpc.CodecType) (profile string) {
@@ -63,6 +70,7 @@ func createSession(ipAddr *net.IPAddr, localPort int, mediaParam *rpc.MediaParam
 	ms := MediaSession{
 		sessionId:         uuid.New().String(),
 		rtpSession:        session,
+		rtpPort:           uint16(localPort),
 		payloadTypeNumber: mediaParam.GetPayloadDynamicType(),
 		payloadCodec:      mediaParam.GetPayloadCodecType(),
 		graphDesc:         mediaParam.GetGraphDesc(),
@@ -71,6 +79,7 @@ func createSession(ipAddr *net.IPAddr, localPort int, mediaParam *rpc.MediaParam
 		sndCtrlC:     make(chan string, 2),
 		rcvCtrlC:     make(chan string, 2),
 		rcvRtcpCtrlC: make(chan string, 2),
+		doneC:        make(chan string, 3),
 	}
 	sessionMap.Store(ms.sessionId, &ms)
 	return &ms
@@ -109,6 +118,10 @@ func (session *MediaSession) receiveCtrlLoop() {
 	rtcpReceiver := session.rtpSession.CreateCtrlEventChan()
 	ctrlC := session.rcvRtcpCtrlC
 
+	defer func() {
+		session.doneC <- "done"
+	}()
+
 	for {
 		select {
 		case eventArray, more := <-rtcpReceiver:
@@ -116,13 +129,14 @@ func (session *MediaSession) receiveCtrlLoop() {
 				// RTP stack closed rtcp channel, just return
 				return
 			}
-			for _, event := range eventArray {
-				if event.EventType == rtp.RtcpBye {
+			for _, evt := range eventArray {
+				if evt.EventType == rtp.RtcpBye {
 					// peer send bye, notify data send/receive loop to stop
 					fmt.Println("rtp peer says bye")
-					session.sndCtrlC <- "stop"
-					session.rcvCtrlC <- "stop"
-					fmt.Println("sent stop cmd to send/recv loops")
+					session.Stop()
+					//session.sndCtrlC <- "stop"
+					//session.rcvCtrlC <- "stop"
+					//fmt.Println("sent stop cmd to send/recv loops")
 					// and also terminate myself
 					return
 				}
@@ -139,9 +153,13 @@ func (session *MediaSession) receivePacketLoop() {
 	// Create and store the data receive channel.
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Errorf("receivePacketLoop panic(recovered)")
+			fmt.Errorf("receivePacketLoop panic(recovered)\n")
 			debug.PrintStack()
 		}
+	}()
+
+	defer func() {
+		session.doneC <- "done"
 	}()
 
 	rtpSession := session.rtpSession
@@ -188,6 +206,10 @@ func (session *MediaSession) sendPacketLoop() {
 		}
 	}()
 
+	defer func() {
+		session.doneC <- "done"
+	}()
+
 outLoop:
 	for {
 		select {
@@ -220,15 +242,24 @@ outLoop:
 	ticker.Stop()
 }
 
-func (session *MediaSession) Start() {
-	session.rtpSession.StartSession()
+func (session *MediaSession) Start() (err error) {
+	if err = session.rtpSession.StartSession(); err != nil {
+		return
+	}
 	go session.receiveCtrlLoop()
 	go session.receivePacketLoop()
 	go session.sendPacketLoop()
+	return
 }
 
 func (session *MediaSession) Stop() {
+	if atomic.AddUint32(&session.stopCounter, 1) != 1 {
+		// somebody has already called Stop()
+		return
+	}
 	nbStopped := 0
+	nbDone := 0
+stop:
 	for nbStopped < 3 {
 		select {
 		case session.sndCtrlC <- "stop":
@@ -240,12 +271,30 @@ func (session *MediaSession) Stop() {
 		case session.rcvRtcpCtrlC <- "stop":
 			session.rcvRtcpCtrlC = nil
 			nbStopped++
-		case <-time.After(5 * time.Second):
+		case <-time.After(2 * time.Second):
 			// TODO: how to avoid memory leak
-			fmt.Errorf("session(%v) stops timeout", session.sessionId)
+			fmt.Errorf("session(%v) stops timeout\n", session.sessionId)
+			break stop
 		}
 	}
+
+	// for debug purpose, check all loops are finished normally
+done:
+	for nbDone < 3 {
+		select {
+		case <-session.doneC:
+			nbDone++
+		case <-time.After(2 * time.Second):
+			break done
+		}
+	}
+	if nbDone != 3 {
+		fmt.Errorf("session(%v) loops don't stop normally, finished number:%v\n", session.sessionId, nbDone)
+	}
 	session.rtpSession.CloseSession()
+	if session.finalizer != nil {
+		session.finalizer()
+	}
 	sessionMap.Delete(session.GetSessionId())
 }
 
@@ -255,13 +304,14 @@ func (session *MediaSession) AddNode(node event.Node) {
 }
 
 // AddRemote add rtp peer to communicate
-func (session *MediaSession) AddRemote(ip string, port int) {
+func (session *MediaSession) AddRemote(ip string, port int) (err error) {
 	ipaddr := net.ParseIP(ip)
 
-	session.rtpSession.AddRemote(&rtp.Address{
+	_, err = session.rtpSession.AddRemote(&rtp.Address{
 		IPAddr:   ipaddr,
 		DataPort: port,
 		CtrlPort: 1 + port,
 		Zone:     "",
 	})
+	return
 }
