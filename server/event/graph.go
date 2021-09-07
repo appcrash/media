@@ -2,6 +2,7 @@ package event
 
 import (
 	"reflect"
+	"time"
 )
 
 type scopeMapType map[string][]*NodeDelegate
@@ -196,11 +197,11 @@ func (eg *EventGraph) onAddNode(req *nodeAddRequest) {
 	delegate := newNodeDelegate(eg, node, maxLink)
 	eg.addNode(delegate, maxLink)
 	// all gears up, rock it
-	go func(nd *NodeDelegate) {
+	go func(nd *NodeDelegate, cb Callback) {
 		nd.startEventLoop()
-		resp := newNodeAddResponse(nd)
+		resp := newNodeAddResponse(nd, cb)
 		nd.receiveCtrl(resp)
-	}(delegate)
+	}(delegate, req.cb)
 
 }
 
@@ -315,7 +316,19 @@ func NewEventGraph() *EventGraph {
 	return eg
 }
 
-func (eg *EventGraph) AddNode(node Node) {
-	evt := newNodeAddRequest(nodeAddRequest{node})
+// AddNode add a node to graph and wait until completion
+func (eg *EventGraph) AddNode(node Node) (success bool) {
+	c := make(chan bool, 1)
+	cb := func() {
+		c <- true
+	}
+	evt := newNodeAddRequest(nodeAddRequest{node, cb})
 	eg.deliveryEvent(evt)
+	select {
+	case <-c:
+		success = true
+		return
+	case <-time.After(1 * time.Second):
+	}
+	return
 }

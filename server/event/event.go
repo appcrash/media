@@ -59,10 +59,22 @@ func (np *NodeProperty) SetMaxLink(m int) {
 	np.maxLink = m
 }
 
+func (np *NodeProperty) GetMaxLink() int {
+	return np.maxLink
+}
+
 func (np *NodeProperty) SetDataChannelSize(size int) {
 	np.dataChannelSize = size
 }
 
+func (np *NodeProperty) GetDataChannelSize() int {
+	return np.dataChannelSize
+}
+
 func (np *NodeProperty) SetDeliveryTimeout(d time.Duration) {
 	np.deliveryTimeout = d
+}
+
+func (np *NodeProperty) GetDeliveryTimeout() time.Duration {
+	return np.deliveryTimeout
 }

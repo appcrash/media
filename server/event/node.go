@@ -202,11 +202,14 @@ func (nd *NodeDelegate) handleSystemEvent(evt *Event) {
 		if resp, ok := evt.obj.(*nodeAddResponse); !ok {
 			panic(errors.New("[graph]:node add response with wrong event object"))
 		} else {
-			go func(n *NodeDelegate) {
+			go func(n *NodeDelegate, cb Callback) {
 				n.preSystemInvoke()
 				defer n.postSystemInvoke()
 				n.nodeImpl.OnEnter(n)
-			}(resp.delegate)
+				if cb != nil {
+					cb()
+				}
+			}(resp.delegate, resp.cb)
 		}
 	case resp_node_exit:
 		if _, ok := evt.obj.(*nodeExitResponse); !ok {

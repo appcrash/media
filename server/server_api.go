@@ -2,12 +2,20 @@ package server
 
 import (
 	"fmt"
+	"github.com/appcrash/media/server/comp"
 	"github.com/appcrash/media/server/event"
 	"github.com/appcrash/media/server/rpc"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"net"
 	"sync"
 )
+
+// Initialize all packages logger
+func init() {
+	gl := logrus.New()
+	InitServerLogger(gl)
+}
 
 type MediaServer struct {
 	rpc.UnimplementedMediaApiServer
@@ -54,4 +62,9 @@ func StartServer(grpcIp string, grpcPort uint16,
 	}
 	grpcServer.Serve(lis)
 	return nil
+}
+
+// InitServerLogger can be called multiple times before server starts to override default logger
+func InitServerLogger(gl *logrus.Logger) {
+	comp.InitLogger(gl)
 }

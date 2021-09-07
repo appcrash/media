@@ -35,6 +35,7 @@ type linkDownRequest struct {
 
 type nodeAddRequest struct {
 	node Node
+	cb   Callback
 }
 
 type nodeExitRequest struct {
@@ -56,6 +57,7 @@ type linkDownResponse struct {
 
 type nodeAddResponse struct {
 	delegate *NodeDelegate
+	cb       Callback
 }
 
 type nodeExitResponse struct {
@@ -73,40 +75,36 @@ func NewEvent(cmd int, obj interface{}) *Event {
 	return NewEventWithCallback(cmd, obj, nil)
 }
 
-func newSystemEvent(cmd int, obj interface{}) *Event {
-	return NewEvent(cmd, obj)
-}
-
 /* ---------------REQUEST------------------- */
 func newLinkUpRequest(nd *NodeDelegate, scope string, nodeName string) *Event {
-	return newSystemEvent(req_link_up, &linkUpRequest{nd, scope, nodeName})
+	return NewEvent(req_link_up, &linkUpRequest{nd, scope, nodeName})
 }
 
 func newLinkDownRequest(link *dlink) *Event {
-	return newSystemEvent(req_link_down, &linkDownRequest{link})
+	return NewEvent(req_link_down, &linkDownRequest{link})
 }
 
 func newNodeAddRequest(req nodeAddRequest) *Event {
-	return newSystemEvent(req_node_add, &req)
+	return NewEvent(req_node_add, &req)
 }
 
 func newNodeExitRequest(node *NodeDelegate) *Event {
-	return newSystemEvent(req_node_exit, &nodeExitRequest{node})
+	return NewEvent(req_node_exit, &nodeExitRequest{node})
 }
 
 /* ---------------RESPONSE------------------- */
 func newLinkUpResponse(resp *dlink, state int, scope string, name string) *Event {
-	return newSystemEvent(resp_link_up, &linkUpResponse{state, resp, scope, name})
+	return NewEvent(resp_link_up, &linkUpResponse{state, resp, scope, name})
 }
 
 func newLinkDownResponse(state int, link *dlink) *Event {
-	return newSystemEvent(resp_link_down, &linkDownResponse{state, link})
+	return NewEvent(resp_link_down, &linkDownResponse{state, link})
 }
 
-func newNodeAddResponse(delegate *NodeDelegate) *Event {
-	return newSystemEvent(resp_node_add, &nodeAddResponse{delegate})
+func newNodeAddResponse(delegate *NodeDelegate, cb Callback) *Event {
+	return NewEvent(resp_node_add, &nodeAddResponse{delegate, cb})
 }
 
 func newNodeExitResponse() *Event {
-	return newSystemEvent(resp_node_exit, &nodeExitResponse{})
+	return NewEvent(resp_node_exit, &nodeExitResponse{})
 }

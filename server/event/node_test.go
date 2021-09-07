@@ -21,11 +21,7 @@ func ExampleExceptionNodeOnEvent() {
 	rand.Seed(time.Now().UTC().UnixNano())
 	wg := &sync.WaitGroup{}
 	wg.Add(6)
-	initDone := make(chan int)
 	excpNode1 := testNode{scope: "exception", name: "node1",
-		onEnter: func(t *testNode) {
-			initDone <- 0
-		},
 		onEvent: func(t *testNode, evt *event.Event) {
 			cn := (*crashNode)(unsafe.Pointer(t))
 			cn.i++
@@ -71,7 +67,6 @@ func ExampleExceptionNodeOnEvent() {
 	graph := event.NewEventGraph()
 	graph.AddNode(&cn1.test)
 	graph.AddNode(&cn2.test)
-	_, _ = <-initDone, <-initDone
 	graph.AddNode(&normalNode)
 	wg.Wait()
 
@@ -153,12 +148,8 @@ func TestMaxLink(t *testing.T) {
 func TestDataChannelSizeAndDeliveryTimeout(t *testing.T) {
 	var timeout = time.Second * 1
 	blockC := make(chan int)
-	initDone := make(chan int)
 	done := make(chan int)
 	blockNode := &testNode{scope: "block", name: "block",
-		onEnter: func(t *testNode) {
-			initDone <- 0
-		},
 		onEvent: func(t *testNode, evt *event.Event) {
 			// we are here when already consumed one event
 			<-blockC
@@ -170,7 +161,6 @@ func TestDataChannelSizeAndDeliveryTimeout(t *testing.T) {
 			t.delegate.RequestLinkUp("block", "block")
 		},
 		onLinkUp: func(tn *testNode, linkId int, scope string, nodeName string) {
-			<-initDone
 			// delivered and consumed, make the OnEvent stuck
 			err1 := tn.delegate.Delivery(linkId, event.NewEvent(cmd_nothing, 1))
 
@@ -207,14 +197,10 @@ func (c *countNode) Count(i int) {
 }
 
 func TestSelfDelivery(t *testing.T) {
-	ready := make(chan int)
 	c := make(chan int)
 	node := &countNode{scope: "count", name: "count",
 		onEvent: func(t *testNode, evt *event.Event) {
 			c <- evt.GetObj().(int)
-		},
-		onEnter: func(t *testNode) {
-			ready <- 0
 		},
 	}
 
@@ -222,7 +208,6 @@ func TestSelfDelivery(t *testing.T) {
 	graph.AddNode((*testNode)(node))
 
 	go func() {
-		<-ready
 		for i := 1; i <= 500; i++ {
 			node.Count(i)
 		}
