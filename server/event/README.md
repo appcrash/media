@@ -60,8 +60,7 @@ response. The response comes into sender's receiving event queue asynchronously.
 
 ## Link
 Link is a must if two nodes needs communicating. As the event flows in one direction, two links are required if the 
-two nodes need to talk to each other. Node can send link-up or link-down request to graph, and the result will 
-return by OnLinkUp or OnLinkDown callback. Then node can use the link id to deliver events. Node only be avail of 
+two nodes need to talk to each other. Node can send link-up or link-down request to graph. Then node can use the link id to deliver events. Node only be avail of 
 output links, however, new input link up is transparent to receiver node. Receiver doesn't know how many input links 
 connected to it, but only pull events from his own event channel. Every two nodes can't establish more than one link 
 in each direction, in other words,(sender,receiver,direction) tuple must be unique across whole graph.
@@ -89,13 +88,15 @@ In fact, user struct implements *Node* never talks to graph directly. The graph 
 every node entering event graph, config the delegate then pass it to node by **OnEnter**. The delegate is the only 
 way to communicate with others from the node's point of view: building up or tearing down links, request exiting from 
 graph etc. Supposing node asks to talk to another one, it first requests link up through the delegate, the delegate 
-passes the request to graph, after graph's sanity checking done, delegate get the new link id. Delegate starts a new 
-goroutine in which user's **OnLinkUp** is invoked, and this link is buffered by delegate. Everytime user ask to 
-**Delivery** event providing a link id, delegate will locate the receiver by inspecting link info, then call 
+passes the request to graph, after graph's sanity checking done, delegate get the new link id. Delegate return the 
+created linkId to caller that invoke delegate's **RequestLinkUp**, and this link is buffered by delegate. Everytime 
+user 
+ask to 
+**Deliver** event providing a link id, delegate will locate the receiver by inspecting link info, then call 
 target node's receive method. The important thing is every node's max output link number is fixed once added to graph. 
 User can change the max link number by define a private field **maxLink** as described before if the default max number 
 can not satisfy him. Fixing the output link number is for performance while being reasonable in most real-world cases.  
-The benefit is most frequently called method **Delivery** of delegate is lock-free because link buffer itself is 
+The benefit is most frequently called method **Deliver** of delegate is lock-free because link buffer itself is 
 fixed(read only) although elements of array may change. An Atomic load is enough to complete the receiver locating, 
 so the cost is acceptable. As for most business, a node can foresee its link usage. Hold the link until node exits 
 graph, while cases requiring dynamically add/remove links should be rare.

@@ -19,8 +19,8 @@ import (
 // [ps1:pubsub]: channel=source   a node of name(ps1) and type(pubsub)
 // node connect:   [nodeNameA] -> [nodeNameB]
 // [transcode] -> [asr]        establish a link from transcode to asr when initialization
-const regNodePropertyPattern = `^\s*\[([\w:]+)\]:\s*(\S+)\s*$`
-const regNodeConnectPattern = `^\s*\[(\w+)\]\s*->\s*\[(\w+)\]\s*$`
+const regNodePropertyPattern = `\s*\[(\w+(?::\w+)?)\]:\s*(\S+)\s*$`
+const regNodeConnectPattern = `^\s*\[(\w+(?::\w+)?)\]\s*->\s*\[(\w+(?::\w+)?)\]\s*$`
 
 var regNodeProperty = regexp.MustCompile(regNodePropertyPattern)
 var regNodeConnect = regexp.MustCompile(regNodeConnectPattern)
@@ -52,15 +52,28 @@ func newGraphTopology() *GraphTopology {
 	}
 }
 
+// parseNodeTypePair parse string in form of:
+// 1. nodeName
+// 2. nodeName:nodeType
+func parseNodeTypePair(str string) (name, typ string) {
+	pair := strings.Split(str, ":")
+	if len(pair) == 1 {
+		name, typ = pair[0], pair[0]
+	} else {
+		name, typ = pair[0], pair[1]
+	}
+	return
+}
+
 func (gi *GraphTopology) parseLine(line string) {
 	var match []string
-	match = regNodeProperty.FindStringSubmatch(line)
-	if match != nil {
+	if match = regNodeProperty.FindStringSubmatch(line); match != nil {
 		gi.parseNodeProperty(match[1], match[2])
 	} else if match = regNodeConnect.FindStringSubmatch(line); match != nil {
 		gi.parseNodeConnect(match[1], match[2])
 	} else {
-		logger.Errorf("wrong line when parse graph desc: %v\n", line)
+		logger.Errorf("wrong line when parse graph desc: | %v |", line)
+		gi.nbParseError++
 	}
 }
 
@@ -81,27 +94,21 @@ func (gi *GraphTopology) getNodeInfo(name string, typ string) (ni *NodeInfo) {
 		gi.nodeList = append(gi.nodeList, ni)
 		gi.nbNode++
 	}
-	if typ != "" && ni.Type != typ {
-		logger.Errorf("conflict type of node with the same name:%v", name)
+	if typ != "" && typ != name && ni.Type != typ {
+		// if this is not abbreviated naming, and explicitly provide type that conflicts with previous defined
+		logger.Errorf("conflict type of node with the same name:%v, whose type is:%v", name, typ)
 		gi.nbParseError++
 	}
 	return
 }
 
 func (gi *GraphTopology) parseNodeProperty(nodeNameType string, props string) {
-	// check if name:type pair is specified
-	var nodeName, nodeType string
-	pair := strings.Split(nodeNameType, ":")
-	if len(pair) == 1 {
-		nodeName, nodeType = pair[0], pair[0]
-	} else {
-		nodeName, nodeType = pair[0], pair[1]
-	}
+	nodeName, nodeType := parseNodeTypePair(nodeNameType)
 	ni := gi.getNodeInfo(nodeName, nodeType)
 	for _, kvPair := range strings.Split(props, ";") {
 		kv := strings.Split(kvPair, "=")
 		if len(kv) != 2 {
-			logger.Errorf("wrong node property: %v\n", kv)
+			logger.Errorf("wrong node property: %v", kv)
 			gi.nbParseError++
 			continue
 		}
@@ -115,7 +122,21 @@ func (gi *GraphTopology) parseNodeProperty(nodeNameType string, props string) {
 	}
 }
 
-// O(nxn) sort algorithm, ok when n is small
+func (gi *GraphTopology) parseNodeConnect(nodeFrom string, nodeTo string) {
+	fromName, fromType := parseNodeTypePair(nodeFrom)
+	toName, toType := parseNodeTypePair(nodeTo)
+	from := gi.getNodeInfo(fromName, fromType)
+	to := gi.getNodeInfo(toName, toType)
+	if from == nil || to == nil {
+		logger.Errorf("wrong link from %v to %v", nodeFrom, nodeTo)
+		gi.nbParseError++
+		return
+	}
+	from.Deps = append(from.Deps, to)
+	from.NbDeps++
+}
+
+// O(n*n) sort algorithm, ok when n is small
 func (gi *GraphTopology) topographicalSort() (err error) {
 	n := gi.nbNode
 	outDegree := make([]int, n) // for each node, how many nodes it connects to (it depends on them)
@@ -163,18 +184,6 @@ func (gi *GraphTopology) topographicalSort() (err error) {
 		gi.sortedNodeList[i] = gi.nodeList[result[i]]
 	}
 	return
-}
-
-func (gi *GraphTopology) parseNodeConnect(nodeFrom string, nodeTo string) {
-	from := gi.getNodeInfo(nodeFrom, "")
-	to := gi.getNodeInfo(nodeTo, "")
-	if from == nil || to == nil {
-		logger.Errorf("wrong link from %v to %v\n", nodeFrom, nodeTo)
-		gi.nbParseError++
-		return
-	}
-	from.Deps = append(from.Deps, to)
-	from.NbDeps++
 }
 
 func (gi *GraphTopology) getLinkInfo() (li []LinkInfo) {

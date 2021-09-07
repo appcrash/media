@@ -1,6 +1,15 @@
 package event
 
-import "time"
+import (
+	"github.com/sirupsen/logrus"
+	"time"
+)
+
+var logger *logrus.Entry
+
+func InitLogger(gl *logrus.Logger) {
+	logger = gl.WithFields(logrus.Fields{"module": "event"})
+}
 
 // event network structures
 
@@ -31,7 +40,6 @@ type Node interface {
 	// all of them are called in multiple separate goroutine sequentially
 
 	// dlink status change
-	OnLinkUp(linkId int, scope string, nodeName string)
 	OnLinkDown(linkId int, scope string, nodeName string)
 
 	// after sucessfully added to graph

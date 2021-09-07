@@ -20,19 +20,17 @@ func ExampleSendEvent() {
 		}}
 	node2 := &testNode{scope: "scope2", name: "node2",
 		onEnter: func(tn *testNode) {
-			tn.delegate.RequestLinkUp("scope1", "node1")
-		},
-		onLinkUp: func(tn *testNode, linkId int, scope string, nodeName string) {
+			linkId := tn.delegate.RequestLinkUp("scope1", "node1")
 			if linkId >= 0 {
-				fmt.Printf("got link %v:%v\n", scope, nodeName)
-			} else {
-				fmt.Printf("duplicated link %v:%v\n", scope, nodeName)
-				done <- 0
-				return
+				fmt.Println("got link scope1:node1")
 			}
 			evt := event.NewEvent(cmd_print_self, nil)
-			tn.delegate.Delivery(linkId, evt)
-			tn.delegate.RequestLinkUp("scope1", "node1")
+			tn.delegate.Deliver(linkId, evt)
+			linkId = tn.delegate.RequestLinkUp("scope1", "node1")
+			if linkId < 0 {
+				fmt.Println("duplicated link scope1:node1")
+				done <- 0
+			}
 		},
 	}
 	graph := event.NewEventGraph()
@@ -53,9 +51,7 @@ func ExampleLinkDownNonExistent() {
 	downnode := &testNode{scope: "downscope", name: "downnode"}
 	baseNode := &testNode{scope: "ask_linkdown",
 		onEnter: func(tn *testNode) {
-			tn.delegate.RequestLinkUp("downscope", "downnode")
-		},
-		onLinkUp: func(tn *testNode, linkId int, _scope string, _nodeName string) {
+			linkId := tn.delegate.RequestLinkUp("downscope", "downnode")
 			tn.delegate.RequestLinkDown(linkId)
 		},
 		onLinkDown: func(tn *testNode, linkId int, _scope string, _nodeName string) {
@@ -96,16 +92,13 @@ func ExampleLinkDuplicated() {
 	downnode := &testNode{scope: "downscope", name: "downnode"}
 	baseNode := &testNode{scope: "ask_linkdown", name: "down_same_link",
 		onEnter: func(tn *testNode) {
-			tn.delegate.RequestLinkUp("downscope", "downnode")
-			tn.delegate.RequestLinkUp("downscope", "downnode")
-		},
-		onLinkUp: func(tn *testNode, linkId int, _scope string, _nodeName string) {
-			if linkId >= 0 {
-				tn.delegate.RequestLinkDown(linkId)
-			} else {
+			linkId := tn.delegate.RequestLinkUp("downscope", "downnode")
+			dupId := tn.delegate.RequestLinkUp("downscope", "downnode")
+			if dupId == -1 {
 				fmt.Printf("linkup: request failed\n")
-				done <- 0
 			}
+
+			tn.delegate.RequestLinkDown(linkId)
 		},
 		onLinkDown: func(tn *testNode, linkId int, _scope string, _nodeName string) {
 			if linkId >= 0 {
@@ -121,7 +114,7 @@ func ExampleLinkDuplicated() {
 	graph := event.NewEventGraph()
 	graph.AddNode(downnode)
 	graph.AddNode(baseNode)
-	_, _ = <-done, <-done
+	_ = <-done
 
 	// Unordered output:
 	// linkup: request failed
@@ -136,23 +129,26 @@ func ExampleMoreLink() {
 	n2 := &testNode{scope: "target", name: "node2"}
 	shootNode := &testNode{scope: "shoot", name: "shooter",
 		onEnter: func(tn *testNode) {
-			tn.delegate.RequestLinkUp("target", "node1")
-			tn.delegate.RequestLinkUp("target", "node2")
-		},
-		onLinkUp: func(tn *testNode, linkId int, scope string, nodeName string) {
-			fmt.Printf("aiming %v:%v\n", scope, nodeName)
-			go func(nd *event.NodeDelegate, id int) {
+			id1 := tn.delegate.RequestLinkUp("target", "node1")
+			id2 := tn.delegate.RequestLinkUp("target", "node2")
+
+			f := func(nd *event.NodeDelegate, id int) {
 				for {
 					// fire!
 					bullets := 10000 + rand.Intn(50000)
 					for bullets > 0 {
 						bullets--
 						evt := event.NewEvent(cmd_nothing, nil)
-						nd.Delivery(id, evt)
+						nd.Deliver(id, evt)
 					}
 					nd.RequestLinkDown(id)
 				}
-			}(tn.delegate, linkId)
+			}
+			fmt.Println("aiming target:node1")
+			go f(tn.delegate, id1)
+			fmt.Println("aiming target:node2")
+			go f(tn.delegate, id2)
+
 		},
 		onLinkDown: func(tn *testNode, linkId int, scope string, nodeName string) {
 			fmt.Printf("shot down %v:%v\n", scope, nodeName)
@@ -181,10 +177,8 @@ func ExampleReceiverExit() {
 	wg.Add(5) // 5 = aim x 2 + shotdown x 2 + bombExit x 1
 	s1 := testNode{scope: "shoot", name: "shooter1",
 		onEnter: func(tn *testNode) {
-			tn.delegate.RequestLinkUp("target", "bomb")
-		},
-		onLinkUp: func(tn *testNode, linkId int, scope string, nodeName string) {
-			fmt.Printf("%v aiming %v:%v\n", tn.name, scope, nodeName)
+			linkId := tn.delegate.RequestLinkUp("target", "bomb")
+			fmt.Printf("%v aiming target:bomb\n", tn.name)
 			go func(nd *event.NodeDelegate) {
 				for {
 					// fire!
@@ -197,7 +191,7 @@ func ExampleReceiverExit() {
 						} else {
 							evt = event.NewEvent(cmd_nothing, nil)
 						}
-						if ok := nd.Delivery(linkId, evt); !ok {
+						if ok := nd.Deliver(linkId, evt); !ok {
 							fmt.Printf("%v target missing\n", tn.name)
 							wg.Done()
 							return
@@ -207,6 +201,7 @@ func ExampleReceiverExit() {
 				}
 			}(tn.delegate)
 		},
+
 		onLinkDown: func(tn *testNode, linkId int, scope string, nodeName string) {
 			fmt.Printf("%v shot down %v:%v\n", tn.name, scope, nodeName)
 			wg.Done()

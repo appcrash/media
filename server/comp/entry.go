@@ -1,54 +1,33 @@
 package comp
 
 import (
+	"errors"
 	"github.com/appcrash/media/server/event"
 )
 
-// EntryNode is the place where input data flow into event graph in the session
+// EntryNode is a basic message provider that simply forward data message to event graph
 type EntryNode struct {
 	SessionNode
-
-	linkId int
-}
-
-func (e *EntryNode) OnEvent(evt *event.Event) {
-	obj := evt.GetObj()
-	if obj == nil {
-		return
-	}
-	switch evt.GetCmd() {
-	case CMD_GENERIC_SET_ROUTE:
-		if c, ok := obj.(*GenericRouteCommand); ok {
-			e.setOutputNode(c.SessionId, c.Name)
-		}
-
-	}
-}
-
-func (e *EntryNode) OnLinkUp(linkId int, scope string, nodeName string) {
-	if linkId >= 0 {
-		e.linkId = linkId
-	}
 }
 
 //---------------------------------- api & implementation -------------------------------------------
 
-func newEntryNode() *EntryNode {
-	node := &EntryNode{
-		linkId: -1,
-	}
+func newEntryNode() SessionAware {
+	node := &EntryNode{}
 	node.Name = TYPE_ENTRY
 	return node
 }
 
-func (e *EntryNode) setOutputNode(sessionId, name string) {
-	e.delegate.RequestLinkUp(sessionId, name)
+func (e *EntryNode) PushMessage(data DataMessage) error {
+	if e.dataLinkId >= 0 && data != nil {
+		evt := event.NewEvent(DATA_OUTPUT, data)
+		if !e.delegate.Deliver(e.dataLinkId, evt) {
+			return errors.New("failed to deliver message")
+		}
+	}
+	return nil
 }
 
-func (e *EntryNode) Input(data []byte) bool {
-	if e.linkId >= 0 && data != nil {
-		evt := event.NewEvent(DATA_OUTPUT, data)
-		return e.delegate.Delivery(e.linkId, evt)
-	}
-	return false
+func (e *EntryNode) GetName() string {
+	return e.Name
 }

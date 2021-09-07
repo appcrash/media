@@ -17,11 +17,12 @@ type NodeDelegate struct {
 	id              string
 	ctrlC           chan *Event
 	dataC           chan *Event
-	graph           *EventGraph
+	graph           *Graph
 	inExit          atomic.Value
 	deliveryTimeout time.Duration // in milliseconds
 
 	invokeMutex sync.Mutex
+	wg          sync.WaitGroup
 	// lock-free dlink array with fixed size(maxLink)
 	// even though links field and its pointers(*atomic.Value) is not
 	// volatile(that means they can be cpu-local cached), it doesn't matter.
@@ -44,7 +45,7 @@ const defaultMaxLink = 5
 const defaultDataChannelSize = 100
 const defaultDeliveryTimeout = 100 * time.Millisecond
 
-func newNodeDelegate(graph *EventGraph, node Node, maxLink int) *NodeDelegate {
+func newNodeDelegate(graph *Graph, node Node, maxLink int) *NodeDelegate {
 	delegate := &NodeDelegate{
 		nodeImpl: node,
 		ctrlC:    make(chan *Event),
@@ -142,7 +143,7 @@ func (nd *NodeDelegate) startEventLoop() {
 		err := nd.systemEventLoop()
 		if err != nil {
 			// come to here as graph has a bug
-			fmt.Errorf("[graph]: fatal error: %v\n", err)
+			logger.Errorf("[graph]: fatal error: %v\n", err)
 			nd.finalize(err, done)
 			return
 		}
@@ -225,14 +226,8 @@ func (nd *NodeDelegate) handleSystemEvent(evt *Event) {
 		if resp, ok := evt.obj.(*linkUpResponse); !ok {
 			panic(errors.New("[graph]:dlink up response with wrong event object"))
 		} else {
-			scope := resp.scope
-			nodeName := resp.nodeName
 			if resp.state != 0 {
-				go func(n *NodeDelegate, s string, name string) {
-					n.preSystemInvoke()
-					defer n.postSystemInvoke()
-					n.nodeImpl.OnLinkUp(-1, s, name)
-				}(nd, scope, nodeName)
+				resp.c <- -1
 				return
 			}
 			// if free list is not empty, recycle the slot
@@ -252,11 +247,7 @@ func (nd *NodeDelegate) handleSystemEvent(evt *Event) {
 				val.Store(link)
 			}
 
-			go func(n *NodeDelegate, id int, s string, name string) {
-				n.preSystemInvoke()
-				defer n.postSystemInvoke()
-				n.nodeImpl.OnLinkUp(id, s, name)
-			}(nd, newLinkId, scope, nodeName)
+			resp.c <- newLinkId
 		}
 	case resp_link_down:
 		// we receive link_down either toNode exits the graph or we actively requested previously
@@ -273,10 +264,11 @@ func (nd *NodeDelegate) handleSystemEvent(evt *Event) {
 				}
 			}
 			if linkId < 0 {
-				// wrong link passed to node, TODO: log error
+				// wrong link passed to node
+				logger.Errorf("[node]: request link down with wrong linkId:%v\n", linkId)
 				return
 			}
-			// put index to free list, set the slot to null link so Delivery would fail
+			// put index to free list, set the slot to null link so Deliver would fail
 			nd.freeLinkSlot = append(nd.freeLinkSlot, linkId)
 			nd.links[linkId].Store(nullLink)
 			scope := link.toNode.getNodeScope()
@@ -344,23 +336,23 @@ func (nd *NodeDelegate) finalize(err error, done chan int) {
  ****************** APIs for end user ****************
  *****************************************************/
 
-// RequestLinkUp node request dlink to other node of @param scope and name @param nodeName
+// RequestLinkUp [SYNC] node request dlink to other node of @param scope and name @param nodeName
 // the request is passed to graph, then graph would create the dlink and notify the node
-// delegate. the node's OnLinkUp would be invoked with linkId as parameter
-// if the requested node doesn't exist, node would be notified with linkId == -1
-func (nd *NodeDelegate) RequestLinkUp(scope string, nodeName string) (err error) {
+// delegate.  if the requested node doesn't exist or any error happened, linkId == -1
+func (nd *NodeDelegate) RequestLinkUp(scope string, nodeName string) (linkId int) {
 	// graph will give error response if duplication happened
 	// i.e. (fromScope,fromName,toScope,toName) quaternion is unique across graph
 	if scope == "" || nodeName == "" {
-		err = errors.New("wrong link-up parameters")
-		return
+		return -1
 	}
-	evt := newLinkUpRequest(nd, scope, nodeName)
+	c := make(chan int, 1)
+	evt := newLinkUpRequest(nd, scope, nodeName, c)
 	nd.graph.deliveryEvent(evt)
+	linkId = <-c
 	return
 }
 
-// RequestLinkDown node request tearing down an output dlink, and node's
+// RequestLinkDown [ASYNC] node request tearing down an output dlink, and node's
 // OnLinkDown would be invoked once successfully tearing down
 func (nd *NodeDelegate) RequestLinkDown(linkId int) (err error) {
 	// what if linkId >= len(nd.links) when nd.links itself not protected by
@@ -382,6 +374,7 @@ func (nd *NodeDelegate) RequestLinkDown(linkId int) (err error) {
 	return
 }
 
+// RequestNodeExit [ASYNC] ask graph to remove this node, and OnExit would be invoked
 func (nd *NodeDelegate) RequestNodeExit() (err error) {
 	if nd.isExiting() {
 		err = errors.New("node is already in exiting state")
@@ -396,8 +389,8 @@ func (nd *NodeDelegate) RequestNodeExit() (err error) {
 	return
 }
 
-// DeliveryWithTimeout return true if successfully delivered
-func (nd *NodeDelegate) DeliveryWithTimeout(linkId int, evt *Event, timeout time.Duration) bool {
+// DeliverWithTimeout [SYNC] return true if successfully delivered
+func (nd *NodeDelegate) DeliverWithTimeout(linkId int, evt *Event, timeout time.Duration) bool {
 	link := nd.links[linkId].Load().(*dlink)
 	if link == nullLink {
 		return false
@@ -409,11 +402,11 @@ func (nd *NodeDelegate) DeliveryWithTimeout(linkId int, evt *Event, timeout time
 	return link.toNode.receiveData(evt, timeout)
 }
 
-func (nd *NodeDelegate) Delivery(linkId int, evt *Event) bool {
-	return nd.DeliveryWithTimeout(linkId, evt, nd.deliveryTimeout)
+func (nd *NodeDelegate) Deliver(linkId int, evt *Event) bool {
+	return nd.DeliverWithTimeout(linkId, evt, nd.deliveryTimeout)
 }
 
-// DeliverSelf directly puts event to this node's event loop
+// DeliverSelf [SYNC] directly puts event to this node's event loop
 // it is a convenient way to talk to the node, and node can choose to expose api to let
 // caller who has a reference to this node directly sending message to node
 // from the node's perspective, it doesn't care about the source of every event

@@ -4,7 +4,7 @@ package event
 // in one direction, if dlink is not used anymore, call tear down to
 // notify the other side releasing it
 type dlink struct {
-	graph    *EventGraph
+	graph    *Graph
 	name     string
 	fromNode *NodeDelegate
 	toNode   *NodeDelegate
@@ -18,7 +18,7 @@ func generateLinkName(fromScope string, fromNodeName string, toScope string, toN
 	return fromScope + ":" + fromNodeName + "#" + toScope + ":" + toNodeName
 }
 
-func newLink(graph *EventGraph, fromNode *NodeDelegate, toNode *NodeDelegate) *dlink {
+func newLink(graph *Graph, fromNode *NodeDelegate, toNode *NodeDelegate) *dlink {
 	name := generateLinkName(fromNode.getNodeScope(), fromNode.getNodeName(),
 		toNode.getNodeScope(), toNode.getNodeName())
 	return &dlink{

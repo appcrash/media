@@ -1,6 +1,9 @@
 package comp
 
 import (
+	"errors"
+	"fmt"
+	"github.com/appcrash/media/server/event"
 	"github.com/sirupsen/logrus"
 )
 
@@ -11,9 +14,9 @@ func InitLogger(gl *logrus.Logger) {
 }
 
 const (
-	TYPE_ENTRY  = "entry"
-	TYPE_PUBSUB = "pubsub"
-	TYPE_SEND   = "send"
+	TYPE_ENTRY    = "entry"
+	TYPE_PUBSUB   = "pubsub"
+	TYPE_DISPATCH = "dispatch"
 )
 
 type Id struct {
@@ -34,49 +37,94 @@ func NewId(sessionId, name string) *Id {
 // establish links to all nodes to communicate beforehand), so simplify the programming pattern
 type Controller interface {
 	// Call send message and wait for the response (block)
-	Call(session, name, args string) (resp string)
+	Call(session, name string, args []string) (resp []string)
 
 	// Cast send message and don't wait (nonblock)
-	Cast(session, name, args string)
+	Cast(session, name string, args []string)
 }
 
+// MessageProvider can push data message to event graph
+type MessageProvider interface {
+	GetName() string
+	PushMessage(data DataMessage) error
+}
+
+// Registry service for new node type with predefined factories
+
+type SessionNodeFactory func() SessionAware
+
+var sessionNodeRegistry = map[string]SessionNodeFactory{
+	TYPE_ENTRY:    newEntryNode,
+	TYPE_PUBSUB:   newPubSubNode,
+	TYPE_DISPATCH: newDispatch,
+}
+
+func getNodeByName(typeName string) SessionAware {
+	if f, ok := sessionNodeRegistry[typeName]; ok {
+		return f()
+	}
+	logger.Errorf("unknown node type:%v\n", typeName)
+	return nil
+}
+
+func RegisterNodeFactory(typeName string, f SessionNodeFactory) error {
+	if typeName == "" || f == nil {
+		return errors.New("wrong typename or nil factory")
+	}
+	if _, ok := sessionNodeRegistry[typeName]; ok {
+		return errors.New(fmt.Sprintf("node of type:%v already registered", typeName))
+	}
+	sessionNodeRegistry[typeName] = f
+	return nil
+}
+
+// DataMessage is used to pass data between nodes in session
+type DataMessage []byte
 type Cloneable interface {
 	Clone() Cloneable
 }
 
-type DataMessage []byte
+func NewDataMessage(d string) DataMessage {
+	return DataMessage(d)
+}
 
+func (m DataMessage) String() string {
+	return string(m)
+}
 func (m DataMessage) Clone() Cloneable {
 	mc := make(DataMessage, len(m))
 	copy(mc, m)
 	return mc
 }
 
-func getNodeByName(typeName string) SessionAware {
-	switch typeName {
-	case TYPE_ENTRY:
-		return newEntryNode()
-	case TYPE_PUBSUB:
-		return newPubSubNode()
-	case TYPE_SEND:
-		return newDispatch()
-	default:
-		logger.Errorf("unknown node type:%v\n", typeName)
-		return nil
+// CtrlMessage is used to invoke or cast function call
+type CtrlMessage struct {
+	M []string
+	C chan []string // used to receive result
+}
+
+func NewCallEvent(M []string) *event.Event {
+	msg := &CtrlMessage{
+		M: M,
+		C: make(chan []string, 1),
 	}
+	return event.NewEvent(CTRL_CALL, msg)
 }
 
-type GenericRouteCommand struct {
-	Id
+func NewCastEvent(M []string) *event.Event {
+	msg := &CtrlMessage{
+		M: M,
+	}
+	return event.NewEvent(CTRL_CAST, msg)
 }
 
-// public commands & responses
+func NewDataEvent(dm DataMessage) *event.Event {
+	return event.NewEvent(DATA_OUTPUT, dm)
+}
+
+// public commands
 const (
-	CMD_GENERIC_SET_ROUTE = iota // set the destination to which a node output
+	CTRL_CALL = iota
+	CTRL_CAST
 	DATA_OUTPUT
-
-	CMD_PUBSUB_ADD_NODE_SUBSCRIBER
-	CMD_PUBSUB_ADD_CHANNEL_SUBSCRIBER
-	CMD_PUBSUB_REMOVE_NODE_SUBSCRIBER
-	CMD_PUBSUB_REMOVE_CHANNEL_SUBSCRIBER
 )

@@ -4,16 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"github.com/appcrash/media/server/event"
-	"github.com/appcrash/media/server/utils"
 	"strings"
-	"time"
 )
 
 type Composer struct {
-	sessionId string
-	gt        *GraphTopology
-	entryNode *EntryNode // currently, only support one entry
-	sendNode  *Dispatch
+	sessionId       string
+	gt              *GraphTopology
+	messageProvider []MessageProvider
+	dispatch        *Dispatch
 
 	namedChannel map[string]chan<- *event.Event
 }
@@ -29,6 +27,7 @@ func NewSessionComposer(sessionId string) *Composer {
 func (c *Composer) ParseGraphDescription(desc string) (err error) {
 	gt := newGraphTopology()
 	lines := strings.Split(desc, "\n")
+
 	for _, l := range lines {
 		if l == "" {
 			continue
@@ -45,15 +44,11 @@ func (c *Composer) ParseGraphDescription(desc string) (err error) {
 	return
 }
 
-func (c *Composer) GetSortedNodes() (ni []*NodeInfo) {
-	return c.gt.sortedNodeList
-}
-
 // PrepareNodes create node instances by type, add them to graph, and link them
-func (c *Composer) PrepareNodes(graph *event.EventGraph) (err error) {
+func (c *Composer) PrepareNodes(graph *event.Graph) (err error) {
 	var nodeList []SessionAware
 	var nodeIds []*Id
-	var sendNode *Dispatch
+	var dispatch *Dispatch
 	nbNode := len(c.gt.sortedNodeList)
 
 	defer func() {
@@ -62,92 +57,108 @@ func (c *Composer) PrepareNodes(graph *event.EventGraph) (err error) {
 			for _, n := range nodeList {
 				n.ExitGraph()
 			}
-			if sendNode != nil {
-				sendNode.ExitGraph()
+			if dispatch != nil {
+				dispatch.ExitGraph()
 			}
 		}
 	}()
 
-	// create node instances
+	// create node instances, collect message providers if any
 	for _, n := range c.gt.sortedNodeList {
 		n.Props.Set("Name", n.Name)
-		sn := MakeSessionNode(n.Name, c.sessionId, n.Props)
+		sn := MakeSessionNode(n.Type, c.sessionId, n.Props)
 		if sn == nil {
 			logger.Errorf("unknown node type: %v\n", n.Name)
 			err = errors.New("can not make unknown node")
 			return
 		}
 		nodeList = append(nodeList, sn)
-		if n.Name == TYPE_ENTRY {
-			c.entryNode = sn.(*EntryNode)
+		if provider, ok := sn.(MessageProvider); ok {
+			c.messageProvider = append(c.messageProvider, provider)
 		}
+
 		id := NewId(sn.GetNodeScope(), sn.GetNodeName())
 		nodeIds = append(nodeIds, id)
 	}
 
-	// add all nodes to graph, take action until all of them are ready
-	for _, n := range nodeList {
+	// add all nodes to graph, create links between them, as nodes are already topographical sorted,
+	// for each node, its dependent nodes are in graph when adding it to graph
+	for i, n := range nodeList {
 		if !graph.AddNode(n) {
 			err = errors.New(fmt.Sprintf("failed to add node %v to graph", n.GetNodeName()))
 			return
 		}
+		deps := c.gt.sortedNodeList[i].Deps
+		for _, ni := range deps {
+			// set pipe end to local session nodes
+			if n.SetPipeOut(c.sessionId, ni.Name) != nil {
+				err = errors.New(fmt.Sprintf("failed to link %v => %v", n.GetNodeName(), ni.Name))
+				return
+			}
+		}
 	}
 
-	// now every node is added to graph, build link between them:
-	// first create send node which links to all nodes in the session,
-	// then send route command through send node
+	// now every node is added to graph and linked
+	// create dispatch node which links to all nodes in the session
 	ci := make(ConfigItems)
-	sendNode = MakeSessionNode(TYPE_SEND, c.sessionId, ci).(*Dispatch)
-	sendNode.SetMaxLink(nbNode) // enlarge it if we need supporting dynamically add-node
-	if !graph.AddNode(sendNode) {
+	dispatch = MakeSessionNode(TYPE_DISPATCH, c.sessionId, ci).(*Dispatch)
+	dispatch.SetMaxLink(nbNode * 2) // reserved nbNode for dynamical link requests
+	if !graph.AddNode(dispatch) {
 		err = errors.New("fail to add send-node to graph")
 		return
 	}
-	if err = sendNode.ConnectTo(nodeIds); err != nil {
+	if err = dispatch.connectTo(nodeIds); err != nil {
 		return
 	}
 
-	nbLink := len(c.gt.getLinkInfo())
-	linkReadyC := make(chan bool, nbLink)
-	linkReadyFunc := func() { linkReadyC <- true }
-	for _, li := range c.gt.getLinkInfo() {
-		from, to := li.From, li.To
-		cmd := &GenericRouteCommand{}
-		cmd.SessionId = c.sessionId
-		cmd.Name = to.Name
-		evt := event.NewEventWithCallback(CMD_GENERIC_SET_ROUTE, cmd, linkReadyFunc)
-		sendNode.SendTo(c.sessionId, from.Name, evt) // set From-node's route to To-node
+	// again, let all nodes reference this dispatch
+	for _, n := range nodeList {
+		n.SetController(dispatch)
 	}
-	// wait until all set route command executed
-	if err = utils.WaitChannelWithTimeout(linkReadyC, nbLink, 2*time.Second); err != nil {
-		errStr := "waiting for node ready failed when setting route"
-		logger.Errorln(errStr)
-		err = errors.New(errStr)
-		return
-	}
-	c.sendNode = sendNode
+	c.dispatch = dispatch
 
-	// subscribe channels
+	// subscribe channels, for all nodes of type pubsub, find the registered channel with same name
+	// as specified in pubsub's "channel" property
 	if len(c.namedChannel) > 0 {
 		for i, n := range c.gt.sortedNodeList {
-			if n.Type == TYPE_PUBSUB {
-				if name, ok := n.Props["channel"]; ok {
-					chName, ok1 := name.(string)
-					if !ok1 {
-						break
-					}
+			if n.Type != TYPE_PUBSUB {
+				continue
+			}
+			if name, ok := n.Props["channel"]; ok {
+				chNameList, ok1 := name.(string)
+				if !ok1 {
+					break
+				}
+				// pubsub property, for example: channel=a,b,c ...
+				for _, chName := range strings.Split(chNameList, ",") {
 					if ch, exist := c.namedChannel[chName]; exist {
 						nodeList[i].(*PubSubNode).SubscribeChannel(chName, ch)
 					}
 				}
+
 			}
 		}
 	}
+
 	return
 }
 
-func (c *Composer) GetEntry() *EntryNode {
-	return c.entryNode
+func (c *Composer) GetSortedNodes() (ni []*NodeInfo) {
+	return c.gt.sortedNodeList
+}
+
+// GetMessageProvider get entry by its name
+func (c *Composer) GetMessageProvider(name string) MessageProvider {
+	for _, provider := range c.messageProvider {
+		if provider.GetName() == name {
+			return provider
+		}
+	}
+	return nil
+}
+
+func (c *Composer) GetController() Controller {
+	return c.dispatch
 }
 
 func (c *Composer) RegisterChannel(name string, ch chan<- *event.Event) {

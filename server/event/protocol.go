@@ -27,6 +27,7 @@ type linkUpRequest struct {
 	fromNode *NodeDelegate
 	scope    string
 	nodeName string
+	c        chan int
 }
 
 type linkDownRequest struct {
@@ -48,6 +49,7 @@ type linkUpResponse struct {
 	link     *dlink
 	scope    string
 	nodeName string
+	c        chan int
 }
 
 type linkDownResponse struct {
@@ -76,8 +78,8 @@ func NewEvent(cmd int, obj interface{}) *Event {
 }
 
 /* ---------------REQUEST------------------- */
-func newLinkUpRequest(nd *NodeDelegate, scope string, nodeName string) *Event {
-	return NewEvent(req_link_up, &linkUpRequest{nd, scope, nodeName})
+func newLinkUpRequest(nd *NodeDelegate, scope string, nodeName string, c chan int) *Event {
+	return NewEvent(req_link_up, &linkUpRequest{nd, scope, nodeName, c})
 }
 
 func newLinkDownRequest(link *dlink) *Event {
@@ -93,8 +95,8 @@ func newNodeExitRequest(node *NodeDelegate) *Event {
 }
 
 /* ---------------RESPONSE------------------- */
-func newLinkUpResponse(resp *dlink, state int, scope string, name string) *Event {
-	return NewEvent(resp_link_up, &linkUpResponse{state, resp, scope, name})
+func newLinkUpResponse(resp *dlink, state int, scope string, name string, c chan int) *Event {
+	return NewEvent(resp_link_up, &linkUpResponse{state, resp, scope, name, c})
 }
 
 func newLinkDownResponse(state int, link *dlink) *Event {

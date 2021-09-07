@@ -1,6 +1,7 @@
 package event
 
 import (
+	"github.com/appcrash/media/server/utils"
 	"reflect"
 	"time"
 )
@@ -9,7 +10,7 @@ type scopeMapType map[string][]*NodeDelegate
 type linkSetType map[string]bool
 type nodeMapType map[string]*nodeInfo
 
-type EventGraph struct {
+type Graph struct {
 	scopeMap scopeMapType
 	nodeMap  nodeMapType // nodeId -> nodeInfo
 	linkSet  linkSetType // links that still alive
@@ -23,7 +24,7 @@ type nodeInfo struct {
 	maxLink     int
 }
 
-func (eg *EventGraph) findNode(scope string, name string) *NodeDelegate {
+func (eg *Graph) findNode(scope string, name string) *NodeDelegate {
 	if nodeList, ok := eg.scopeMap[scope]; ok {
 		for _, node := range nodeList {
 			if node.getNodeName() == name {
@@ -34,7 +35,7 @@ func (eg *EventGraph) findNode(scope string, name string) *NodeDelegate {
 	return nil
 }
 
-func (eg *EventGraph) addNode(nd *NodeDelegate, maxLink int) {
+func (eg *Graph) addNode(nd *NodeDelegate, maxLink int) {
 	scope := nd.getNodeScope()
 	if nodeList, ok := eg.scopeMap[scope]; !ok {
 		eg.scopeMap[scope] = []*NodeDelegate{nd}
@@ -44,7 +45,7 @@ func (eg *EventGraph) addNode(nd *NodeDelegate, maxLink int) {
 	eg.nodeMap[nd.getId()] = &nodeInfo{maxLink: maxLink}
 }
 
-func (eg *EventGraph) delNode(nd *NodeDelegate) {
+func (eg *Graph) delNode(nd *NodeDelegate) {
 	scope := nd.getNodeScope()
 	if nodeList, ok := eg.scopeMap[scope]; ok {
 		index := -1
@@ -68,7 +69,7 @@ func (eg *EventGraph) delNode(nd *NodeDelegate) {
 	delete(eg.nodeMap, nd.getId())
 }
 
-func (eg *EventGraph) getNodeInfo(nodeId string) *nodeInfo {
+func (eg *Graph) getNodeInfo(nodeId string) *nodeInfo {
 	if info, exist := eg.nodeMap[nodeId]; exist {
 		return info
 	}
@@ -76,7 +77,7 @@ func (eg *EventGraph) getNodeInfo(nodeId string) *nodeInfo {
 }
 
 // associate dlink to a node delegate
-func (eg *EventGraph) addLink(nd *NodeDelegate, l *dlink) {
+func (eg *Graph) addLink(nd *NodeDelegate, l *dlink) {
 	info := eg.getNodeInfo(nd.getId())
 	if info == nil {
 		return
@@ -88,12 +89,12 @@ func (eg *EventGraph) addLink(nd *NodeDelegate, l *dlink) {
 		l.toIndex = len(info.inputLinks)
 		info.inputLinks = append(info.inputLinks, l)
 	} else {
-		// TODO: log error
+		logger.Errorf("[graph]: can not addLink %v\n", l)
 	}
 }
 
 // tear down a dlink in node delegate
-func (eg *EventGraph) delLink(nd *NodeDelegate, l *dlink) {
+func (eg *Graph) delLink(nd *NodeDelegate, l *dlink) {
 	info := eg.getNodeInfo(nd.getId())
 	if info == nil {
 		return
@@ -122,7 +123,7 @@ func (eg *EventGraph) delLink(nd *NodeDelegate, l *dlink) {
 		info.inputLinks[length-1].toIndex = l.toIndex
 		l.toIndex = -1
 	} else {
-		// TODO: log error
+		logger.Errorf("[graph]: can not delete link: %v\n", l)
 		return
 	}
 	// remove dlink by exchanging with last one
@@ -131,13 +132,13 @@ func (eg *EventGraph) delLink(nd *NodeDelegate, l *dlink) {
 	*linkArray = (*linkArray)[:length-1]
 }
 
-func (eg *EventGraph) deliveryEvent(evt *Event) {
+func (eg *Graph) deliveryEvent(evt *Event) {
 	eg.eventChannel <- evt
 }
 
 // simply loop forever
-func (eg *EventGraph) startEventLoop(c chan int) {
-	go func(g *EventGraph) {
+func (eg *Graph) startEventLoop(c chan int) {
+	go func(g *Graph) {
 		c <- 0
 		for {
 			evt := <-g.eventChannel
@@ -146,7 +147,7 @@ func (eg *EventGraph) startEventLoop(c chan int) {
 	}(eg)
 }
 
-func (eg *EventGraph) onEvent(evt *Event) {
+func (eg *Graph) onEvent(evt *Event) {
 	var ok bool
 	switch evt.cmd {
 	case req_node_add:
@@ -177,7 +178,7 @@ func (eg *EventGraph) onEvent(evt *Event) {
 }
 
 // add node to graph, and send node-add response to this node immediately
-func (eg *EventGraph) onAddNode(req *nodeAddRequest) {
+func (eg *Graph) onAddNode(req *nodeAddRequest) {
 	maxLink := defaultMaxLink
 	node := req.node
 	ps := reflect.ValueOf(node)
@@ -207,7 +208,7 @@ func (eg *EventGraph) onAddNode(req *nodeAddRequest) {
 
 // node requests exiting the graph, notify all senders linking
 // to this node
-func (eg *EventGraph) onExitNode(req *nodeExitRequest) {
+func (eg *Graph) onExitNode(req *nodeExitRequest) {
 	nd := req.delegate
 	nodeInfo := eg.getNodeInfo(nd.getId())
 	if nodeInfo == nil {
@@ -236,7 +237,8 @@ func (eg *EventGraph) onExitNode(req *nodeExitRequest) {
 		}
 	}
 	if len(nodeInfo.inputLinks) > 0 || len(nodeInfo.outputLinks) > 0 {
-		// TODO: log error
+		logger.Errorf("[node]: (%v) is exiting but have inputLinks:%v,outputLinks:%v\n",
+			nd.getNodeName(), len(nodeInfo.inputLinks), len(nodeInfo.outputLinks))
 		panic("node still have active links")
 	}
 	eg.delNode(nd)
@@ -246,37 +248,37 @@ func (eg *EventGraph) onExitNode(req *nodeExitRequest) {
 
 // request dlink to other node, decline if that node is exiting or
 // dlink is duplicated, otherwise create dlink between them
-func (eg *EventGraph) onLinkUp(req *linkUpRequest) {
+func (eg *Graph) onLinkUp(req *linkUpRequest) {
 	nodeName := req.nodeName
 	scope := req.scope
 	fromNode := req.fromNode
 
 	ni := eg.nodeMap[fromNode.getId()]
 	if ni.maxLink == len(ni.outputLinks) {
-		req.fromNode.receiveCtrl(newLinkUpResponse(nil, state_node_exceed_max_link, scope, nodeName))
+		req.fromNode.receiveCtrl(newLinkUpResponse(nil, state_node_exceed_max_link, scope, nodeName, req.c))
 		return
 	}
 	toNode := eg.findNode(scope, nodeName)
 	if toNode == nil {
-		req.fromNode.receiveCtrl(newLinkUpResponse(nil, state_node_not_exist, scope, nodeName))
+		req.fromNode.receiveCtrl(newLinkUpResponse(nil, state_node_not_exist, scope, nodeName, req.c))
 		return
 	}
 
 	link := newLink(eg, fromNode, toNode)
 	if _, exist := eg.linkSet[link.name]; exist {
 		// duplicated dlink, notify sender
-		fromNode.receiveCtrl(newLinkUpResponse(nil, state_link_duplicated, scope, nodeName))
+		fromNode.receiveCtrl(newLinkUpResponse(nil, state_link_duplicated, scope, nodeName, req.c))
 		return
 	}
 	if toNode.isExiting() {
 		// the requested node wouldn't accept this dlink-up request
-		fromNode.receiveCtrl(newLinkUpResponse(nil, state_link_refuse, scope, nodeName))
+		fromNode.receiveCtrl(newLinkUpResponse(nil, state_link_refuse, scope, nodeName, req.c))
 		return
 	}
 	eg.addLink(fromNode, link)
 	eg.addLink(toNode, link)
 	eg.linkSet[link.name] = true
-	fromNode.receiveCtrl(newLinkUpResponse(link, state_success, scope, nodeName))
+	fromNode.receiveCtrl(newLinkUpResponse(link, state_success, scope, nodeName, req.c))
 }
 
 // request breaking a dlink, such as A ----> B
@@ -284,7 +286,7 @@ func (eg *EventGraph) onLinkUp(req *linkUpRequest) {
 // when A don't want to send message to B anymore or
 // come from B who wants to exit the event graph, and node delegate will
 // silently break all links pointing to B before B really exited
-func (eg *EventGraph) onLinkDown(req *linkDownRequest) {
+func (eg *Graph) onLinkDown(req *linkDownRequest) {
 	link := req.link
 	fromNode := link.fromNode
 	toNode := link.toNode
@@ -301,8 +303,8 @@ func (eg *EventGraph) onLinkDown(req *linkDownRequest) {
 
 // public APIs for end user
 
-func NewEventGraph() *EventGraph {
-	eg := &EventGraph{
+func NewEventGraph() *Graph {
+	eg := &Graph{
 		scopeMap:     make(scopeMapType),
 		nodeMap:      make(nodeMapType),
 		linkSet:      make(linkSetType),
@@ -316,19 +318,14 @@ func NewEventGraph() *EventGraph {
 	return eg
 }
 
-// AddNode add a node to graph and wait until completion
-func (eg *EventGraph) AddNode(node Node) (success bool) {
+// AddNode [SYNC] add a node to graph and wait until completion, i.e. the node's OnEnter is invoked
+func (eg *Graph) AddNode(node Node) (success bool) {
 	c := make(chan bool, 1)
-	cb := func() {
-		c <- true
-	}
+	cb := func() { c <- true }
 	evt := newNodeAddRequest(nodeAddRequest{node, cb})
 	eg.deliveryEvent(evt)
-	select {
-	case <-c:
+	if err := utils.WaitChannelWithTimeout(c, 1, 1*time.Second); err == nil {
 		success = true
-		return
-	case <-time.After(1 * time.Second):
 	}
 	return
 }

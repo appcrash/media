@@ -29,7 +29,7 @@ type MediaServer struct {
 	sourceF []SourceFactory
 	sinkF   []SinkFactory
 
-	graph *event.EventGraph
+	graph *event.Graph
 }
 
 type RegisterMore func(s grpc.ServiceRegistrar)
@@ -66,5 +66,6 @@ func StartServer(grpcIp string, grpcPort uint16,
 
 // InitServerLogger can be called multiple times before server starts to override default logger
 func InitServerLogger(gl *logrus.Logger) {
+	event.InitLogger(gl)
 	comp.InitLogger(gl)
 }

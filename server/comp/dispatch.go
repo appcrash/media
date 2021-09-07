@@ -4,41 +4,27 @@ import (
 	"errors"
 	"fmt"
 	"github.com/appcrash/media/server/event"
-	"github.com/appcrash/media/server/utils"
 	"sync"
-	"time"
 )
 
-// Dispatch is the bridge between every session's nodes and commands
+// Dispatch is a bridge between every session's nodes and commands
 // business commands normally change node's behaviour by send control messages to them with Call() or Cast(),
 // nodes react to these messages which may cause more messages(change other node's behaviour,chain reaction) to send.
 // all of these messages are sent from Dispatch.
-// it is a SessionNode as well as implementing Controller interfaces, so provide api to callers and send messages to
-// any other nodes in the event graph.
+// it is a SessionNode as well as implementing Controller interfaces, so provide api to callers while sending
+// messages to any other nodes in the event graph.
 type Dispatch struct {
 	SessionNode
 	event.NodeProperty // necessary when the node number exceeds default maxLink of event graph
 
-	mutex     sync.Mutex
-	linkMap   map[string]int
-	linkSyncC chan bool // sync all link up event
-}
-
-func (d *Dispatch) OnLinkUp(linkId int, scope string, nodeName string) {
-	if linkId >= 0 {
-		d.mutex.Lock()
-		id := &Id{SessionId: scope, Name: nodeName}
-		d.linkMap[id.String()] = linkId
-		d.mutex.Unlock()
-		d.linkSyncC <- true
-	}
+	mutex   sync.Mutex
+	linkMap map[string]int
 }
 
 //----------------------------------------- api & implementation ---------------------------------------------
 
-// sync connect to other nodes
-// TODO: can be called multiple times, skipping existing links
-func (d *Dispatch) ConnectTo(nl []*Id) (err error) {
+// sync connect to other nodes, if the provided node list contains already-linked nodes, skip them
+func (d *Dispatch) connectTo(nl []*Id) (err error) {
 	if d.delegate == nil {
 		err = errors.New("send node not ready")
 		return
@@ -48,38 +34,104 @@ func (d *Dispatch) ConnectTo(nl []*Id) (err error) {
 		err = errors.New("node list exceeds maxLink")
 		return
 	}
-	d.linkSyncC = make(chan bool, n)
-	// connect to others and wait until done
+
+	// skip existing links
+	var newNl []*Id
+	d.mutex.Lock()
 	for _, node := range nl {
-		d.delegate.RequestLinkUp(node.SessionId, node.Name)
+		if _, ok := d.linkMap[node.String()]; !ok {
+			newNl = append(newNl, node)
+		}
 	}
-	err = utils.WaitChannelWithTimeout(d.linkSyncC, n, 2*time.Second)
-	// not used anymore
-	d.linkSyncC = nil
+	d.mutex.Unlock()
+
+	// connect to others and wait until done
+	for _, node := range newNl {
+		if linkId := d.delegate.RequestLinkUp(node.SessionId, node.Name); linkId >= 0 {
+			d.mutex.Lock()
+			d.linkMap[node.String()] = linkId
+			d.mutex.Unlock()
+		} else {
+			err = errors.New(fmt.Sprintf("dispatch connect to %v failed", node.Name))
+			return
+		}
+	}
 	return
 }
 
-func (d *Dispatch) SendTo(sessionId, name string, evt *event.Event) (err error) {
+// getLinkId retrieve requested node with given sessionId and name, if the link to it
+// has not established yet, connect to that node on the fly, then return created link id
+func (d *Dispatch) getLinkId(sessionId, name string) (linkId int, err error) {
+	var ok bool
+	id := NewId(sessionId, name)
+	d.mutex.Lock()
+	linkId, ok = d.linkMap[id.String()]
+	d.mutex.Unlock()
+	if !ok {
+		// has no link to the requested node, establish on the fly
+		if err = d.connectTo([]*Id{id}); err != nil {
+			return
+		}
+		d.mutex.Lock()
+		linkId, _ = d.linkMap[id.String()]
+		d.mutex.Unlock()
+	}
+	return
+}
+
+func (d *Dispatch) sendTo(sessionId, name string, evt *event.Event) (err error) {
 	id := &Id{SessionId: sessionId, Name: name}
 	d.mutex.Lock()
-	defer d.mutex.Unlock()
 	if linkId, ok := d.linkMap[id.String()]; ok {
-		d.delegate.Delivery(linkId, evt)
+		d.mutex.Unlock()
+		d.delegate.Deliver(linkId, evt)
 	} else {
+		d.mutex.Unlock()
 		errStr := fmt.Sprintf("no such node:%v", id.String())
 		err = errors.New(errStr)
 	}
 	return
 }
 
-func (d *Dispatch) Call(session, name, args string) (resp string) {
-	return "ok"
+// Call send control message to a node in the graph and wait for its reply
+// if session is "", it means sending to local session nodes
+func (d *Dispatch) Call(session, name string, args []string) (resp []string) {
+	if session == "" {
+		session = d.SessionId
+	}
+	linkId, err := d.getLinkId(session, name)
+	if err != nil {
+		resp = WithError("can not connect to requested node")
+		return
+	}
+	evt := NewCallEvent(args)
+	if !d.delegate.Deliver(linkId, evt) {
+		resp = []string{"err"}
+		return
+	}
+	ctrlMsg := evt.GetObj().(*CtrlMessage)
+	resp = <-ctrlMsg.C
+	return
 }
 
-func (d *Dispatch) Cast(session, name, args string) {
+// Cast send control message to a node in the graph
+// if session is "", it means send to local session nodes
+func (d *Dispatch) Cast(session, name string, args []string) {
+	if session == "" {
+		session = d.SessionId
+	}
+	linkId, err := d.getLinkId(session, name)
+	if err != nil {
+		return
+	}
+	evt := NewCastEvent(args)
+	if !d.delegate.Deliver(linkId, evt) {
+		return
+	}
+	return
 }
 
-func newDispatch() *Dispatch {
+func newDispatch() SessionAware {
 	n := &Dispatch{
 		linkMap: make(map[string]int),
 	}

@@ -7,8 +7,8 @@ import (
 
 func TestGraphSorting(t *testing.T) {
 	desc := "[sink_entry] -> [transcode] \n" +
-		"[transcode] -> [lxyasr] \n" +
-		"[lxyasr] -> [pubsub] \n" +
+		"[transcode] -> [asr] \n" +
+		"[asr] -> [pubsub] \n" +
 		"[transcode]: from_name=amrwb;from_samplerate=16k;to_name=pcm_s16le;to_samplerate=8k \n" +
 		"[pubsub]: channel=source_exit"
 
@@ -17,7 +17,7 @@ func TestGraphSorting(t *testing.T) {
 	if err != nil {
 		t.Fatal("should not happen")
 	}
-	expected := []string{"pubsub", "lxyasr", "transcode", "sink_entry"}
+	expected := []string{"pubsub", "asr", "transcode", "sink_entry"}
 	for i, n := range sc.GetSortedNodes() {
 		if expected[i] != n.Name {
 			t.Fatal("wrong order of sorted node")

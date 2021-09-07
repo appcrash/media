@@ -1,6 +1,8 @@
 package comp
 
 import (
+	"errors"
+	"fmt"
 	"github.com/appcrash/media/server/event"
 	"reflect"
 	"regexp"
@@ -14,6 +16,7 @@ type ConfigItems map[string]interface{}
 type SessionNode struct {
 	Id
 	delegate *event.NodeDelegate
+	ctrl     Controller
 
 	// record where the pipe output to
 	dataLinkId                    int
@@ -31,7 +34,9 @@ type SessionAware interface {
 	ConfigProperties(ci ConfigItems)
 
 	// SetPipeOut specify the data endpoint to which this node output
-	SetPipeOut(session, name string) bool
+	SetPipeOut(session, name string) error
+
+	SetController(ctrl Controller)
 
 	// ExitGraph is used when initialization failed or session terminated
 	ExitGraph()
@@ -64,25 +69,20 @@ func (s *SessionNode) GetNodeScope() string {
 }
 
 func (s *SessionNode) OnEnter(delegate *event.NodeDelegate) {
+	logger.Debugf("node(%v) enters graph\n", s.GetNodeName())
 	s.delegate = delegate
 }
 
 func (s *SessionNode) OnExit() {
-
+	logger.Debugf("node(%v) exits graph", s.GetNodeName())
 }
 
 func (s *SessionNode) OnEvent(evt *event.Event) {
-
-}
-
-func (s *SessionNode) OnLinkUp(linkId int, scope string, nodeName string) {
-	if linkId >= 0 && scope == s.dataSessionName && s.dataNodeName == nodeName {
-		s.dataLinkId = linkId
-	}
+	logger.Debugf("node(%v) got event with cmd:%v\n", s.GetNodeName(), evt.GetCmd())
 }
 
 func (s *SessionNode) OnLinkDown(linkId int, scope string, nodeName string) {
-
+	logger.Debugf("node(%v) got link to (%v:%v) down\n", s.GetNodeName(), scope, nodeName)
 }
 
 //--------------------------- Base SessionAware Implementation --------------------------------
@@ -96,15 +96,30 @@ func (s *SessionNode) ExitGraph() {
 func (s *SessionNode) ConfigProperties(ci ConfigItems) {
 }
 
-func (s *SessionNode) SetPipeOut(session, name string) bool {
+func (s *SessionNode) SetPipeOut(session, name string) error {
 	if s.delegate == nil {
-		return false
+		return errors.New("delegate not ready when set pipe")
 	}
 	s.dataSessionName, s.dataNodeName = session, name
-	if s.delegate.RequestLinkUp(session, name) != nil {
-		return false
+	if s.dataLinkId = s.delegate.RequestLinkUp(session, name); s.dataLinkId < 0 {
+		return errors.New(fmt.Sprintf("can not set pipe to %v:%v", session, name))
 	}
-	return true
+	return nil
+}
+
+func (s *SessionNode) SetController(ctrl Controller) {
+	s.ctrl = ctrl
+}
+
+// SendData utility method to put data message to next node
+func (s *SessionNode) SendData(msg DataMessage) (err error) {
+	if s.dataLinkId >= 0 {
+		evt := NewDataEvent(msg)
+		s.delegate.Deliver(s.dataLinkId, evt)
+	} else {
+		err = errors.New("data link is not established")
+	}
+	return
 }
 
 // MakeSessionNode factory method of all session aware nodes

@@ -21,7 +21,6 @@ type testNode struct {
 	onEvent    onEventFuncType
 	onEnter    onEnterExitFuncType
 	onExit     onEnterExitFuncType
-	onLinkUp   onLinkFuncType
 	onLinkDown onLinkFuncType
 
 	// optional attributes
@@ -39,12 +38,6 @@ func (t *testNode) GetNodeScope() string {
 func (t *testNode) OnEvent(evt *event.Event) {
 	if t.onEvent != nil {
 		t.onEvent(t, evt)
-	}
-}
-
-func (t *testNode) OnLinkUp(linkId int, scope string, nodeName string) {
-	if t.onLinkUp != nil {
-		t.onLinkUp(t, linkId, scope, nodeName)
 	}
 }
 

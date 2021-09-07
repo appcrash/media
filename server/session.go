@@ -35,7 +35,7 @@ type MediaSession struct {
 	source    []Source
 	sink      []Sink
 	finalizer sessionFinalizer
-	graph     *event.EventGraph
+	graph     *event.Graph
 }
 
 func profileOfCodec(c rpc.CodecType) (profile string) {
@@ -109,7 +109,7 @@ func (s *MediaSession) GetSink() []Sink {
 	return s.sink
 }
 
-func (s *MediaSession) GetEventGraph() *event.EventGraph {
+func (s *MediaSession) GetEventGraph() *event.Graph {
 	return s.graph
 }
 

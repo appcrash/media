@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 	"unsafe"
@@ -43,20 +42,20 @@ func ExampleExceptionNodeOnEvent() {
 
 	normalNode := testNode{scope: "test", name: "normal",
 		onEnter: func(t *testNode) {
-			t.delegate.RequestLinkUp("exception", "node1")
-			t.delegate.RequestLinkUp("exception", "node2")
-		},
-		onLinkUp: func(t *testNode, linkId int, scope string, nodeName string) {
-			go func(id int, name string) {
+			id1 := t.delegate.RequestLinkUp("exception", "node1")
+			id2 := t.delegate.RequestLinkUp("exception", "node2")
+			f := func(id int, name string) {
 				for {
 					evt := event.NewEvent(cmd_nothing, 0)
-					if ok := t.delegate.Delivery(id, evt); !ok {
+					if ok := t.delegate.Deliver(id, evt); !ok {
 						fmt.Printf("delivery stopped: %v\n", name)
 						wg.Done()
 						return
 					}
 				}
-			}(linkId, nodeName)
+			}
+			go f(id1, "node1")
+			go f(id2, "node2")
 		},
 		onLinkDown: func(t *testNode, linkId int, scope string, nodeName string) {
 			fmt.Printf("link down with %v\n", nodeName)
@@ -94,8 +93,6 @@ func ExampleExceptionNodeOnControl() {
 	connPanicNode := &testNode{scope: "panic", name: "conn",
 		onEnter: func(t *testNode) {
 			t.delegate.RequestLinkUp("normal", "normal")
-		},
-		onLinkUp: func(t *testNode, linkId int, scope string, nodeName string) {
 			panic("I am also nervous")
 		},
 		onExit: func(t *testNode) {
@@ -117,19 +114,19 @@ func ExampleExceptionNodeOnControl() {
 
 func TestMaxLink(t *testing.T) {
 	var count int32
-	wg := sync.WaitGroup{}
-	wg.Add(3)
+	//wg := sync.WaitGroup{}
+	//wg.Add(3)
 	tn := &testNode{
 		onEnter: func(tn *testNode) {
-			tn.delegate.RequestLinkUp("test", "node1")
-			tn.delegate.RequestLinkUp("test", "node2")
-			tn.delegate.RequestLinkUp("test", "node3")
-		},
-		onLinkUp: func(tn *testNode, linkId int, scope string, nodeName string) {
-			if linkId >= 0 {
-				atomic.AddInt32(&count, 1)
+			if tn.delegate.RequestLinkUp("test", "node1") >= 0 {
+				count++
 			}
-			wg.Done()
+			if tn.delegate.RequestLinkUp("test", "node2") >= 0 {
+				count++
+			}
+			if tn.delegate.RequestLinkUp("test", "node3") >= 0 {
+				count++
+			}
 		},
 	}
 	tn.SetMaxLink(2)
@@ -139,7 +136,7 @@ func TestMaxLink(t *testing.T) {
 		graph.AddNode(node)
 	}
 	graph.AddNode(tn)
-	wg.Wait()
+	//wg.Wait()
 	if count != 2 {
 		t.Fatal("link more than maxLink")
 	}
@@ -148,7 +145,6 @@ func TestMaxLink(t *testing.T) {
 func TestDataChannelSizeAndDeliveryTimeout(t *testing.T) {
 	var timeout = time.Second * 1
 	blockC := make(chan int)
-	done := make(chan int)
 	blockNode := &testNode{scope: "block", name: "block",
 		onEvent: func(t *testNode, evt *event.Event) {
 			// we are here when already consumed one event
@@ -157,19 +153,17 @@ func TestDataChannelSizeAndDeliveryTimeout(t *testing.T) {
 	}
 	blockNode.SetDataChannelSize(1)
 	sendNode := &testNode{scope: "send", name: "send",
-		onEnter: func(t *testNode) {
-			t.delegate.RequestLinkUp("block", "block")
-		},
-		onLinkUp: func(tn *testNode, linkId int, scope string, nodeName string) {
+		onEnter: func(tn *testNode) {
+			linkId := tn.delegate.RequestLinkUp("block", "block")
 			// delivered and consumed, make the OnEvent stuck
-			err1 := tn.delegate.Delivery(linkId, event.NewEvent(cmd_nothing, 1))
+			err1 := tn.delegate.Deliver(linkId, event.NewEvent(cmd_nothing, 1))
 
 			// delivered to queue, make the queue full, not consumed
-			err2 := tn.delegate.Delivery(linkId, event.NewEvent(cmd_nothing, 2))
+			err2 := tn.delegate.Deliver(linkId, event.NewEvent(cmd_nothing, 2))
 
 			// can not be delivered as data channel is full, test the timeout
 			now := time.Now()
-			err3 := tn.delegate.Delivery(linkId, event.NewEvent(cmd_nothing, 3))
+			err3 := tn.delegate.Deliver(linkId, event.NewEvent(cmd_nothing, 3))
 			duration := time.Since(now)
 			if err1 != true || err2 != true || err3 != false {
 				t.Errorf("should block the third event")
@@ -177,16 +171,14 @@ func TestDataChannelSizeAndDeliveryTimeout(t *testing.T) {
 			if duration < timeout {
 				t.Errorf("delivery returns too early")
 			}
-			done <- 0
+			blockC <- 0
+			blockC <- 0
 		},
 	}
 	sendNode.SetDeliveryTimeout(timeout)
 	graph := event.NewEventGraph()
 	graph.AddNode(blockNode)
 	graph.AddNode(sendNode)
-	<-done
-	blockC <- 0
-	blockC <- 0
 }
 
 type countNode testNode
@@ -225,23 +217,17 @@ func TestSyncEvent(t *testing.T) {
 	ready := make(chan int)
 	c := make(chan int)
 	node := &countNode{scope: "count", name: "count",
-		onLinkUp: func(t *testNode, linkId int, scope string, nodeName string) {
+		onEnter: func(t *testNode) {
+			linkId := t.delegate.RequestLinkUp("nothing", "nothing")
 			for i := 1; i <= 500; i++ {
 				evt := event.NewEventWithCallback(cmd_nothing, nil, func() {
 					c <- 0
 				})
-				t.delegate.Delivery(linkId, evt)
+				t.delegate.Deliver(linkId, evt)
 			}
-		},
-		onEnter: func(t *testNode) {
-			t.delegate.RequestLinkUp("nothing", "nothing")
 		},
 	}
 	nothing := &testNode{scope: "nothing", name: "nothing"}
-
-	graph := event.NewEventGraph()
-	graph.AddNode(nothing)
-	graph.AddNode((*testNode)(node))
 
 	go func() {
 		for i := 1; i <= 500; i++ {
@@ -249,6 +235,10 @@ func TestSyncEvent(t *testing.T) {
 		}
 		ready <- 0
 	}()
+
+	graph := event.NewEventGraph()
+	graph.AddNode(nothing)
+	graph.AddNode((*testNode)(node))
 
 	select {
 	case <-ready:
