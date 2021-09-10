@@ -79,20 +79,6 @@ func (d *Dispatch) getLinkId(sessionId, name string) (linkId int, err error) {
 	return
 }
 
-func (d *Dispatch) sendTo(sessionId, name string, evt *event.Event) (err error) {
-	id := &Id{SessionId: sessionId, Name: name}
-	d.mutex.Lock()
-	if linkId, ok := d.linkMap[id.String()]; ok {
-		d.mutex.Unlock()
-		d.delegate.Deliver(linkId, evt)
-	} else {
-		d.mutex.Unlock()
-		errStr := fmt.Sprintf("no such node:%v", id.String())
-		err = errors.New(errStr)
-	}
-	return
-}
-
 // Call send control message to a node in the graph and wait for its reply
 // if session is "", it means sending to local session nodes
 func (d *Dispatch) Call(session, name string, args []string) (resp []string) {
@@ -135,5 +121,6 @@ func newDispatch() SessionAware {
 	n := &Dispatch{
 		linkMap: make(map[string]int),
 	}
+	n.Name = TYPE_DISPATCH
 	return n
 }

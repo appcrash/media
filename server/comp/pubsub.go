@@ -79,6 +79,20 @@ func (p *PubSubNode) OnLinkDown(_ int, scope string, nodeName string) {
 	}
 }
 
+// OnExit close all channel subscribers
+func (p *PubSubNode) OnExit() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	for _, s := range p.subscribers {
+		if s.subType == psSubscribeTypeChannel {
+			if s.channel != nil {
+				close(s.channel)
+				s.channel = nil
+			}
+		}
+	}
+}
+
 // SetPipeOut overrides default session node's behaviour, it allows multiple pipes simultaneously
 // (that's what "pubsub" stands for) instead of only one data output pipe
 func (p *PubSubNode) SetPipeOut(session, name string) error {
@@ -91,16 +105,18 @@ func (p *PubSubNode) SetPipeOut(session, name string) error {
 //------------------------------- api & implementation --------------------------------------
 
 func (p *PubSubNode) Publish(obj Cloneable) {
+	var subscribers []*psSubscriberInfo
 	if obj == nil {
 		return
 	}
 	p.mutex.Lock()
-	defer p.mutex.Unlock()
+	subscribers = p.subscribers // copy the array, release lock
+	p.mutex.Unlock()
 
 	// publish message to all subscribers
 	// for node: delivery timeout by field 'deliveryTimeout'
 	// for channel: nonblock sending without timeout, so must use buffered channel to avoid losing message
-	for _, s := range p.subscribers {
+	for _, s := range subscribers {
 		switch s.subType {
 		case psSubscribeTypeNode:
 			if s.linkId < 0 {

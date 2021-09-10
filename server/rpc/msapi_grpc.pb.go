@@ -18,11 +18,11 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MediaApiClient interface {
-	PrepareMediaStream(ctx context.Context, in *MediaParam, opts ...grpc.CallOption) (*MediaStream, error)
-	StartSession(ctx context.Context, in *SessionParam, opts ...grpc.CallOption) (*SessionStatus, error)
-	StopSession(ctx context.Context, in *SessionParam, opts ...grpc.CallOption) (*SessionStatus, error)
-	ExecuteAction(ctx context.Context, in *MediaAction, opts ...grpc.CallOption) (*MediaActionResult, error)
-	ExecuteActionWithNotify(ctx context.Context, in *MediaAction, opts ...grpc.CallOption) (MediaApi_ExecuteActionWithNotifyClient, error)
+	PrepareSession(ctx context.Context, in *CreateParam, opts ...grpc.CallOption) (*Session, error)
+	StartSession(ctx context.Context, in *StartParam, opts ...grpc.CallOption) (*Status, error)
+	StopSession(ctx context.Context, in *StopParam, opts ...grpc.CallOption) (*Status, error)
+	ExecuteAction(ctx context.Context, in *Action, opts ...grpc.CallOption) (*ActionResult, error)
+	ExecuteActionWithNotify(ctx context.Context, in *Action, opts ...grpc.CallOption) (MediaApi_ExecuteActionWithNotifyClient, error)
 }
 
 type mediaApiClient struct {
@@ -33,17 +33,17 @@ func NewMediaApiClient(cc grpc.ClientConnInterface) MediaApiClient {
 	return &mediaApiClient{cc}
 }
 
-func (c *mediaApiClient) PrepareMediaStream(ctx context.Context, in *MediaParam, opts ...grpc.CallOption) (*MediaStream, error) {
-	out := new(MediaStream)
-	err := c.cc.Invoke(ctx, "/rpc.MediaApi/PrepareMediaStream", in, out, opts...)
+func (c *mediaApiClient) PrepareSession(ctx context.Context, in *CreateParam, opts ...grpc.CallOption) (*Session, error) {
+	out := new(Session)
+	err := c.cc.Invoke(ctx, "/rpc.MediaApi/PrepareSession", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *mediaApiClient) StartSession(ctx context.Context, in *SessionParam, opts ...grpc.CallOption) (*SessionStatus, error) {
-	out := new(SessionStatus)
+func (c *mediaApiClient) StartSession(ctx context.Context, in *StartParam, opts ...grpc.CallOption) (*Status, error) {
+	out := new(Status)
 	err := c.cc.Invoke(ctx, "/rpc.MediaApi/StartSession", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -51,8 +51,8 @@ func (c *mediaApiClient) StartSession(ctx context.Context, in *SessionParam, opt
 	return out, nil
 }
 
-func (c *mediaApiClient) StopSession(ctx context.Context, in *SessionParam, opts ...grpc.CallOption) (*SessionStatus, error) {
-	out := new(SessionStatus)
+func (c *mediaApiClient) StopSession(ctx context.Context, in *StopParam, opts ...grpc.CallOption) (*Status, error) {
+	out := new(Status)
 	err := c.cc.Invoke(ctx, "/rpc.MediaApi/StopSession", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -60,8 +60,8 @@ func (c *mediaApiClient) StopSession(ctx context.Context, in *SessionParam, opts
 	return out, nil
 }
 
-func (c *mediaApiClient) ExecuteAction(ctx context.Context, in *MediaAction, opts ...grpc.CallOption) (*MediaActionResult, error) {
-	out := new(MediaActionResult)
+func (c *mediaApiClient) ExecuteAction(ctx context.Context, in *Action, opts ...grpc.CallOption) (*ActionResult, error) {
+	out := new(ActionResult)
 	err := c.cc.Invoke(ctx, "/rpc.MediaApi/ExecuteAction", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func (c *mediaApiClient) ExecuteAction(ctx context.Context, in *MediaAction, opt
 	return out, nil
 }
 
-func (c *mediaApiClient) ExecuteActionWithNotify(ctx context.Context, in *MediaAction, opts ...grpc.CallOption) (MediaApi_ExecuteActionWithNotifyClient, error) {
+func (c *mediaApiClient) ExecuteActionWithNotify(ctx context.Context, in *Action, opts ...grpc.CallOption) (MediaApi_ExecuteActionWithNotifyClient, error) {
 	stream, err := c.cc.NewStream(ctx, &MediaApi_ServiceDesc.Streams[0], "/rpc.MediaApi/ExecuteActionWithNotify", opts...)
 	if err != nil {
 		return nil, err
@@ -85,7 +85,7 @@ func (c *mediaApiClient) ExecuteActionWithNotify(ctx context.Context, in *MediaA
 }
 
 type MediaApi_ExecuteActionWithNotifyClient interface {
-	Recv() (*MediaActionEvent, error)
+	Recv() (*ActionEvent, error)
 	grpc.ClientStream
 }
 
@@ -93,8 +93,8 @@ type mediaApiExecuteActionWithNotifyClient struct {
 	grpc.ClientStream
 }
 
-func (x *mediaApiExecuteActionWithNotifyClient) Recv() (*MediaActionEvent, error) {
-	m := new(MediaActionEvent)
+func (x *mediaApiExecuteActionWithNotifyClient) Recv() (*ActionEvent, error) {
+	m := new(ActionEvent)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -105,11 +105,11 @@ func (x *mediaApiExecuteActionWithNotifyClient) Recv() (*MediaActionEvent, error
 // All implementations must embed UnimplementedMediaApiServer
 // for forward compatibility
 type MediaApiServer interface {
-	PrepareMediaStream(context.Context, *MediaParam) (*MediaStream, error)
-	StartSession(context.Context, *SessionParam) (*SessionStatus, error)
-	StopSession(context.Context, *SessionParam) (*SessionStatus, error)
-	ExecuteAction(context.Context, *MediaAction) (*MediaActionResult, error)
-	ExecuteActionWithNotify(*MediaAction, MediaApi_ExecuteActionWithNotifyServer) error
+	PrepareSession(context.Context, *CreateParam) (*Session, error)
+	StartSession(context.Context, *StartParam) (*Status, error)
+	StopSession(context.Context, *StopParam) (*Status, error)
+	ExecuteAction(context.Context, *Action) (*ActionResult, error)
+	ExecuteActionWithNotify(*Action, MediaApi_ExecuteActionWithNotifyServer) error
 	mustEmbedUnimplementedMediaApiServer()
 }
 
@@ -117,19 +117,19 @@ type MediaApiServer interface {
 type UnimplementedMediaApiServer struct {
 }
 
-func (UnimplementedMediaApiServer) PrepareMediaStream(context.Context, *MediaParam) (*MediaStream, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method PrepareMediaStream not implemented")
+func (UnimplementedMediaApiServer) PrepareSession(context.Context, *CreateParam) (*Session, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PrepareSession not implemented")
 }
-func (UnimplementedMediaApiServer) StartSession(context.Context, *SessionParam) (*SessionStatus, error) {
+func (UnimplementedMediaApiServer) StartSession(context.Context, *StartParam) (*Status, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StartSession not implemented")
 }
-func (UnimplementedMediaApiServer) StopSession(context.Context, *SessionParam) (*SessionStatus, error) {
+func (UnimplementedMediaApiServer) StopSession(context.Context, *StopParam) (*Status, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StopSession not implemented")
 }
-func (UnimplementedMediaApiServer) ExecuteAction(context.Context, *MediaAction) (*MediaActionResult, error) {
+func (UnimplementedMediaApiServer) ExecuteAction(context.Context, *Action) (*ActionResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ExecuteAction not implemented")
 }
-func (UnimplementedMediaApiServer) ExecuteActionWithNotify(*MediaAction, MediaApi_ExecuteActionWithNotifyServer) error {
+func (UnimplementedMediaApiServer) ExecuteActionWithNotify(*Action, MediaApi_ExecuteActionWithNotifyServer) error {
 	return status.Errorf(codes.Unimplemented, "method ExecuteActionWithNotify not implemented")
 }
 func (UnimplementedMediaApiServer) mustEmbedUnimplementedMediaApiServer() {}
@@ -145,26 +145,26 @@ func RegisterMediaApiServer(s grpc.ServiceRegistrar, srv MediaApiServer) {
 	s.RegisterService(&MediaApi_ServiceDesc, srv)
 }
 
-func _MediaApi_PrepareMediaStream_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MediaParam)
+func _MediaApi_PrepareSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateParam)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(MediaApiServer).PrepareMediaStream(ctx, in)
+		return srv.(MediaApiServer).PrepareSession(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/rpc.MediaApi/PrepareMediaStream",
+		FullMethod: "/rpc.MediaApi/PrepareSession",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MediaApiServer).PrepareMediaStream(ctx, req.(*MediaParam))
+		return srv.(MediaApiServer).PrepareSession(ctx, req.(*CreateParam))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _MediaApi_StartSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SessionParam)
+	in := new(StartParam)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -176,13 +176,13 @@ func _MediaApi_StartSession_Handler(srv interface{}, ctx context.Context, dec fu
 		FullMethod: "/rpc.MediaApi/StartSession",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MediaApiServer).StartSession(ctx, req.(*SessionParam))
+		return srv.(MediaApiServer).StartSession(ctx, req.(*StartParam))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _MediaApi_StopSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SessionParam)
+	in := new(StopParam)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -194,13 +194,13 @@ func _MediaApi_StopSession_Handler(srv interface{}, ctx context.Context, dec fun
 		FullMethod: "/rpc.MediaApi/StopSession",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MediaApiServer).StopSession(ctx, req.(*SessionParam))
+		return srv.(MediaApiServer).StopSession(ctx, req.(*StopParam))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _MediaApi_ExecuteAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MediaAction)
+	in := new(Action)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -212,13 +212,13 @@ func _MediaApi_ExecuteAction_Handler(srv interface{}, ctx context.Context, dec f
 		FullMethod: "/rpc.MediaApi/ExecuteAction",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MediaApiServer).ExecuteAction(ctx, req.(*MediaAction))
+		return srv.(MediaApiServer).ExecuteAction(ctx, req.(*Action))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _MediaApi_ExecuteActionWithNotify_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(MediaAction)
+	m := new(Action)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
@@ -226,7 +226,7 @@ func _MediaApi_ExecuteActionWithNotify_Handler(srv interface{}, stream grpc.Serv
 }
 
 type MediaApi_ExecuteActionWithNotifyServer interface {
-	Send(*MediaActionEvent) error
+	Send(*ActionEvent) error
 	grpc.ServerStream
 }
 
@@ -234,7 +234,7 @@ type mediaApiExecuteActionWithNotifyServer struct {
 	grpc.ServerStream
 }
 
-func (x *mediaApiExecuteActionWithNotifyServer) Send(m *MediaActionEvent) error {
+func (x *mediaApiExecuteActionWithNotifyServer) Send(m *ActionEvent) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -246,8 +246,8 @@ var MediaApi_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*MediaApiServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "PrepareMediaStream",
-			Handler:    _MediaApi_PrepareMediaStream_Handler,
+			MethodName: "PrepareSession",
+			Handler:    _MediaApi_PrepareSession_Handler,
 		},
 		{
 			MethodName: "StartSession",

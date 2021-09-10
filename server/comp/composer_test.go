@@ -33,24 +33,35 @@ func (p *printNode) OnEvent(e *event.Event) {
 }
 
 func TestComposerBasic(t *testing.T) {
-	gd := "[pubsub]: channel=src1 \n" +
+	gd := "[pubsub]: channel=src1,src2 \n" +
 		"[entry] -> [pubsub]"
 	c := comp.NewSessionComposer("test_session")
 	graph := event.NewEventGraph()
 	if err := c.ParseGraphDescription(gd); err != nil {
 		t.Fatal("parse graph failed")
 	}
-	ch := make(chan *event.Event, 2)
-	c.RegisterChannel("src1", ch)
+	ch1 := make(chan *event.Event, 2)
+	ch2 := make(chan *event.Event, 2)
+	c.RegisterChannel("src1", ch1) // statically register
 	if err := c.PrepareNodes(graph); err != nil {
 		t.Fatal("prepare node failed", err)
 	}
 
 	mp := c.GetMessageProvider(comp.TYPE_ENTRY)
 	mp.PushMessage(comp.NewDataMessage("hello"))
-	evt := <-ch
+	evt := <-ch1
 	if evt.GetObj().(comp.DataMessage).String() != "hello" {
-		t.Fatal("send/recv message not equal")
+		t.Fatal("send/recv message not equal for src1")
+	}
+	c.RegisterChannel("src2", ch2)
+	mp.PushMessage(comp.NewDataMessage("hello again"))
+	evt = <-ch2
+	if evt.GetObj().(comp.DataMessage).String() != "hello again" {
+		t.Fatal("send/recv message not equal for src2")
+	}
+	evt = <-ch1
+	if evt.GetObj().(comp.DataMessage).String() != "hello again" {
+		t.Fatal("send/recv message not equal for src1 (again)")
 	}
 }
 

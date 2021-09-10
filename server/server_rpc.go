@@ -3,89 +3,80 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/appcrash/media/server/rpc"
 	"runtime/debug"
 )
 
-func (msrv *MediaServer) PrepareMediaStream(_ context.Context, param *rpc.MediaParam) (*rpc.MediaStream, error) {
-	port := msrv.portPool.get()
-	if port == 0 {
-		return nil, errors.New("ports run out")
-	}
-	session := createSession(msrv.rtpServerIpAddr, int(port), param)
-
-	// recycle session resource when it is stopped
-	session.finalizer = func() {
-		msrv.portPool.put(session.rtpPort)
+func (srv *MediaServer) PrepareSession(_ context.Context, param *rpc.CreateParam) (*rpc.Session, error) {
+	var session *MediaSession
+	var err error
+	if session, err = srv.createSession(param); err != nil {
+		logger.Errorf("fail to prepare session with error:%v", err)
+		return nil, err
 	}
 
-	// enable session's event system
-	session.graph = msrv.graph
-
-	// initialize source/sink list for each session
-	// the factory's order is important
-	for _, factory := range msrv.sourceF {
-		src := factory.NewSource(session)
-		session.source = append(session.source, src)
+	if err = session.AddRemote(param.GetPeerIp(), int(param.GetPeerPort())); err != nil {
+		session.finalize()
+		return nil, err
 	}
-	for _, factory := range msrv.sinkF {
-		sink := factory.NewSink(session)
-		session.sink = append(session.sink, sink)
-	}
+	logger.Infof("rpc: prepared session %v", session.sessionId)
+	rpcSession := rpc.Session{}
+	rpcSession.SessionId = session.sessionId
+	rpcSession.PeerIp = param.GetPeerIp()
+	rpcSession.PeerRtpPort = param.GetPeerPort()
+	rpcSession.LocalRtpPort = uint32(session.rtpPort)
+	rpcSession.LocalIp = session.localIp.String()
 
-	session.AddRemote(param.GetPeerIp(), int(param.GetPeerPort()))
-	ms := rpc.MediaStream{}
-	ms.StreamId = session.sessionId
-	ms.PeerIp = param.GetPeerIp()
-	ms.LocalRtpPort = uint32(port)
-	ms.LocalIp = msrv.rtpServerIpString
-	ms.PeerRtpPort = param.GetPeerPort()
-
-	return &ms, nil
+	return &rpcSession, nil
 }
 
-func (msrv *MediaServer) StartSession(_ context.Context, param *rpc.SessionParam) (*rpc.SessionStatus, error) {
-	status := rpc.SessionStatus{Status: "not exist"}
+func (srv *MediaServer) StartSession(_ context.Context, param *rpc.StartParam) (*rpc.Status, error) {
 	sessionId := param.GetSessionId()
+	logger.Infof("rpc: start session %v", sessionId)
 	if obj, exist := sessionMap.Load(sessionId); exist {
 		if session, ok := obj.(*MediaSession); ok {
-			session.Start()
-			status.Status = "ok"
+			if session.isStarted {
+				return nil, errors.New("session already started")
+			}
+			if err := session.Start(); err != nil {
+				return nil, errors.New("start session failed")
+			}
 		} else {
-			status.Status = "not a session object"
+			return nil, errors.New("not a session object")
 		}
+	} else {
+		return nil, errors.New("session not exist")
 	}
 
-	return &status, nil
+	return &rpc.Status{Status: "ok"}, nil
 }
 
-func (msrv *MediaServer) StopSession(_ context.Context, param *rpc.SessionParam) (*rpc.SessionStatus, error) {
-	status := rpc.SessionStatus{Status: "not exist"}
+func (srv *MediaServer) StopSession(_ context.Context, param *rpc.StopParam) (*rpc.Status, error) {
 	sessionId := param.GetSessionId()
+	logger.Infof("rpc: stop session %v", sessionId)
 	if obj, exist := sessionMap.Load(sessionId); exist {
 		if session, ok := obj.(*MediaSession); ok {
 			session.Stop()
-			status.Status = "ok"
+			return &rpc.Status{Status: "ok"}, nil
 		} else {
-			status.Status = "not a session object"
+			return nil, errors.New("not a session object")
 		}
+	} else {
+		return nil, errors.New("session not exist")
 	}
-
-	return &status, nil
 }
 
-func (msrv *MediaServer) ExecuteAction(_ context.Context, action *rpc.MediaAction) (*rpc.MediaActionResult, error) {
-	sessionId := action.StreamId
+func (srv *MediaServer) ExecuteAction(_ context.Context, action *rpc.Action) (*rpc.ActionResult, error) {
+	sessionId := action.SessionId
 	s, ok := sessionMap.Load(sessionId)
-	result := rpc.MediaActionResult{
-		StreamId: sessionId,
+	result := rpc.ActionResult{
+		SessionId: sessionId,
 	}
 
 	defer func() {
 		if r := recover(); r != nil {
 			debug.PrintStack()
-			fmt.Errorf("ExecuteAction panic(recovered)\n")
+			logger.Errorln("ExecuteAction panic(recovered)")
 		}
 	}()
 
@@ -93,7 +84,7 @@ func (msrv *MediaServer) ExecuteAction(_ context.Context, action *rpc.MediaActio
 		session := s.(*MediaSession)
 		cmd := action.GetCmd()
 		arg := action.GetCmdArg()
-		if e, ok1 := msrv.simpleExecutorMap.Load(cmd); ok1 {
+		if e, ok1 := srv.simpleExecutorMap.Load(cmd); ok1 {
 			exec := e.(CommandExecute)
 			exec.Execute(session, cmd, arg)
 			result.State = "ok"
@@ -104,13 +95,13 @@ func (msrv *MediaServer) ExecuteAction(_ context.Context, action *rpc.MediaActio
 	return &result, nil
 }
 
-func (msrv *MediaServer) ExecuteActionWithNotify(action *rpc.MediaAction, stream rpc.MediaApi_ExecuteActionWithNotifyServer) error {
-	sessionId := action.StreamId
+func (srv *MediaServer) ExecuteActionWithNotify(action *rpc.Action, stream rpc.MediaApi_ExecuteActionWithNotifyServer) error {
+	sessionId := action.SessionId
 	s, ok := sessionMap.Load(sessionId)
 	defer func() {
 		if r := recover(); r != nil {
 			debug.PrintStack()
-			fmt.Errorf("ExecuteActionWithNotify panic(recovered)\n")
+			logger.Errorln("ExecuteActionWithNotify panic(recovered)")
 		}
 	}()
 
@@ -118,7 +109,7 @@ func (msrv *MediaServer) ExecuteActionWithNotify(action *rpc.MediaAction, stream
 		session := s.(*MediaSession)
 		cmd := action.GetCmd()
 		arg := action.GetCmdArg()
-		if e, ok1 := msrv.streamExecutorMap.Load(cmd); ok1 {
+		if e, ok1 := srv.streamExecutorMap.Load(cmd); ok1 {
 			exec := e.(CommandExecute)
 			ctrlIn := make(ExecuteCtrlChan)
 			ctrlOut := make(ExecuteCtrlChan)
@@ -129,15 +120,15 @@ func (msrv *MediaServer) ExecuteActionWithNotify(action *rpc.MediaAction, stream
 			for {
 				select {
 				case msg, more := <-ctrlOut:
-					event := rpc.MediaActionEvent{
-						StreamId: sessionId,
-						Event:    msg,
+					event := rpc.ActionEvent{
+						SessionId: sessionId,
+						Event:     msg,
 					}
 					if !more {
 						shouldExit = true
 					}
 					if err := stream.Send(&event); err != nil {
-						fmt.Errorf("send action event of stream(%v) with event %v error\n", session, event)
+						logger.Errorf("send action event of stream(%v) with event %v error", session, event.String())
 						shouldExit = true
 					}
 					if shouldExit {

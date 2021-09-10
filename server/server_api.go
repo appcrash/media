@@ -11,6 +11,8 @@ import (
 	"sync"
 )
 
+var logger *logrus.Entry
+
 // Initialize all packages logger
 func init() {
 	gl := logrus.New()
@@ -66,6 +68,7 @@ func StartServer(grpcIp string, grpcPort uint16,
 
 // InitServerLogger can be called multiple times before server starts to override default logger
 func InitServerLogger(gl *logrus.Logger) {
+	logger = gl.WithFields(logrus.Fields{"module": "server"})
 	event.InitLogger(gl)
 	comp.InitLogger(gl)
 }

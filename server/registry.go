@@ -10,16 +10,16 @@ import (
 // 2. handle incoming data(audio,video), which is a sink
 // 3. generate outgoing data, which is a source
 
-func (msrv *MediaServer) registerCommandExecutor(e CommandExecute) {
+func (srv *MediaServer) registerCommandExecutor(e CommandExecute) {
 	cmdTrait := e.GetCommandTrait()
 	var cm *sync.Map
 
 	for _, trait := range cmdTrait {
 		switch trait.CmdTrait {
 		case CMD_TRAIT_SIMPLE:
-			cm = &msrv.simpleExecutorMap
+			cm = &srv.simpleExecutorMap
 		case CMD_TRAIT_STREAM:
-			cm = &msrv.streamExecutorMap
+			cm = &srv.streamExecutorMap
 		default:
 			fmt.Errorf("register command executor with wrong trait: %v", trait.CmdTrait)
 			return
@@ -34,12 +34,12 @@ func (msrv *MediaServer) registerCommandExecutor(e CommandExecute) {
 	}
 }
 
-func (msrv *MediaServer) getExecutorFor(cmd string) (needNotify bool, ce CommandExecute) {
-	if e, ok := msrv.simpleExecutorMap.Load(cmd); ok {
+func (srv *MediaServer) getExecutorFor(cmd string) (needNotify bool, ce CommandExecute) {
+	if e, ok := srv.simpleExecutorMap.Load(cmd); ok {
 		needNotify = false
 		ce = e.(CommandExecute)
 	}
-	if e, ok := msrv.streamExecutorMap.Load(cmd); ok {
+	if e, ok := srv.streamExecutorMap.Load(cmd); ok {
 		needNotify = true
 		ce = e.(CommandExecute)
 	}

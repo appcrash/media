@@ -49,7 +49,7 @@ type Node interface {
 	OnExit()
 }
 
-// NodeProperty embed it if node needs be customized
+// NodeProperty embed it if node needs to be customized
 // -----------------------------------------------------------
 // maxLink int:
 //   override default max output link number

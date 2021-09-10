@@ -27,12 +27,12 @@ type NodeDelegate struct {
 	// even though links field and its pointers(*atomic.Value) is not
 	// volatile(that means they can be cpu-local cached), it doesn't matter.
 	// in fact, all of them are read-only once created,
-	// accessing element by atomic.Load always gets the latest value
+	// accessing element by atomic.Load always gets the latest value it points to
 	// the limitation of max links are the trade-off between performance and
 	// flexibility. if links can dynamic grow and event delivery has to atomic
 	// read it everytime(instead of cached) because we have to rewrite this variable
 	// when enlarging array. in real world, output link number is fixed in most case,
-	// so put this limitation doesn't hurt much
+	// so putting this limitation doesn't hurt much
 	links []*atomic.Value
 	// recycled dlink slots are saved here
 	freeLinkSlot []int
@@ -41,7 +41,7 @@ type NodeDelegate struct {
 // cope with atomic(Store/Load) that doesn't permit nil value
 var nullLink = &dlink{}
 
-const defaultMaxLink = 5
+const defaultMaxLink = 4
 const defaultDataChannelSize = 100
 const defaultDeliveryTimeout = 100 * time.Millisecond
 

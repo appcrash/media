@@ -11,51 +11,56 @@ enum CodecType {
   AMRWB = 3;
 }
 
-message MediaParam {
+message CreateParam {
   string peer_ip = 1;                // remote rtp ip
   uint32 peer_port = 2;              // remote rtp port
-  uint32 payload_dynamic_type = 3;   // negotiated payload type, dynamic(96 ~ 127), fixed type will ignore this
-  CodecType payload_codec_type = 4;  // used to identify mime type, like "AMR","PCMA"
+  uint32 payload_dynamic_type = 3;   // negotiated payload type, dynamic(96 ~ 127), fixed type will ignore this field
+  CodecType payload_codec_type = 4;  // used to identify mime type, like "AMR","PCM_ALAW"
   string graph_desc = 5;             // used to describe event graph
 }
 
-message SessionParam {
+message StartParam {
   string session_id = 1;
 }
 
-message SessionStatus {
+message StopParam {
+  string session_id = 1;
+}
+
+
+message Status {
   string status = 1;
 }
 
-message MediaStream {
-  string stream_id = 1;
+message Session {
+  string session_id = 1;
   string local_ip = 2;
   uint32 local_rtp_port = 3;
-  string peer_ip = 4 ;
+  string peer_ip = 4;
   uint32 peer_rtp_port = 5;
 }
 
-message MediaAction {
-  string stream_id = 1;
+message Action {
+  string session_id = 1;
   string cmd = 2;
   string cmd_arg = 3;
 }
 
-message MediaActionResult {
-  string stream_id = 1;
+message ActionResult {
+  string session_id = 1;
   string state = 2;
 }
 
-message MediaActionEvent {
-  string stream_id = 1;
+message ActionEvent {
+  string session_id = 1;
   string event = 2;
 }
 
 
 service MediaApi {
-  rpc PrepareMediaStream(MediaParam) returns (MediaStream) {}
-  rpc StartSession(SessionParam) returns (SessionStatus) {}
-  rpc StopSession(SessionParam) returns (SessionStatus) {}
-  rpc ExecuteAction(MediaAction) returns (MediaActionResult) {}
-  rpc ExecuteActionWithNotify(MediaAction) returns (stream MediaActionEvent) {}
+  rpc PrepareSession(CreateParam) returns (Session) {}
+  rpc StartSession(StartParam) returns (Status) {}
+  rpc StopSession(StopParam) returns (Status) {}
+  rpc ExecuteAction(Action) returns (ActionResult) {}
+  rpc ExecuteActionWithNotify(Action) returns (stream ActionEvent) {}
 }

@@ -62,6 +62,15 @@ struct MixContext
     struct DataBuffer *out_buffer;
 };
 
+/*
+ * record file frame by frame
+ */
+struct RecordContext
+{
+    AVFormatContext *ctx;
+};
+
+
 
 
 #define PERR(format, ...) fprintf(stderr,"(%s:%d)#%s: "#format"\n",__FILE__,__LINE__,__FUNCTION__,## __VA_ARGS__)
@@ -71,6 +80,9 @@ struct MixContext
  */
 struct Payload* read_media_file(const char* file_path);
 int write_media_file(char *payload,int length,const char *file_path,int codec_id,int duration);
+struct RecordContext *record_init_context(const char *file_path,const char *params);
+void record_iterate(struct RecordContext *ctx,const char *buff,int32_t frame_delimits[],int nb_frame);
+void record_free(struct RecordContext *ctx);
 
 
 /*

@@ -11,7 +11,6 @@ package codec
 //#include "codec.h"
 import "C"
 import (
-	"fmt"
 	"unsafe"
 )
 
@@ -20,30 +19,6 @@ type (
 	TranscodeContext = C.struct_TranscodeContext
 	MixContext       = C.struct_MixContext
 )
-
-func GetPayloadFromFile(fp string) []byte {
-	cfp := C.CString(fp)
-	payload := (*C.struct_Payload)(C.read_media_file(cfp))
-	C.free(unsafe.Pointer(cfp))
-
-	fmt.Printf("data is size:%v,bitrate:%v,frame_size:%v\n", payload.size, payload.bitrate,
-		BitrateToFrameSize(float64(payload.bitrate), 20))
-	if payload != nil {
-		data := C.GoBytes(unsafe.Pointer(payload.data), payload.size)
-		C.free(unsafe.Pointer(payload.data))
-		C.free(unsafe.Pointer(payload))
-		return data
-	}
-	return nil
-}
-
-func WritePayloadToFile(payload []byte, fileName string, codecId int, duration int) (ret int) {
-	cfileName := C.CString(fileName)
-	v := C.write_media_file((*C.char)(unsafe.Pointer(&payload[0])), C.int(len(payload)), (*C.char)(cfileName), C.int(codecId), C.int(duration))
-	ret = int(v)
-	C.free(unsafe.Pointer(cfileName))
-	return
-}
 
 func NewTranscodeContext(param *TranscodeParam) *TranscodeContext {
 	desc := param.GetDescription()

@@ -1,30 +1,29 @@
 package server
 
 import (
-	"fmt"
+	"errors"
 	"github.com/appcrash/GoRTP/rtp"
 	"github.com/appcrash/media/codec"
+	"github.com/appcrash/media/server/comp"
 	"github.com/appcrash/media/server/event"
 	"github.com/appcrash/media/server/rpc"
 	"github.com/google/uuid"
 	"net"
 	"runtime/debug"
-	"sync"
 	"sync/atomic"
 	"time"
 )
 
-var sessionMap = sync.Map{}
-
-type sessionFinalizer func()
-
 type MediaSession struct {
+	server            *MediaServer
+	isStarted         bool
 	sessionId         string
-	rtpSession        *rtp.Session
+	localIp           *net.IPAddr
+	localPort         int
 	rtpPort           uint16
+	rtpSession        *rtp.Session
 	payloadTypeNumber uint32
 	payloadCodec      rpc.CodecType
-	graphDesc         string
 	stopCounter       uint32
 
 	sndCtrlC     chan string
@@ -32,57 +31,9 @@ type MediaSession struct {
 	rcvRtcpCtrlC chan string
 	doneC        chan string // notify this channel when loop is done
 
-	source    []Source
-	sink      []Sink
-	finalizer sessionFinalizer
-	graph     *event.Graph
-}
-
-func profileOfCodec(c rpc.CodecType) (profile string) {
-	switch c {
-	case rpc.CodecType_PCM_ALAW:
-		profile = "PCMA"
-	case rpc.CodecType_AMRNB:
-		profile = "AMR"
-	case rpc.CodecType_AMRWB:
-		profile = "AMR-WB"
-	}
-	return
-}
-
-func createSession(ipAddr *net.IPAddr, localPort int, mediaParam *rpc.MediaParam) *MediaSession {
-	tpLocal, _ := rtp.NewTransportUDP(ipAddr, localPort, "")
-	session := rtp.NewSession(tpLocal, tpLocal)
-	strLocalIdx, _ := session.NewSsrcStreamOut(&rtp.Address{
-		IPAddr:   ipAddr.IP,
-		DataPort: localPort,
-		CtrlPort: 1 + localPort,
-		Zone:     "",
-	}, 0, 0)
-
-	if profile := profileOfCodec(mediaParam.GetPayloadCodecType()); profile != "" {
-		session.SsrcStreamOutForIndex(strLocalIdx).SetProfile(profile, byte(mediaParam.GetPayloadDynamicType()))
-	} else {
-		session.CloseSession()
-		return nil
-	}
-
-	ms := MediaSession{
-		sessionId:         uuid.New().String(),
-		rtpSession:        session,
-		rtpPort:           uint16(localPort),
-		payloadTypeNumber: mediaParam.GetPayloadDynamicType(),
-		payloadCodec:      mediaParam.GetPayloadCodecType(),
-		graphDesc:         mediaParam.GetGraphDesc(),
-
-		// use buffered version to avoid deadlock
-		sndCtrlC:     make(chan string, 2),
-		rcvCtrlC:     make(chan string, 2),
-		rcvRtcpCtrlC: make(chan string, 2),
-		doneC:        make(chan string, 3),
-	}
-	sessionMap.Store(ms.sessionId, &ms)
-	return &ms
+	source   []Source
+	sink     []Sink
+	composer *comp.Composer
 }
 
 func (s *MediaSession) GetSessionId() string {
@@ -97,20 +48,129 @@ func (s *MediaSession) GetCodecType() rpc.CodecType {
 	return s.payloadCodec
 }
 
-func (s *MediaSession) GetGraphDescription() string {
-	return s.graphDesc
-}
-
-func (s *MediaSession) GetSource() []Source {
-	return s.source
-}
-
-func (s *MediaSession) GetSink() []Sink {
-	return s.sink
-}
-
 func (s *MediaSession) GetEventGraph() *event.Graph {
-	return s.graph
+	return s.server.graph
+}
+
+func (s *MediaSession) GetController() comp.Controller {
+	return s.composer.GetController()
+}
+
+func profileOfCodec(c rpc.CodecType) (profile string) {
+	switch c {
+	case rpc.CodecType_PCM_ALAW:
+		profile = "PCMA"
+	case rpc.CodecType_AMRNB:
+		profile = "AMR"
+	case rpc.CodecType_AMRWB:
+		profile = "AMR-WB"
+	}
+	return
+}
+
+func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, error) {
+	var localPort uint16
+	if localPort = srv.getNextAvailableRtpPort(); localPort == 0 {
+		return nil, errors.New("server runs out of port resource")
+	}
+	sid := uuid.New().String()
+	gd := mediaParam.GetGraphDesc()
+	composer := comp.NewSessionComposer(sid)
+	if err := composer.ParseGraphDescription(gd); err != nil {
+		logger.Errorln(err)
+		return nil, errors.New("composer parse graph description failed")
+	}
+
+	session := MediaSession{
+		server:            srv,
+		sessionId:         sid,
+		localIp:           srv.rtpServerIpAddr,
+		localPort:         int(localPort),
+		rtpPort:           localPort,
+		payloadTypeNumber: mediaParam.GetPayloadDynamicType(),
+		payloadCodec:      mediaParam.GetPayloadCodecType(),
+
+		// use buffered version to avoid deadlock
+		sndCtrlC:     make(chan string, 2),
+		rcvCtrlC:     make(chan string, 2),
+		rcvRtcpCtrlC: make(chan string, 2),
+		doneC:        make(chan string, 3),
+
+		composer: composer,
+	}
+	return &session, nil
+}
+
+func (s *MediaSession) setupGraph() error {
+	// search any source or sink is interested in composer
+	var ca []comp.ComposerAware
+	for _, src := range s.source {
+		if cs, ok := src.(comp.ComposerAware); ok {
+			ca = append(ca, cs)
+		}
+	}
+	for _, sink := range s.sink {
+		if cs, ok := sink.(comp.ComposerAware); ok {
+			ca = append(ca, cs)
+		}
+	}
+	// call pre- and post- setup
+	for _, cai := range ca {
+		if err := cai.PreSetup(s.composer); err != nil {
+			return err
+		}
+	}
+	if err := s.composer.PrepareNodes(s.server.graph); err != nil {
+		return err
+	}
+	for _, cai := range ca {
+		if err := cai.PostSetup(s.composer); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// activate carry out actual work, such as listen on udp port, create rtp stream, create event node instances and
+// add them to graph
+func (s *MediaSession) activate() (err error) {
+	var tpLocal *rtp.TransportUDP
+	if err = s.setupGraph(); err != nil {
+		return
+	}
+	if tpLocal, err = rtp.NewTransportUDP(s.localIp, s.localPort, ""); err != nil {
+		return
+	}
+	s.rtpSession = rtp.NewSession(tpLocal, tpLocal)
+	strLocalIdx, errStr := s.rtpSession.NewSsrcStreamOut(&rtp.Address{
+		IPAddr:   s.localIp.IP,
+		DataPort: s.localPort,
+		CtrlPort: 1 + s.localPort,
+		Zone:     "",
+	}, 0, 0)
+	if errStr != "" {
+		return errors.New(string(errStr))
+	}
+	if profile := profileOfCodec(s.payloadCodec); profile != "" {
+		s.rtpSession.SsrcStreamOutForIndex(strLocalIdx).SetProfile(profile, byte(s.payloadTypeNumber))
+	} else {
+		return errors.New("unsupported rtp payload profile")
+	}
+	return nil
+}
+
+// release all resources this session occupied
+func (s *MediaSession) finalize() {
+	if s.composer != nil {
+		s.composer.ExitGraph()
+	}
+	if s.rtpSession != nil {
+		s.rtpSession.CloseSession()
+	}
+	if s.rtpPort != 0 {
+		s.server.reclaimRtpPort(s.rtpPort)
+	}
+	sessionMap.Delete(s.sessionId)
 }
 
 // receive rtcp packet
@@ -119,6 +179,7 @@ func (s *MediaSession) receiveCtrlLoop() {
 	ctrlC := s.rcvRtcpCtrlC
 
 	defer func() {
+		logger.Debugf("session:%v stop ctrl recv", s.GetSessionId())
 		s.doneC <- "done"
 	}()
 
@@ -132,12 +193,8 @@ func (s *MediaSession) receiveCtrlLoop() {
 			for _, evt := range eventArray {
 				if evt.EventType == rtp.RtcpBye {
 					// peer send bye, notify data send/receive loop to stop
-					fmt.Println("rtp peer says bye")
+					logger.Debugln("rtp peer says bye")
 					s.Stop()
-					//s.sndCtrlC <- "stop"
-					//s.rcvCtrlC <- "stop"
-					//fmt.Println("sent stop cmd to send/recv loops")
-					// and also terminate myself
 					return
 				}
 			}
@@ -153,7 +210,7 @@ func (s *MediaSession) receivePacketLoop() {
 	// Create and store the data receive channel.
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Errorf("receivePacketLoop panic(recovered)\n")
+			logger.Fatalln("receivePacketLoop panic(recovered)")
 			debug.PrintStack()
 		}
 	}()
@@ -186,7 +243,7 @@ outLoop:
 			rp.FreePacket()
 		case cmd := <-s.rcvCtrlC:
 			if cmd == "stop" {
-				fmt.Println("stop local receive")
+				logger.Debugf("session:%v stop local receive", s.GetSessionId())
 				break outLoop
 			}
 		}
@@ -201,7 +258,7 @@ func (s *MediaSession) sendPacketLoop() {
 
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Printf("sendPacketLoop panic %v", r)
+			logger.Fatalln("sendPacketLoop panic %v", r)
 			debug.PrintStack()
 		}
 	}()
@@ -227,13 +284,13 @@ outLoop:
 				}
 				packet := s.rtpSession.NewDataPacket(ts)
 				packet.SetPayload(data)
-				s.rtpSession.WriteData(packet)
+				_, _ = s.rtpSession.WriteData(packet)
 				packet.FreePacket()
 				ts += tsDelta
 			}
 		case cmd := <-s.sndCtrlC:
 			if cmd == "stop" {
-				fmt.Println("stop local send")
+				logger.Debugf("session:%v stop local send", s.GetSessionId())
 				break outLoop
 			}
 		}
@@ -273,7 +330,7 @@ stop:
 			nbStopped++
 		case <-time.After(2 * time.Second):
 			// TODO: how to avoid memory leak
-			fmt.Errorf("s(%v) stops timeout\n", s.sessionId)
+			logger.Errorf("s(%v) stops timeout", s.sessionId)
 			break stop
 		}
 	}
@@ -289,18 +346,15 @@ done:
 		}
 	}
 	if nbDone != 3 {
-		fmt.Errorf("s(%v) loops don't stop normally, finished number:%v\n", s.sessionId, nbDone)
+		logger.Errorf("s(%v) loops don't stop normally, finished number:%v", s.sessionId, nbDone)
 	}
-	s.rtpSession.CloseSession()
-	if s.finalizer != nil {
-		s.finalizer()
-	}
-	sessionMap.Delete(s.GetSessionId())
+
+	s.finalize()
 }
 
 // AddNode add an event node to server-wide event graph
 func (s *MediaSession) AddNode(node event.Node) {
-	s.graph.AddNode(node)
+	s.server.graph.AddNode(node)
 }
 
 // AddRemote add rtp peer to communicate
@@ -314,4 +368,9 @@ func (s *MediaSession) AddRemote(ip string, port int) (err error) {
 		Zone:     "",
 	})
 	return
+}
+
+// statically or dynamically add a channel to event graph
+func (s *MediaSession) RegisterChannel(name string, ch chan<- *event.Event) {
+	s.composer.RegisterChannel(name, ch)
 }

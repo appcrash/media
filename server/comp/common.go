@@ -32,6 +32,37 @@ func NewId(sessionId, name string) *Id {
 	return &Id{SessionId: sessionId, Name: name}
 }
 
+// SessionAware enables node to:
+// 1. config its static properties before any event flows
+// 2. set data output destination
+// 3. exit the graph when session ends
+type SessionAware interface {
+	event.Node
+
+	// ConfigProperties handles props that can not be configured by simple reflection
+	ConfigProperties(ci ConfigItems)
+
+	// Init do initialization after node is allocated and configured
+	Init() error
+
+	// SetPipeOut specify the data endpoint to which this node output
+	SetPipeOut(session, name string) error
+
+	SetController(ctrl Controller)
+
+	// ExitGraph is used when initialization failed or session terminated
+	ExitGraph()
+}
+
+// ComposerAware enable class to interact with composer at each phase
+type ComposerAware interface {
+	// PreSetup called after composer parsed graph description, before creating node instances
+	PreSetup(c *Composer) error
+
+	// PostSetup called after composer created and setuped nodes
+	PostSetup(c *Composer) error
+}
+
 // Controller can be used by session commands and nodes in the event graph to invoke actions of other nodes.
 // it provides a unified way to send control message to nodes without any knowledge of links (controller would
 // establish links to all nodes to communicate beforehand), so simplify the programming pattern
@@ -124,7 +155,7 @@ func NewDataEvent(dm DataMessage) *event.Event {
 
 // public commands
 const (
-	CTRL_CALL = iota
+	CTRL_CALL = iota + 10000
 	CTRL_CAST
 	DATA_OUTPUT
 )

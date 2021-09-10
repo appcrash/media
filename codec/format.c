@@ -98,7 +98,6 @@ int write_media_file(char *payload,int length,const char *file_path,int codec_id
     }
 
     AVCodecParameters *cp = ostream->codecpar;
-
     cp->channels = 1;
     cp->sample_rate = 8000;
     cp->codec_id = codec_id;
@@ -130,8 +129,6 @@ int write_media_file(char *payload,int length,const char *file_path,int codec_id
     pkt.duration = duration;
 
     ret = av_write_frame(ctx, &pkt);
-    printf("av_write_frame done...\n");
-
     if (ret < 0) {
         PERR("av_write_frame failed");
         goto error;
@@ -146,4 +143,107 @@ error:
         avformat_free_context(ctx);
     }
     return -1;
+}
+
+struct RecordContext *record_init_context(const char *file_path,const char *params)
+{
+    struct RecordContext *record_ctx = NULL;
+    AVFormatContext *ctx = NULL;
+    AVDictionary *dict = NULL;
+    AVDictionaryEntry *t = NULL;
+    AVStream *ostream = NULL;
+    int ret;
+
+    ret = avformat_alloc_output_context2(&ctx,NULL, NULL, file_path);
+    if (ret < 0) {
+        PERR("avformat_alloc_output_context2 failed");
+        goto cleanup;
+    }
+    ostream = avformat_new_stream(ctx, NULL);
+    if (!ostream) {
+        PERR("avformat_new_stream failed");
+        goto cleanup;
+    }
+    AVCodecParameters *cp = ostream->codecpar;
+    cp->codec_type = AVMEDIA_TYPE_AUDIO;
+
+    /* AVCodecParameters does not support av_opt_* ... */
+    if (av_dict_parse_string(&dict, params, "=", ",", 0) < 0) {
+        goto cleanup;
+    }
+    while ((t = av_dict_get(dict, "", t, AV_DICT_IGNORE_SUFFIX))) {
+        if (!av_strncasecmp(t->key, "channels",8)) {
+            cp->channels = atoi(t->value);
+        } else if (!av_strncasecmp(t->key, "sample_rate",11)) {
+            cp->sample_rate = atoi(t->value);
+        } else if (!av_strncasecmp(t->key,"codec_id",8)) {
+            cp->codec_id = atoi(t->value);
+        }
+    }
+
+    printf("record_ctx: channels=%d\n",cp->channels);
+    printf("record_ctx: sample_rate=%d\n",cp->sample_rate);
+    printf("record_ctx: codec_id=%d\n",cp->codec_id);
+    if (!(ctx->oformat->flags & AVFMT_NOFILE)) {
+        //printf("record_ctx:oformat flags is %x\n",ctx->oformat->flags);
+        ret = avio_open(&ctx->pb, file_path, AVIO_FLAG_WRITE);
+        if (ret < 0) {
+            PERR("Could not open output file '%s'", file_path);
+            goto cleanup;
+        }
+    }
+    if (avformat_write_header(ctx,NULL) < 0) {
+        PERR("record_ctx: avformat_write_header failed");
+    }
+
+    record_ctx = av_malloc(sizeof(struct RecordContext));
+    record_ctx->ctx = ctx;
+    goto done;
+cleanup:
+    if (ctx) {
+        avformat_free_context(ctx);
+    }
+done:
+    av_dict_free(&dict);
+    return record_ctx;
+}
+
+void record_iterate(struct RecordContext *ctx,const char *buff,int32_t frame_delimits[],int nb_frame)
+{
+    int i,frame_start,frame_len;
+    AVPacket pkt;
+
+    if (nb_frame <= 0) {
+        return;
+    }
+    av_init_packet(&pkt);
+    pkt.stream_index = 0;
+    frame_start = 0;
+    for (i = 0; i < nb_frame; i++) {
+        frame_len = frame_delimits[i] - frame_start;
+        av_init_packet(&pkt);
+        //printf("[%d:%d  %d] ",frame_start,frame_len,frame_delimits[i]);
+        pkt.data = (uint8_t*)&buff[frame_start];
+        pkt.size = frame_len;
+        frame_start = frame_delimits[i];
+        if (av_write_frame(ctx->ctx, &pkt) < 0) {
+            PERR("av_write_frame failed");
+            goto error;
+        }
+    }
+
+error:
+    return;
+}
+
+void record_free(struct RecordContext *ctx)
+{
+    if (ctx) {
+        if (ctx->ctx) {
+            av_write_trailer(ctx->ctx);
+            avformat_free_context(ctx->ctx);
+        }
+        av_free(ctx);
+    }
+
 }

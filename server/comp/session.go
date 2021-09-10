@@ -23,25 +23,6 @@ type SessionNode struct {
 	dataSessionName, dataNodeName string
 }
 
-// SessionAware enables node to:
-// 1. config its static properties before any event flows
-// 2. set data output destination
-// 3. exit the graph when session ends
-type SessionAware interface {
-	event.Node
-
-	// ConfigProperties handles props that can not be configured by simple reflection
-	ConfigProperties(ci ConfigItems)
-
-	// SetPipeOut specify the data endpoint to which this node output
-	SetPipeOut(session, name string) error
-
-	SetController(ctrl Controller)
-
-	// ExitGraph is used when initialization failed or session terminated
-	ExitGraph()
-}
-
 //------------------------- ConfigItems -------------------------
 
 const regCamelCasePattern = `_+[a-z]`
@@ -69,7 +50,7 @@ func (s *SessionNode) GetNodeScope() string {
 }
 
 func (s *SessionNode) OnEnter(delegate *event.NodeDelegate) {
-	logger.Debugf("node(%v) enters graph\n", s.GetNodeName())
+	logger.Debugf("node(%v) enters graph", s.GetNodeName())
 	s.delegate = delegate
 }
 
@@ -78,22 +59,29 @@ func (s *SessionNode) OnExit() {
 }
 
 func (s *SessionNode) OnEvent(evt *event.Event) {
-	logger.Debugf("node(%v) got event with cmd:%v\n", s.GetNodeName(), evt.GetCmd())
+	logger.Debugf("node(%v) got event with cmd:%v", s.GetNodeName(), evt.GetCmd())
 }
 
 func (s *SessionNode) OnLinkDown(linkId int, scope string, nodeName string) {
-	logger.Debugf("node(%v) got link to (%v:%v) down\n", s.GetNodeName(), scope, nodeName)
+	logger.Debugf("node got link down (%v:%v) => (%v:%v) ", s.GetNodeScope(), s.GetNodeName(), scope, nodeName)
+	if linkId >= 0 && s.dataLinkId == linkId {
+		s.dataLinkId = -1
+	}
 }
 
 //--------------------------- Base SessionAware Implementation --------------------------------
 
 func (s *SessionNode) ExitGraph() {
 	if s.delegate != nil {
-		s.delegate.RequestNodeExit()
+		_ = s.delegate.RequestNodeExit()
 	}
 }
 
-func (s *SessionNode) ConfigProperties(ci ConfigItems) {
+func (s *SessionNode) ConfigProperties(_ ConfigItems) {
+}
+
+func (s *SessionNode) Init() error {
+	return nil
 }
 
 func (s *SessionNode) SetPipeOut(session, name string) error {
@@ -111,15 +99,32 @@ func (s *SessionNode) SetController(ctrl Controller) {
 	s.ctrl = ctrl
 }
 
+//--------------------------- Facility methods --------------------------------
+
+// DataPipeReady return whether data link is established
+func (s *SessionNode) DataPipeReady() bool {
+	return s.dataLinkId >= 0
+}
+
 // SendData utility method to put data message to next node
 func (s *SessionNode) SendData(msg DataMessage) (err error) {
-	if s.dataLinkId >= 0 {
+	if s.DataPipeReady() {
 		evt := NewDataEvent(msg)
 		s.delegate.Deliver(s.dataLinkId, evt)
 	} else {
 		err = errors.New("data link is not established")
 	}
 	return
+}
+
+// Call forward to controller
+func (s *SessionNode) Call(session, name string, args []string) (resp []string) {
+	return s.ctrl.Call(session, name, args)
+}
+
+// Cast forward to controller
+func (s *SessionNode) Cast(session, name string, args []string) {
+	s.ctrl.Cast(session, name, args)
 }
 
 // MakeSessionNode factory method of all session aware nodes
@@ -129,6 +134,7 @@ func MakeSessionNode(nodeType string, sessionId string, ci ConfigItems) SessionA
 		return nil
 	}
 	ci.Set("SessionId", sessionId) // always set it
+	ci.Set("dataLinkId", -1)
 	node := getNodeByName(nodeType)
 	if node != nil {
 		ci = setNodeProperties(node, ci)
