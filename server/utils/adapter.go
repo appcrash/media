@@ -7,18 +7,16 @@ import (
 
 // transform payload of rtp packet into proper frame that can be used by event graph
 // i.e. transcoding, recording
-func TransformPayloadToFrame(codecType rpc.CodecType, payload []byte) (frame []byte) {
+func TransformPayloadToFrame(codecType rpc.CodecType, payload []byte) (frame [][]byte) {
 	switch codecType {
 	case rpc.CodecType_AMRNB:
-		fallthrough
+		frame = codec.AmrRtpPayloadToFrame(payload, false)
 	case rpc.CodecType_AMRWB:
-		if fa := codec.AmrRtpPayloadToFrame([][]byte{payload}); fa != nil {
-			frame = fa[0]
-		}
+		frame = codec.AmrRtpPayloadToFrame(payload, true)
 	case rpc.CodecType_PCM_ALAW:
 		fallthrough
 	default:
-		frame = payload
+		frame = [][]byte{payload}
 	}
 	return
 }

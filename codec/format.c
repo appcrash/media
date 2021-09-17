@@ -222,7 +222,7 @@ void record_iterate(struct RecordContext *ctx,const char *buff,int32_t frame_del
     for (i = 0; i < nb_frame; i++) {
         frame_len = frame_delimits[i] - frame_start;
         av_init_packet(&pkt);
-        //printf("[%d:%d  %d] ",frame_start,frame_len,frame_delimits[i]);
+        printf("[%d:%d  %d] ",frame_start,frame_len,frame_delimits[i]);
         pkt.data = (uint8_t*)&buff[frame_start];
         pkt.size = frame_len;
         frame_start = frame_delimits[i];
