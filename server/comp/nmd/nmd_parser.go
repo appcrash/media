@@ -15,55 +15,62 @@ var _ = reflect.Copy
 var _ = strconv.Itoa
 
 var parserATN = []uint16{
-	3, 24715, 42794, 33075, 47597, 16764, 15335, 30598, 22884, 3, 17, 91, 4,
-	2, 9, 2, 4, 3, 9, 3, 4, 4, 9, 4, 4, 5, 9, 5, 4, 6, 9, 6, 4, 7, 9, 7, 4,
-	8, 9, 8, 4, 9, 9, 9, 4, 10, 9, 10, 3, 2, 3, 2, 3, 3, 3, 3, 3, 3, 7, 3,
-	26, 10, 3, 12, 3, 14, 3, 29, 11, 3, 3, 3, 5, 3, 32, 10, 3, 3, 4, 3, 4,
-	5, 4, 36, 10, 4, 3, 5, 3, 5, 3, 5, 3, 5, 3, 5, 7, 5, 43, 10, 5, 12, 5,
-	14, 5, 46, 11, 5, 3, 6, 3, 6, 3, 6, 3, 6, 3, 6, 7, 6, 53, 10, 6, 12, 6,
-	14, 6, 56, 11, 6, 3, 6, 3, 6, 5, 6, 60, 10, 6, 3, 7, 3, 7, 3, 7, 7, 7,
-	65, 10, 7, 12, 7, 14, 7, 68, 11, 7, 3, 7, 3, 7, 3, 8, 3, 8, 3, 8, 5, 8,
-	75, 10, 8, 3, 8, 3, 8, 5, 8, 79, 10, 8, 3, 9, 3, 9, 3, 9, 3, 9, 3, 10,
-	3, 10, 3, 10, 3, 10, 5, 10, 89, 10, 10, 3, 10, 2, 2, 11, 2, 4, 6, 8, 10,
-	12, 14, 16, 18, 2, 2, 2, 93, 2, 20, 3, 2, 2, 2, 4, 22, 3, 2, 2, 2, 6, 35,
-	3, 2, 2, 2, 8, 37, 3, 2, 2, 2, 10, 59, 3, 2, 2, 2, 12, 61, 3, 2, 2, 2,
-	14, 71, 3, 2, 2, 2, 16, 80, 3, 2, 2, 2, 18, 88, 3, 2, 2, 2, 20, 21, 5,
-	4, 3, 2, 21, 3, 3, 2, 2, 2, 22, 27, 5, 6, 4, 2, 23, 24, 7, 3, 2, 2, 24,
-	26, 5, 6, 4, 2, 25, 23, 3, 2, 2, 2, 26, 29, 3, 2, 2, 2, 27, 25, 3, 2, 2,
-	2, 27, 28, 3, 2, 2, 2, 28, 31, 3, 2, 2, 2, 29, 27, 3, 2, 2, 2, 30, 32,
-	7, 3, 2, 2, 31, 30, 3, 2, 2, 2, 31, 32, 3, 2, 2, 2, 32, 5, 3, 2, 2, 2,
-	33, 36, 5, 12, 7, 2, 34, 36, 5, 8, 5, 2, 35, 33, 3, 2, 2, 2, 35, 34, 3,
-	2, 2, 2, 36, 7, 3, 2, 2, 2, 37, 38, 5, 10, 6, 2, 38, 39, 7, 4, 2, 2, 39,
-	44, 5, 10, 6, 2, 40, 41, 7, 4, 2, 2, 41, 43, 5, 10, 6, 2, 42, 40, 3, 2,
-	2, 2, 43, 46, 3, 2, 2, 2, 44, 42, 3, 2, 2, 2, 44, 45, 3, 2, 2, 2, 45, 9,
-	3, 2, 2, 2, 46, 44, 3, 2, 2, 2, 47, 60, 5, 12, 7, 2, 48, 49, 7, 5, 2, 2,
-	49, 54, 5, 12, 7, 2, 50, 51, 7, 6, 2, 2, 51, 53, 5, 12, 7, 2, 52, 50, 3,
-	2, 2, 2, 53, 56, 3, 2, 2, 2, 54, 52, 3, 2, 2, 2, 54, 55, 3, 2, 2, 2, 55,
-	57, 3, 2, 2, 2, 56, 54, 3, 2, 2, 2, 57, 58, 7, 7, 2, 2, 58, 60, 3, 2, 2,
-	2, 59, 47, 3, 2, 2, 2, 59, 48, 3, 2, 2, 2, 60, 11, 3, 2, 2, 2, 61, 62,
-	7, 8, 2, 2, 62, 66, 5, 14, 8, 2, 63, 65, 5, 16, 9, 2, 64, 63, 3, 2, 2,
-	2, 65, 68, 3, 2, 2, 2, 66, 64, 3, 2, 2, 2, 66, 67, 3, 2, 2, 2, 67, 69,
-	3, 2, 2, 2, 68, 66, 3, 2, 2, 2, 69, 70, 7, 9, 2, 2, 70, 13, 3, 2, 2, 2,
-	71, 74, 7, 17, 2, 2, 72, 73, 7, 10, 2, 2, 73, 75, 7, 17, 2, 2, 74, 72,
-	3, 2, 2, 2, 74, 75, 3, 2, 2, 2, 75, 78, 3, 2, 2, 2, 76, 77, 7, 11, 2, 2,
-	77, 79, 7, 17, 2, 2, 78, 76, 3, 2, 2, 2, 78, 79, 3, 2, 2, 2, 79, 15, 3,
-	2, 2, 2, 80, 81, 7, 17, 2, 2, 81, 82, 7, 12, 2, 2, 82, 83, 5, 18, 10, 2,
-	83, 17, 3, 2, 2, 2, 84, 89, 7, 13, 2, 2, 85, 89, 7, 17, 2, 2, 86, 89, 7,
-	14, 2, 2, 87, 89, 7, 15, 2, 2, 88, 84, 3, 2, 2, 2, 88, 85, 3, 2, 2, 2,
-	88, 86, 3, 2, 2, 2, 88, 87, 3, 2, 2, 2, 89, 19, 3, 2, 2, 2, 12, 27, 31,
-	35, 44, 54, 59, 66, 74, 78, 88,
+	3, 24715, 42794, 33075, 47597, 16764, 15335, 30598, 22884, 3, 19, 105,
+	4, 2, 9, 2, 4, 3, 9, 3, 4, 4, 9, 4, 4, 5, 9, 5, 4, 6, 9, 6, 4, 7, 9, 7,
+	4, 8, 9, 8, 4, 9, 9, 9, 4, 10, 9, 10, 4, 11, 9, 11, 4, 12, 9, 12, 3, 2,
+	3, 2, 3, 3, 3, 3, 3, 3, 7, 3, 30, 10, 3, 12, 3, 14, 3, 33, 11, 3, 3, 3,
+	5, 3, 36, 10, 3, 3, 4, 3, 4, 3, 4, 3, 4, 5, 4, 42, 10, 4, 3, 5, 3, 5, 3,
+	5, 3, 5, 3, 5, 7, 5, 49, 10, 5, 12, 5, 14, 5, 52, 11, 5, 3, 6, 3, 6, 3,
+	6, 3, 6, 3, 7, 3, 7, 3, 7, 3, 7, 3, 8, 3, 8, 3, 8, 3, 8, 3, 8, 7, 8, 67,
+	10, 8, 12, 8, 14, 8, 70, 11, 8, 3, 8, 3, 8, 5, 8, 74, 10, 8, 3, 9, 3, 9,
+	3, 9, 7, 9, 79, 10, 9, 12, 9, 14, 9, 82, 11, 9, 3, 9, 3, 9, 3, 10, 3, 10,
+	3, 10, 5, 10, 89, 10, 10, 3, 10, 3, 10, 5, 10, 93, 10, 10, 3, 11, 3, 11,
+	3, 11, 3, 11, 3, 12, 3, 12, 3, 12, 3, 12, 5, 12, 103, 10, 12, 3, 12, 2,
+	2, 13, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 2, 2, 2, 107, 2, 24, 3,
+	2, 2, 2, 4, 26, 3, 2, 2, 2, 6, 41, 3, 2, 2, 2, 8, 43, 3, 2, 2, 2, 10, 53,
+	3, 2, 2, 2, 12, 57, 3, 2, 2, 2, 14, 73, 3, 2, 2, 2, 16, 75, 3, 2, 2, 2,
+	18, 85, 3, 2, 2, 2, 20, 94, 3, 2, 2, 2, 22, 102, 3, 2, 2, 2, 24, 25, 5,
+	4, 3, 2, 25, 3, 3, 2, 2, 2, 26, 31, 5, 6, 4, 2, 27, 28, 7, 3, 2, 2, 28,
+	30, 5, 6, 4, 2, 29, 27, 3, 2, 2, 2, 30, 33, 3, 2, 2, 2, 31, 29, 3, 2, 2,
+	2, 31, 32, 3, 2, 2, 2, 32, 35, 3, 2, 2, 2, 33, 31, 3, 2, 2, 2, 34, 36,
+	7, 3, 2, 2, 35, 34, 3, 2, 2, 2, 35, 36, 3, 2, 2, 2, 36, 5, 3, 2, 2, 2,
+	37, 42, 5, 16, 9, 2, 38, 42, 5, 8, 5, 2, 39, 42, 5, 10, 6, 2, 40, 42, 5,
+	12, 7, 2, 41, 37, 3, 2, 2, 2, 41, 38, 3, 2, 2, 2, 41, 39, 3, 2, 2, 2, 41,
+	40, 3, 2, 2, 2, 42, 7, 3, 2, 2, 2, 43, 44, 5, 14, 8, 2, 44, 45, 7, 4, 2,
+	2, 45, 50, 5, 14, 8, 2, 46, 47, 7, 4, 2, 2, 47, 49, 5, 14, 8, 2, 48, 46,
+	3, 2, 2, 2, 49, 52, 3, 2, 2, 2, 50, 48, 3, 2, 2, 2, 50, 51, 3, 2, 2, 2,
+	51, 9, 3, 2, 2, 2, 52, 50, 3, 2, 2, 2, 53, 54, 5, 16, 9, 2, 54, 55, 7,
+	5, 2, 2, 55, 56, 7, 15, 2, 2, 56, 11, 3, 2, 2, 2, 57, 58, 5, 16, 9, 2,
+	58, 59, 7, 6, 2, 2, 59, 60, 7, 15, 2, 2, 60, 13, 3, 2, 2, 2, 61, 74, 5,
+	16, 9, 2, 62, 63, 7, 7, 2, 2, 63, 68, 5, 16, 9, 2, 64, 65, 7, 8, 2, 2,
+	65, 67, 5, 16, 9, 2, 66, 64, 3, 2, 2, 2, 67, 70, 3, 2, 2, 2, 68, 66, 3,
+	2, 2, 2, 68, 69, 3, 2, 2, 2, 69, 71, 3, 2, 2, 2, 70, 68, 3, 2, 2, 2, 71,
+	72, 7, 9, 2, 2, 72, 74, 3, 2, 2, 2, 73, 61, 3, 2, 2, 2, 73, 62, 3, 2, 2,
+	2, 74, 15, 3, 2, 2, 2, 75, 76, 7, 10, 2, 2, 76, 80, 5, 18, 10, 2, 77, 79,
+	5, 20, 11, 2, 78, 77, 3, 2, 2, 2, 79, 82, 3, 2, 2, 2, 80, 78, 3, 2, 2,
+	2, 80, 81, 3, 2, 2, 2, 81, 83, 3, 2, 2, 2, 82, 80, 3, 2, 2, 2, 83, 84,
+	7, 11, 2, 2, 84, 17, 3, 2, 2, 2, 85, 88, 7, 19, 2, 2, 86, 87, 7, 12, 2,
+	2, 87, 89, 7, 19, 2, 2, 88, 86, 3, 2, 2, 2, 88, 89, 3, 2, 2, 2, 89, 92,
+	3, 2, 2, 2, 90, 91, 7, 13, 2, 2, 91, 93, 7, 19, 2, 2, 92, 90, 3, 2, 2,
+	2, 92, 93, 3, 2, 2, 2, 93, 19, 3, 2, 2, 2, 94, 95, 7, 19, 2, 2, 95, 96,
+	7, 14, 2, 2, 96, 97, 5, 22, 12, 2, 97, 21, 3, 2, 2, 2, 98, 103, 7, 15,
+	2, 2, 99, 103, 7, 19, 2, 2, 100, 103, 7, 16, 2, 2, 101, 103, 7, 17, 2,
+	2, 102, 98, 3, 2, 2, 2, 102, 99, 3, 2, 2, 2, 102, 100, 3, 2, 2, 2, 102,
+	101, 3, 2, 2, 2, 103, 23, 3, 2, 2, 2, 12, 31, 35, 41, 50, 68, 73, 80, 88,
+	92, 102,
 }
 var literalNames = []string{
-	"", "';'", "'->'", "'{'", "','", "'}'", "'['", "']'", "'@'", "':'", "'='",
+	"", "';'", "'->'", "'<->'", "'<--'", "'{'", "','", "'}'", "'['", "']'",
+	"'@'", "':'", "'='",
 }
 var symbolicNames = []string{
-	"", "", "", "", "", "", "", "", "", "", "", "QUOTED_STRING", "INT", "FLOAT",
-	"WS", "ID",
+	"", "", "", "", "", "", "", "", "", "", "", "", "", "QUOTED_STRING", "INT",
+	"FLOAT", "WS", "ID",
 }
 
 var ruleNames = []string{
-	"graph", "stmt_list", "stmt", "link_stmt", "endpoint", "node_def", "node_id",
-	"node_prop", "property",
+	"graph", "stmt_list", "stmt", "link_stmt", "call_stmt", "cast_stmt", "endpoint",
+	"node_def", "node_id", "node_prop", "property",
 }
 
 type nmdParser struct {
@@ -108,11 +115,13 @@ const (
 	nmdParserT__7          = 8
 	nmdParserT__8          = 9
 	nmdParserT__9          = 10
-	nmdParserQUOTED_STRING = 11
-	nmdParserINT           = 12
-	nmdParserFLOAT         = 13
-	nmdParserWS            = 14
-	nmdParserID            = 15
+	nmdParserT__10         = 11
+	nmdParserT__11         = 12
+	nmdParserQUOTED_STRING = 13
+	nmdParserINT           = 14
+	nmdParserFLOAT         = 15
+	nmdParserWS            = 16
+	nmdParserID            = 17
 )
 
 // nmdParser rules.
@@ -121,11 +130,13 @@ const (
 	nmdParserRULE_stmt_list = 1
 	nmdParserRULE_stmt      = 2
 	nmdParserRULE_link_stmt = 3
-	nmdParserRULE_endpoint  = 4
-	nmdParserRULE_node_def  = 5
-	nmdParserRULE_node_id   = 6
-	nmdParserRULE_node_prop = 7
-	nmdParserRULE_property  = 8
+	nmdParserRULE_call_stmt = 4
+	nmdParserRULE_cast_stmt = 5
+	nmdParserRULE_endpoint  = 6
+	nmdParserRULE_node_def  = 7
+	nmdParserRULE_node_id   = 8
+	nmdParserRULE_node_prop = 9
+	nmdParserRULE_property  = 10
 )
 
 // IGraphContext is an interface to support dynamic dispatch.
@@ -218,7 +229,7 @@ func (p *nmdParser) Graph() (localctx IGraphContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(18)
+		p.SetState(22)
 		p.Stmt_list()
 	}
 
@@ -331,36 +342,36 @@ func (p *nmdParser) Stmt_list() (localctx IStmt_listContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(20)
+		p.SetState(24)
 		p.Stmt()
 	}
-	p.SetState(25)
+	p.SetState(29)
 	p.GetErrorHandler().Sync(p)
 	_alt = p.GetInterpreter().AdaptivePredict(p.GetTokenStream(), 0, p.GetParserRuleContext())
 
 	for _alt != 2 && _alt != antlr.ATNInvalidAltNumber {
 		if _alt == 1 {
 			{
-				p.SetState(21)
+				p.SetState(25)
 				p.Match(nmdParserT__0)
 			}
 			{
-				p.SetState(22)
+				p.SetState(26)
 				p.Stmt()
 			}
 
 		}
-		p.SetState(27)
+		p.SetState(31)
 		p.GetErrorHandler().Sync(p)
 		_alt = p.GetInterpreter().AdaptivePredict(p.GetTokenStream(), 0, p.GetParserRuleContext())
 	}
-	p.SetState(29)
+	p.SetState(33)
 	p.GetErrorHandler().Sync(p)
 	_la = p.GetTokenStream().LA(1)
 
 	if _la == nmdParserT__0 {
 		{
-			p.SetState(28)
+			p.SetState(32)
 			p.Match(nmdParserT__0)
 		}
 
@@ -427,6 +438,26 @@ func (s *StmtContext) Link_stmt() ILink_stmtContext {
 	return t.(ILink_stmtContext)
 }
 
+func (s *StmtContext) Call_stmt() ICall_stmtContext {
+	var t = s.GetTypedRuleContext(reflect.TypeOf((*ICall_stmtContext)(nil)).Elem(), 0)
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(ICall_stmtContext)
+}
+
+func (s *StmtContext) Cast_stmt() ICast_stmtContext {
+	var t = s.GetTypedRuleContext(reflect.TypeOf((*ICast_stmtContext)(nil)).Elem(), 0)
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(ICast_stmtContext)
+}
+
 func (s *StmtContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
@@ -467,21 +498,35 @@ func (p *nmdParser) Stmt() (localctx IStmtContext) {
 		}
 	}()
 
-	p.SetState(33)
+	p.SetState(39)
 	p.GetErrorHandler().Sync(p)
 	switch p.GetInterpreter().AdaptivePredict(p.GetTokenStream(), 2, p.GetParserRuleContext()) {
 	case 1:
 		p.EnterOuterAlt(localctx, 1)
 		{
-			p.SetState(31)
+			p.SetState(35)
 			p.Node_def()
 		}
 
 	case 2:
 		p.EnterOuterAlt(localctx, 2)
 		{
-			p.SetState(32)
+			p.SetState(36)
 			p.Link_stmt()
+		}
+
+	case 3:
+		p.EnterOuterAlt(localctx, 3)
+		{
+			p.SetState(37)
+			p.Call_stmt()
+		}
+
+	case 4:
+		p.EnterOuterAlt(localctx, 4)
+		{
+			p.SetState(38)
+			p.Cast_stmt()
 		}
 
 	}
@@ -593,34 +638,280 @@ func (p *nmdParser) Link_stmt() (localctx ILink_stmtContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(35)
+		p.SetState(41)
 		p.Endpoint()
 	}
 	{
-		p.SetState(36)
+		p.SetState(42)
 		p.Match(nmdParserT__1)
 	}
 	{
-		p.SetState(37)
+		p.SetState(43)
 		p.Endpoint()
 	}
-	p.SetState(42)
+	p.SetState(48)
 	p.GetErrorHandler().Sync(p)
 	_la = p.GetTokenStream().LA(1)
 
 	for _la == nmdParserT__1 {
 		{
-			p.SetState(38)
+			p.SetState(44)
 			p.Match(nmdParserT__1)
 		}
 		{
-			p.SetState(39)
+			p.SetState(45)
 			p.Endpoint()
 		}
 
-		p.SetState(44)
+		p.SetState(50)
 		p.GetErrorHandler().Sync(p)
 		_la = p.GetTokenStream().LA(1)
+	}
+
+	return localctx
+}
+
+// ICall_stmtContext is an interface to support dynamic dispatch.
+type ICall_stmtContext interface {
+	antlr.ParserRuleContext
+
+	// GetParser returns the parser.
+	GetParser() antlr.Parser
+
+	// GetCmd returns the cmd token.
+	GetCmd() antlr.Token
+
+	// SetCmd sets the cmd token.
+	SetCmd(antlr.Token)
+
+	// IsCall_stmtContext differentiates from other interfaces.
+	IsCall_stmtContext()
+}
+
+type Call_stmtContext struct {
+	*antlr.BaseParserRuleContext
+	parser antlr.Parser
+	cmd    antlr.Token
+}
+
+func NewEmptyCall_stmtContext() *Call_stmtContext {
+	var p = new(Call_stmtContext)
+	p.BaseParserRuleContext = antlr.NewBaseParserRuleContext(nil, -1)
+	p.RuleIndex = nmdParserRULE_call_stmt
+	return p
+}
+
+func (*Call_stmtContext) IsCall_stmtContext() {}
+
+func NewCall_stmtContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *Call_stmtContext {
+	var p = new(Call_stmtContext)
+
+	p.BaseParserRuleContext = antlr.NewBaseParserRuleContext(parent, invokingState)
+
+	p.parser = parser
+	p.RuleIndex = nmdParserRULE_call_stmt
+
+	return p
+}
+
+func (s *Call_stmtContext) GetParser() antlr.Parser { return s.parser }
+
+func (s *Call_stmtContext) GetCmd() antlr.Token { return s.cmd }
+
+func (s *Call_stmtContext) SetCmd(v antlr.Token) { s.cmd = v }
+
+func (s *Call_stmtContext) Node_def() INode_defContext {
+	var t = s.GetTypedRuleContext(reflect.TypeOf((*INode_defContext)(nil)).Elem(), 0)
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(INode_defContext)
+}
+
+func (s *Call_stmtContext) QUOTED_STRING() antlr.TerminalNode {
+	return s.GetToken(nmdParserQUOTED_STRING, 0)
+}
+
+func (s *Call_stmtContext) GetRuleContext() antlr.RuleContext {
+	return s
+}
+
+func (s *Call_stmtContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
+	return antlr.TreesStringTree(s, ruleNames, recog)
+}
+
+func (s *Call_stmtContext) EnterRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(nmdListener); ok {
+		listenerT.EnterCall_stmt(s)
+	}
+}
+
+func (s *Call_stmtContext) ExitRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(nmdListener); ok {
+		listenerT.ExitCall_stmt(s)
+	}
+}
+
+func (p *nmdParser) Call_stmt() (localctx ICall_stmtContext) {
+	localctx = NewCall_stmtContext(p, p.GetParserRuleContext(), p.GetState())
+	p.EnterRule(localctx, 8, nmdParserRULE_call_stmt)
+
+	defer func() {
+		p.ExitRule()
+	}()
+
+	defer func() {
+		if err := recover(); err != nil {
+			if v, ok := err.(antlr.RecognitionException); ok {
+				localctx.SetException(v)
+				p.GetErrorHandler().ReportError(p, v)
+				p.GetErrorHandler().Recover(p, v)
+			} else {
+				panic(err)
+			}
+		}
+	}()
+
+	p.EnterOuterAlt(localctx, 1)
+	{
+		p.SetState(51)
+		p.Node_def()
+	}
+	{
+		p.SetState(52)
+		p.Match(nmdParserT__2)
+	}
+	{
+		p.SetState(53)
+
+		var _m = p.Match(nmdParserQUOTED_STRING)
+
+		localctx.(*Call_stmtContext).cmd = _m
+	}
+
+	return localctx
+}
+
+// ICast_stmtContext is an interface to support dynamic dispatch.
+type ICast_stmtContext interface {
+	antlr.ParserRuleContext
+
+	// GetParser returns the parser.
+	GetParser() antlr.Parser
+
+	// GetCmd returns the cmd token.
+	GetCmd() antlr.Token
+
+	// SetCmd sets the cmd token.
+	SetCmd(antlr.Token)
+
+	// IsCast_stmtContext differentiates from other interfaces.
+	IsCast_stmtContext()
+}
+
+type Cast_stmtContext struct {
+	*antlr.BaseParserRuleContext
+	parser antlr.Parser
+	cmd    antlr.Token
+}
+
+func NewEmptyCast_stmtContext() *Cast_stmtContext {
+	var p = new(Cast_stmtContext)
+	p.BaseParserRuleContext = antlr.NewBaseParserRuleContext(nil, -1)
+	p.RuleIndex = nmdParserRULE_cast_stmt
+	return p
+}
+
+func (*Cast_stmtContext) IsCast_stmtContext() {}
+
+func NewCast_stmtContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *Cast_stmtContext {
+	var p = new(Cast_stmtContext)
+
+	p.BaseParserRuleContext = antlr.NewBaseParserRuleContext(parent, invokingState)
+
+	p.parser = parser
+	p.RuleIndex = nmdParserRULE_cast_stmt
+
+	return p
+}
+
+func (s *Cast_stmtContext) GetParser() antlr.Parser { return s.parser }
+
+func (s *Cast_stmtContext) GetCmd() antlr.Token { return s.cmd }
+
+func (s *Cast_stmtContext) SetCmd(v antlr.Token) { s.cmd = v }
+
+func (s *Cast_stmtContext) Node_def() INode_defContext {
+	var t = s.GetTypedRuleContext(reflect.TypeOf((*INode_defContext)(nil)).Elem(), 0)
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(INode_defContext)
+}
+
+func (s *Cast_stmtContext) QUOTED_STRING() antlr.TerminalNode {
+	return s.GetToken(nmdParserQUOTED_STRING, 0)
+}
+
+func (s *Cast_stmtContext) GetRuleContext() antlr.RuleContext {
+	return s
+}
+
+func (s *Cast_stmtContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
+	return antlr.TreesStringTree(s, ruleNames, recog)
+}
+
+func (s *Cast_stmtContext) EnterRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(nmdListener); ok {
+		listenerT.EnterCast_stmt(s)
+	}
+}
+
+func (s *Cast_stmtContext) ExitRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(nmdListener); ok {
+		listenerT.ExitCast_stmt(s)
+	}
+}
+
+func (p *nmdParser) Cast_stmt() (localctx ICast_stmtContext) {
+	localctx = NewCast_stmtContext(p, p.GetParserRuleContext(), p.GetState())
+	p.EnterRule(localctx, 10, nmdParserRULE_cast_stmt)
+
+	defer func() {
+		p.ExitRule()
+	}()
+
+	defer func() {
+		if err := recover(); err != nil {
+			if v, ok := err.(antlr.RecognitionException); ok {
+				localctx.SetException(v)
+				p.GetErrorHandler().ReportError(p, v)
+				p.GetErrorHandler().Recover(p, v)
+			} else {
+				panic(err)
+			}
+		}
+	}()
+
+	p.EnterOuterAlt(localctx, 1)
+	{
+		p.SetState(55)
+		p.Node_def()
+	}
+	{
+		p.SetState(56)
+		p.Match(nmdParserT__3)
+	}
+	{
+		p.SetState(57)
+
+		var _m = p.Match(nmdParserQUOTED_STRING)
+
+		localctx.(*Cast_stmtContext).cmd = _m
 	}
 
 	return localctx
@@ -709,7 +1000,7 @@ func (s *EndpointContext) ExitRule(listener antlr.ParseTreeListener) {
 
 func (p *nmdParser) Endpoint() (localctx IEndpointContext) {
 	localctx = NewEndpointContext(p, p.GetParserRuleContext(), p.GetState())
-	p.EnterRule(localctx, 8, nmdParserRULE_endpoint)
+	p.EnterRule(localctx, 12, nmdParserRULE_endpoint)
 	var _la int
 
 	defer func() {
@@ -728,48 +1019,48 @@ func (p *nmdParser) Endpoint() (localctx IEndpointContext) {
 		}
 	}()
 
-	p.SetState(57)
+	p.SetState(71)
 	p.GetErrorHandler().Sync(p)
 
 	switch p.GetTokenStream().LA(1) {
-	case nmdParserT__5:
+	case nmdParserT__7:
 		p.EnterOuterAlt(localctx, 1)
 		{
-			p.SetState(45)
+			p.SetState(59)
 			p.Node_def()
 		}
 
-	case nmdParserT__2:
+	case nmdParserT__4:
 		p.EnterOuterAlt(localctx, 2)
 		{
-			p.SetState(46)
-			p.Match(nmdParserT__2)
+			p.SetState(60)
+			p.Match(nmdParserT__4)
 		}
 		{
-			p.SetState(47)
+			p.SetState(61)
 			p.Node_def()
 		}
-		p.SetState(52)
+		p.SetState(66)
 		p.GetErrorHandler().Sync(p)
 		_la = p.GetTokenStream().LA(1)
 
-		for _la == nmdParserT__3 {
+		for _la == nmdParserT__5 {
 			{
-				p.SetState(48)
-				p.Match(nmdParserT__3)
+				p.SetState(62)
+				p.Match(nmdParserT__5)
 			}
 			{
-				p.SetState(49)
+				p.SetState(63)
 				p.Node_def()
 			}
 
-			p.SetState(54)
+			p.SetState(68)
 			p.GetErrorHandler().Sync(p)
 			_la = p.GetTokenStream().LA(1)
 		}
 		{
-			p.SetState(55)
-			p.Match(nmdParserT__4)
+			p.SetState(69)
+			p.Match(nmdParserT__6)
 		}
 
 	default:
@@ -872,7 +1163,7 @@ func (s *Node_defContext) ExitRule(listener antlr.ParseTreeListener) {
 
 func (p *nmdParser) Node_def() (localctx INode_defContext) {
 	localctx = NewNode_defContext(p, p.GetParserRuleContext(), p.GetState())
-	p.EnterRule(localctx, 10, nmdParserRULE_node_def)
+	p.EnterRule(localctx, 14, nmdParserRULE_node_def)
 	var _la int
 
 	defer func() {
@@ -893,30 +1184,30 @@ func (p *nmdParser) Node_def() (localctx INode_defContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(59)
-		p.Match(nmdParserT__5)
+		p.SetState(73)
+		p.Match(nmdParserT__7)
 	}
 	{
-		p.SetState(60)
+		p.SetState(74)
 		p.Node_id()
 	}
-	p.SetState(64)
+	p.SetState(78)
 	p.GetErrorHandler().Sync(p)
 	_la = p.GetTokenStream().LA(1)
 
 	for _la == nmdParserID {
 		{
-			p.SetState(61)
+			p.SetState(75)
 			p.Node_prop()
 		}
 
-		p.SetState(66)
+		p.SetState(80)
 		p.GetErrorHandler().Sync(p)
 		_la = p.GetTokenStream().LA(1)
 	}
 	{
-		p.SetState(67)
-		p.Match(nmdParserT__6)
+		p.SetState(81)
+		p.Match(nmdParserT__8)
 	}
 
 	return localctx
@@ -1023,7 +1314,7 @@ func (s *Node_idContext) ExitRule(listener antlr.ParseTreeListener) {
 
 func (p *nmdParser) Node_id() (localctx INode_idContext) {
 	localctx = NewNode_idContext(p, p.GetParserRuleContext(), p.GetState())
-	p.EnterRule(localctx, 12, nmdParserRULE_node_id)
+	p.EnterRule(localctx, 16, nmdParserRULE_node_id)
 	var _la int
 
 	defer func() {
@@ -1044,23 +1335,23 @@ func (p *nmdParser) Node_id() (localctx INode_idContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(69)
+		p.SetState(83)
 
 		var _m = p.Match(nmdParserID)
 
 		localctx.(*Node_idContext).name = _m
 	}
-	p.SetState(72)
+	p.SetState(86)
 	p.GetErrorHandler().Sync(p)
 	_la = p.GetTokenStream().LA(1)
 
-	if _la == nmdParserT__7 {
+	if _la == nmdParserT__9 {
 		{
-			p.SetState(70)
-			p.Match(nmdParserT__7)
+			p.SetState(84)
+			p.Match(nmdParserT__9)
 		}
 		{
-			p.SetState(71)
+			p.SetState(85)
 
 			var _m = p.Match(nmdParserID)
 
@@ -1068,17 +1359,17 @@ func (p *nmdParser) Node_id() (localctx INode_idContext) {
 		}
 
 	}
-	p.SetState(76)
+	p.SetState(90)
 	p.GetErrorHandler().Sync(p)
 	_la = p.GetTokenStream().LA(1)
 
-	if _la == nmdParserT__8 {
+	if _la == nmdParserT__10 {
 		{
-			p.SetState(74)
-			p.Match(nmdParserT__8)
+			p.SetState(88)
+			p.Match(nmdParserT__10)
 		}
 		{
-			p.SetState(75)
+			p.SetState(89)
 
 			var _m = p.Match(nmdParserID)
 
@@ -1186,7 +1477,7 @@ func (s *Node_propContext) ExitRule(listener antlr.ParseTreeListener) {
 
 func (p *nmdParser) Node_prop() (localctx INode_propContext) {
 	localctx = NewNode_propContext(p, p.GetParserRuleContext(), p.GetState())
-	p.EnterRule(localctx, 14, nmdParserRULE_node_prop)
+	p.EnterRule(localctx, 18, nmdParserRULE_node_prop)
 
 	defer func() {
 		p.ExitRule()
@@ -1206,18 +1497,18 @@ func (p *nmdParser) Node_prop() (localctx INode_propContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(78)
+		p.SetState(92)
 
 		var _m = p.Match(nmdParserID)
 
 		localctx.(*Node_propContext).key = _m
 	}
 	{
-		p.SetState(79)
-		p.Match(nmdParserT__9)
+		p.SetState(93)
+		p.Match(nmdParserT__11)
 	}
 	{
-		p.SetState(80)
+		p.SetState(94)
 
 		var _x = p.Property()
 
@@ -1415,7 +1706,7 @@ func (s *PropIntContext) ExitRule(listener antlr.ParseTreeListener) {
 
 func (p *nmdParser) Property() (localctx IPropertyContext) {
 	localctx = NewPropertyContext(p, p.GetParserRuleContext(), p.GetState())
-	p.EnterRule(localctx, 16, nmdParserRULE_property)
+	p.EnterRule(localctx, 20, nmdParserRULE_property)
 
 	defer func() {
 		p.ExitRule()
@@ -1433,7 +1724,7 @@ func (p *nmdParser) Property() (localctx IPropertyContext) {
 		}
 	}()
 
-	p.SetState(86)
+	p.SetState(100)
 	p.GetErrorHandler().Sync(p)
 
 	switch p.GetTokenStream().LA(1) {
@@ -1441,7 +1732,7 @@ func (p *nmdParser) Property() (localctx IPropertyContext) {
 		localctx = NewPropQuoteStringContext(p, localctx)
 		p.EnterOuterAlt(localctx, 1)
 		{
-			p.SetState(82)
+			p.SetState(96)
 			p.Match(nmdParserQUOTED_STRING)
 		}
 
@@ -1449,7 +1740,7 @@ func (p *nmdParser) Property() (localctx IPropertyContext) {
 		localctx = NewPropIdContext(p, localctx)
 		p.EnterOuterAlt(localctx, 2)
 		{
-			p.SetState(83)
+			p.SetState(97)
 			p.Match(nmdParserID)
 		}
 
@@ -1457,7 +1748,7 @@ func (p *nmdParser) Property() (localctx IPropertyContext) {
 		localctx = NewPropIntContext(p, localctx)
 		p.EnterOuterAlt(localctx, 3)
 		{
-			p.SetState(84)
+			p.SetState(98)
 			p.Match(nmdParserINT)
 		}
 
@@ -1465,7 +1756,7 @@ func (p *nmdParser) Property() (localctx IPropertyContext) {
 		localctx = NewPropFloatContext(p, localctx)
 		p.EnterOuterAlt(localctx, 4)
 		{
-			p.SetState(85)
+			p.SetState(99)
 			p.Match(nmdParserFLOAT)
 		}
 

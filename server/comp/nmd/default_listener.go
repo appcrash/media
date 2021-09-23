@@ -11,15 +11,17 @@ type Listener struct {
 	sessionId string
 
 	NodeDefs []*NodeDef
+	CallDefs []*CallActionDefs
+	CastDefs []*CastActionDefs
 
 	nodeMap       map[string]*NodeDef
 	nbNode        int
 	nodeDefStack  []*NodeDef
-	endpointStack []*Endpoint
+	endpointStack []*EndpointDefs
 
 	currentNodeProp *NodeProp
 	currentNodeDef  *NodeDef
-	currentEndpoint *Endpoint
+	currentEndpoint *EndpointDefs
 }
 
 func NewListener(sessionId string) *Listener {
@@ -27,6 +29,17 @@ func NewListener(sessionId string) *Listener {
 	l.sessionId = sessionId
 	l.nodeMap = make(map[string]*NodeDef)
 	return l
+}
+
+func unquoteString(quotedString string) string {
+	ql := len(quotedString)
+	if ql == 2 {
+		// empty string ''
+		return ""
+	} else {
+		// modify escaped single quote
+		return strings.ReplaceAll(quotedString[1:ql-1], "\\'", "'")
+	}
 }
 
 func (l *Listener) pushNodeDef() {
@@ -63,7 +76,7 @@ func (l *Listener) EnterLink_stmt(c *Link_stmtContext) {
 }
 
 func (l *Listener) EnterEndpoint(c *EndpointContext) {
-	l.currentEndpoint = &Endpoint{}
+	l.currentEndpoint = &EndpointDefs{}
 	l.nodeDefStack = nil
 }
 
@@ -90,16 +103,7 @@ func (l *Listener) EnterNode_prop(c *Node_propContext) {
 
 func (l *Listener) EnterPropQuoteString(ctx *PropQuoteStringContext) {
 	l.currentNodeProp.Type = "str"
-	qstr := ctx.GetText()
-	ql := len(qstr)
-	if ql == 2 {
-		// empty string ''
-		qstr = ""
-	} else {
-		// modify escaped single quote
-		qstr = strings.ReplaceAll(qstr[1:ql-1], "\\'", "'")
-	}
-	l.currentNodeProp.Value = qstr
+	l.currentNodeProp.Value = unquoteString(ctx.GetText())
 }
 
 func (l *Listener) EnterPropId(ctx *PropIdContext) {
@@ -147,4 +151,25 @@ func (l *Listener) ExitNode_def(c *Node_defContext) {
 
 func (l *Listener) ExitNode_prop(c *Node_propContext) {
 	l.currentNodeDef.Props = append(l.currentNodeDef.Props, l.currentNodeProp)
+}
+
+func (l *Listener) ExitCall_stmt(ctx *Call_stmtContext) {
+	node := l.nodeDefStack[0]
+	cmd := unquoteString(ctx.cmd.GetText())
+	call := &CallActionDefs{
+		Node: node,
+		Cmd:  cmd,
+	}
+	l.CallDefs = append(l.CallDefs, call)
+	l.nodeDefStack = nil
+}
+
+func (l *Listener) ExitCast_stmt(ctx *Cast_stmtContext) {
+	node := l.nodeDefStack[0]
+	cmd := unquoteString(ctx.cmd.GetText())
+	cast := &CastActionDefs{}
+	cast.Node = node
+	cast.Cmd = cmd
+	l.CastDefs = append(l.CastDefs, cast)
+	l.nodeDefStack = nil
 }

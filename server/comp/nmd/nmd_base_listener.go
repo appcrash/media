@@ -44,6 +44,18 @@ func (s *BasenmdListener) EnterLink_stmt(ctx *Link_stmtContext) {}
 // ExitLink_stmt is called when production link_stmt is exited.
 func (s *BasenmdListener) ExitLink_stmt(ctx *Link_stmtContext) {}
 
+// EnterCall_stmt is called when production call_stmt is entered.
+func (s *BasenmdListener) EnterCall_stmt(ctx *Call_stmtContext) {}
+
+// ExitCall_stmt is called when production call_stmt is exited.
+func (s *BasenmdListener) ExitCall_stmt(ctx *Call_stmtContext) {}
+
+// EnterCast_stmt is called when production cast_stmt is entered.
+func (s *BasenmdListener) EnterCast_stmt(ctx *Cast_stmtContext) {}
+
+// ExitCast_stmt is called when production cast_stmt is exited.
+func (s *BasenmdListener) ExitCast_stmt(ctx *Cast_stmtContext) {}
+
 // EnterEndpoint is called when production endpoint is entered.
 func (s *BasenmdListener) EnterEndpoint(ctx *EndpointContext) {}
 

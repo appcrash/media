@@ -19,6 +19,12 @@ type nmdListener interface {
 	// EnterLink_stmt is called when entering the link_stmt production.
 	EnterLink_stmt(c *Link_stmtContext)
 
+	// EnterCall_stmt is called when entering the call_stmt production.
+	EnterCall_stmt(c *Call_stmtContext)
+
+	// EnterCast_stmt is called when entering the cast_stmt production.
+	EnterCast_stmt(c *Cast_stmtContext)
+
 	// EnterEndpoint is called when entering the endpoint production.
 	EnterEndpoint(c *EndpointContext)
 
@@ -54,6 +60,12 @@ type nmdListener interface {
 
 	// ExitLink_stmt is called when exiting the link_stmt production.
 	ExitLink_stmt(c *Link_stmtContext)
+
+	// ExitCall_stmt is called when exiting the call_stmt production.
+	ExitCall_stmt(c *Call_stmtContext)
+
+	// ExitCast_stmt is called when exiting the cast_stmt production.
+	ExitCast_stmt(c *Cast_stmtContext)
 
 	// ExitEndpoint is called when exiting the endpoint production.
 	ExitEndpoint(c *EndpointContext)

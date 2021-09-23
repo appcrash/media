@@ -17,7 +17,7 @@ jobs:
           go-version: '1.16.6'
 
       - name: Test
-        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./codec ./server/event ./server/comp
+        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./codec ./server/event ./server/comp/...
 
       - uses: codecov/codecov-action@v1.5.2
         with:
