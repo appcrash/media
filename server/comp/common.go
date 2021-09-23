@@ -3,6 +3,7 @@ package comp
 import (
 	"errors"
 	"fmt"
+	"github.com/appcrash/media/server/comp/nmd"
 	"github.com/appcrash/media/server/event"
 	"github.com/sirupsen/logrus"
 )
@@ -40,7 +41,7 @@ type SessionAware interface {
 	event.Node
 
 	// ConfigProperties handles props that can not be configured by simple reflection
-	ConfigProperties(ci ConfigItems)
+	ConfigProperties(ci []*nmd.NodeProp)
 
 	// Init do initialization after node is allocated and configured
 	Init() error

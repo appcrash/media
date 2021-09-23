@@ -3,14 +3,18 @@ package comp
 import (
 	"errors"
 	"fmt"
+	"github.com/appcrash/media/server/comp/nmd"
 	"github.com/appcrash/media/server/event"
 	"strings"
 	"sync"
 )
 
+// we create every node and config their properties based on the collected info, then
+// link them and send initial events as described before putting them into working state.
+
 type Composer struct {
 	sessionId       string
-	gt              *GraphTopology
+	gt              *nmd.GraphTopology
 	messageProvider []MessageProvider
 	dispatch        *Dispatch
 	nodeList        []SessionAware // topographical sorted nodes
@@ -31,21 +35,8 @@ func NewSessionComposer(sessionId string) *Composer {
 }
 
 func (c *Composer) ParseGraphDescription(desc string) (err error) {
-	gt := newGraphTopology()
-	lines := strings.Split(desc, "\n")
-
-	for _, l := range lines {
-		if l == "" {
-			continue
-		}
-		gt.parseLine(l)
-	}
-	if gt.nbParseError > 0 {
-		errStr := fmt.Sprintf("there are total %v error in graph description:\n%v", gt.nbParseError, desc)
-		err = errors.New(errStr)
-		return
-	}
-	err = gt.topographicalSort()
+	gt := nmd.NewGraphTopology()
+	err = gt.ParseGraph(c.sessionId, desc)
 	c.gt = gt
 	return
 }
@@ -53,7 +44,8 @@ func (c *Composer) ParseGraphDescription(desc string) (err error) {
 // PrepareNodes create node instances by type, add them to graph, and link them
 func (c *Composer) PrepareNodes(graph *event.Graph) (err error) {
 	var nodeIds []*Id
-	nbNode := len(c.gt.sortedNodeList)
+	nodeDefs := c.gt.GetSortedNodeDefs()
+	nbNode := len(nodeDefs)
 
 	defer func() {
 		if err != nil {
@@ -63,8 +55,12 @@ func (c *Composer) PrepareNodes(graph *event.Graph) (err error) {
 	}()
 
 	// create node instances, collect message providers if any
-	for _, n := range c.gt.sortedNodeList {
-		n.Props.Set("Name", n.Name)
+	for _, n := range nodeDefs {
+		n.Props = append(n.Props, &nmd.NodeProp{
+			Key:   "Name",
+			Type:  "str",
+			Value: n.Name,
+		})
 		sn := MakeSessionNode(n.Type, c.sessionId, n.Props)
 		if sn == nil {
 			logger.Errorf("unknown node type: %v\n", n.Name)
@@ -90,7 +86,7 @@ func (c *Composer) PrepareNodes(graph *event.Graph) (err error) {
 			err = errors.New(fmt.Sprintf("failed to add node %v to graph", n.GetNodeName()))
 			return
 		}
-		deps := c.gt.sortedNodeList[i].Deps
+		deps := nodeDefs[i].Deps
 		for _, ni := range deps {
 			// set pipe end to local session nodes
 			if n.SetPipeOut(c.sessionId, ni.Name) != nil {
@@ -102,8 +98,7 @@ func (c *Composer) PrepareNodes(graph *event.Graph) (err error) {
 
 	// now every node is added to graph and linked
 	// create dispatch node which links to all nodes in the session
-	ci := make(ConfigItems)
-	c.dispatch = MakeSessionNode(TYPE_DISPATCH, c.sessionId, ci).(*Dispatch)
+	c.dispatch = MakeSessionNode(TYPE_DISPATCH, c.sessionId, nil).(*Dispatch)
 	c.dispatch.SetMaxLink(nbNode * 2) // reserved nbNode for dynamical link requests
 	if !graph.AddNode(c.dispatch) {
 		err = errors.New("fail to add send-node to graph")
@@ -121,28 +116,45 @@ func (c *Composer) PrepareNodes(graph *event.Graph) (err error) {
 	// subscribe channels, for all nodes of type pubsub, find the registered channel with same name
 	// as specified in pubsub's "channel" property
 	if len(c.namedChannel) > 0 {
-		for i, n := range c.gt.sortedNodeList {
+		for i, n := range nodeDefs {
 			if n.Type != TYPE_PUBSUB {
 				continue
 			}
-			if name, ok := n.Props["channel"]; ok {
-				chNameList, ok1 := name.(string)
-				if !ok1 {
+			var chNameList string
+			var ok bool
+			for _, p := range n.Props {
+				if p.Key == "channel" {
+
+					if p.Type != "str" || p.Value == nil {
+						err = errors.New(fmt.Sprintf("pubsub channel value is not string: %v", p.Value))
+						return
+					}
+					if chNameList, ok = p.Value.(string); ok {
+					} else {
+						err = errors.New(fmt.Sprintf("pubsub channel value can not converted to string: %v", p.Value))
+						return
+					}
 					break
 				}
-				psNode := c.nodeList[i].(*PubSubNode)
-				// pubsub property, for example: channel=a,b,c ...
-				for _, chName := range strings.Split(chNameList, ",") {
-					if ch, exist := c.namedChannel[chName]; exist {
-						// the channel is already registered, just subscribe it to pubsub node now
-						if err = psNode.SubscribeChannel(chName, ch); err != nil {
-							return
-						}
-					} else {
-						// the channel is required by pubsub, but has not registered yet, add it to pending list,
-						// so we can use composer to register it later dynamically
-						c.pendingChannelNode[chName] = psNode
+			}
+			if chNameList == "" {
+				logger.Debugf("pubsub channel props is nil")
+				continue
+			}
+
+			psNode := c.nodeList[i].(*PubSubNode)
+			// pubsub property, for example: channel=a,b,c ...
+			logger.Println("chNameList ", chNameList)
+			for _, chName := range strings.Split(chNameList, ",") {
+				if ch, exist := c.namedChannel[chName]; exist {
+					// the channel is already registered, just subscribe it to pubsub node now
+					if err = psNode.SubscribeChannel(chName, ch); err != nil {
+						return
 					}
+				} else {
+					// the channel is required by pubsub, but has not registered yet, add it to pending list,
+					// so we can use composer to register it later dynamically
+					c.pendingChannelNode[chName] = psNode
 				}
 			}
 		}
@@ -151,8 +163,8 @@ func (c *Composer) PrepareNodes(graph *event.Graph) (err error) {
 	return
 }
 
-func (c *Composer) GetSortedNodes() (ni []*NodeInfo) {
-	return c.gt.sortedNodeList
+func (c *Composer) GetSortedNodes() (ni []*nmd.NodeDef) {
+	return c.gt.GetSortedNodeDefs()
 }
 
 // GetMessageProvider get entry by its name

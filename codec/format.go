@@ -11,7 +11,6 @@ package codec
 //#include "codec.h"
 import "C"
 import (
-	"fmt"
 	"unsafe"
 )
 

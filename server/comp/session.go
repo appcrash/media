@@ -3,14 +3,11 @@ package comp
 import (
 	"errors"
 	"fmt"
+	"github.com/appcrash/media/server/comp/nmd"
 	"github.com/appcrash/media/server/event"
 	"reflect"
-	"regexp"
-	"strings"
 	"unsafe"
 )
-
-type ConfigItems map[string]interface{}
 
 // SessionNode is the base class of all nodes that provide capability in an RTP session
 type SessionNode struct {
@@ -21,22 +18,6 @@ type SessionNode struct {
 	// record where the pipe output to
 	dataLinkId                    int
 	dataSessionName, dataNodeName string
-}
-
-//------------------------- ConfigItems -------------------------
-
-const regCamelCasePattern = `_+[a-z]`
-
-var regCamelCase = regexp.MustCompile(regCamelCasePattern)
-
-// Set converts key in form of foo_bar or foo__bar ... into fooBar if possible
-// normal keys with camel case remain intact
-func (ci ConfigItems) Set(key string, val interface{}) {
-	newKey := regCamelCase.ReplaceAllStringFunc(key, func(match string) string {
-		last := string(match[len(match)-1])
-		return strings.ToUpper(last)
-	})
-	ci[newKey] = val
 }
 
 //------------------- Base Node Implementation -------------------------
@@ -77,7 +58,7 @@ func (s *SessionNode) ExitGraph() {
 	}
 }
 
-func (s *SessionNode) ConfigProperties(_ ConfigItems) {
+func (s *SessionNode) ConfigProperties(_ []*nmd.NodeProp) {
 }
 
 func (s *SessionNode) Init() error {
@@ -128,30 +109,36 @@ func (s *SessionNode) Cast(session, name string, args []string) {
 }
 
 // MakeSessionNode factory method of all session aware nodes
-func MakeSessionNode(nodeType string, sessionId string, ci ConfigItems) SessionAware {
-	if ci == nil || nodeType == "" || sessionId == "" {
+func MakeSessionNode(nodeType string, sessionId string, props []*nmd.NodeProp) SessionAware {
+	if nodeType == "" || sessionId == "" {
 		logger.Errorln("make session node failed")
 		return nil
 	}
-	ci.Set("SessionId", sessionId) // always set it
-	ci.Set("dataLinkId", -1)
+	props = append(props,
+		&nmd.NodeProp{
+			Key:   "SessionId",
+			Type:  "str",
+			Value: sessionId,
+		}, &nmd.NodeProp{
+			Key:   "dataLinkId",
+			Type:  "int",
+			Value: -1,
+		})
 	node := getNodeByName(nodeType)
 	if node != nil {
-		ci = setNodeProperties(node, ci)
-		node.ConfigProperties(ci)
+		props = setNodeProperties(node, props)
+		node.ConfigProperties(props)
 	}
 	return node
 }
 
 // setNodeProperties use reflection to set fields by Name, it is cornerstone of config by scripting
-func setNodeProperties(node event.Node, ci ConfigItems) (nci ConfigItems) {
+func setNodeProperties(node event.Node, props []*nmd.NodeProp) (newProps []*nmd.NodeProp) {
 	ns := reflect.ValueOf(node).Elem()
-	for k, v := range ci {
-		if v == nil {
-			continue
-		}
+	for _, p := range props {
+		k, value := p.Key, p.Value
 		field := ns.FieldByName(k)
-		rv := reflect.ValueOf(v)
+		rv := reflect.ValueOf(value)
 		if !field.IsValid() {
 			continue
 		}
@@ -174,10 +161,7 @@ func setNodeProperties(node event.Node, ci ConfigItems) (nci ConfigItems) {
 		}
 		continue
 	notHandled:
-		if nci == nil {
-			nci = make(ConfigItems)
-		}
-		nci[k] = v
+		newProps = append(newProps, p)
 	}
 	return
 }

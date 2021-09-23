@@ -6,11 +6,9 @@ import (
 )
 
 func TestGraphSorting(t *testing.T) {
-	desc := "[sink_entry] -> [transcode] \n" +
-		"[transcode] -> [asr] \n" +
-		"[asr] -> [pubsub] \n" +
-		"[transcode]: from_name=amrwb;from_samplerate=16k;to_name=pcm_s16le;to_samplerate=8k \n" +
-		"[pubsub]: channel=source_exit"
+	desc := `[sink_entry] -> [transcode] -> [asr] -> [pubsub];
+		[transcode from_name=amrwb from_samplerate='16k' to_name=pcm_s16le to_samplerate='8k']; 
+		[pubsub channel=source_exit]`
 
 	sc := comp.NewSessionComposer("test")
 	err := sc.ParseGraphDescription(desc)
@@ -26,13 +24,11 @@ func TestGraphSorting(t *testing.T) {
 }
 
 func TestGraphLoop(t *testing.T) {
-	desc := "[a] -> [b] \n" +
-		"[b] -> [c] \n" +
-		"[d] -> [c] \n" +
-		"[c] -> [e] \n" +
-		"[e] -> [a] \n"
+	desc := `[a] -> [b] -> [c] -> [e] -> [a];
+             [d] -> [c]`
 	sc := comp.NewSessionComposer("test")
 	err := sc.ParseGraphDescription(desc)
+	t.Logf("correctly detect error: %v", err)
 	if err == nil {
 		t.Fatal("loop not detected")
 	}
