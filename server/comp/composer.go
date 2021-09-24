@@ -124,7 +124,6 @@ func (c *Composer) PrepareNodes(graph *event.Graph) (err error) {
 			var ok bool
 			for _, p := range n.Props {
 				if p.Key == "channel" {
-
 					if p.Type != "str" || p.Value == nil {
 						err = errors.New(fmt.Sprintf("pubsub channel value is not string: %v", p.Value))
 						return

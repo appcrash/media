@@ -15,16 +15,13 @@ const regCamelCasePattern = `_+[a-z]`
 
 var regCamelCase = regexp.MustCompile(regCamelCasePattern)
 
-// Set converts key in form of foo_bar or foo__bar ... into fooBar if possible
+// FormalizeKey converts key in form of foo_bar or foo__bar ... into fooBar if possible
 // normal keys with camel case remain intact
-func (np *NodeProp) Set(key, typ string, val interface{}) {
-	newKey := regCamelCase.ReplaceAllStringFunc(key, func(match string) string {
+func (np *NodeProp) FormalizeKey() {
+	np.Key = regCamelCase.ReplaceAllStringFunc(np.Key, func(match string) string {
 		last := string(match[len(match)-1])
 		return strings.ToUpper(last)
 	})
-	np.Key = newKey
-	np.Type = typ
-	np.Value = val
 }
 
 type NodeDef struct {

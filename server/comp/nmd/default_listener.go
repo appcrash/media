@@ -150,6 +150,7 @@ func (l *Listener) ExitNode_def(c *Node_defContext) {
 }
 
 func (l *Listener) ExitNode_prop(c *Node_propContext) {
+	l.currentNodeProp.FormalizeKey()
 	l.currentNodeDef.Props = append(l.currentNodeDef.Props, l.currentNodeProp)
 }
 
