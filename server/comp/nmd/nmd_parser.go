@@ -15,62 +15,64 @@ var _ = reflect.Copy
 var _ = strconv.Itoa
 
 var parserATN = []uint16{
-	3, 24715, 42794, 33075, 47597, 16764, 15335, 30598, 22884, 3, 19, 105,
+	3, 24715, 42794, 33075, 47597, 16764, 15335, 30598, 22884, 3, 20, 111,
 	4, 2, 9, 2, 4, 3, 9, 3, 4, 4, 9, 4, 4, 5, 9, 5, 4, 6, 9, 6, 4, 7, 9, 7,
-	4, 8, 9, 8, 4, 9, 9, 9, 4, 10, 9, 10, 4, 11, 9, 11, 4, 12, 9, 12, 3, 2,
-	3, 2, 3, 3, 3, 3, 3, 3, 7, 3, 30, 10, 3, 12, 3, 14, 3, 33, 11, 3, 3, 3,
-	5, 3, 36, 10, 3, 3, 4, 3, 4, 3, 4, 3, 4, 5, 4, 42, 10, 4, 3, 5, 3, 5, 3,
-	5, 3, 5, 3, 5, 7, 5, 49, 10, 5, 12, 5, 14, 5, 52, 11, 5, 3, 6, 3, 6, 3,
-	6, 3, 6, 3, 7, 3, 7, 3, 7, 3, 7, 3, 8, 3, 8, 3, 8, 3, 8, 3, 8, 7, 8, 67,
-	10, 8, 12, 8, 14, 8, 70, 11, 8, 3, 8, 3, 8, 5, 8, 74, 10, 8, 3, 9, 3, 9,
-	3, 9, 7, 9, 79, 10, 9, 12, 9, 14, 9, 82, 11, 9, 3, 9, 3, 9, 3, 10, 3, 10,
-	3, 10, 5, 10, 89, 10, 10, 3, 10, 3, 10, 5, 10, 93, 10, 10, 3, 11, 3, 11,
-	3, 11, 3, 11, 3, 12, 3, 12, 3, 12, 3, 12, 5, 12, 103, 10, 12, 3, 12, 2,
-	2, 13, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 2, 2, 2, 107, 2, 24, 3,
-	2, 2, 2, 4, 26, 3, 2, 2, 2, 6, 41, 3, 2, 2, 2, 8, 43, 3, 2, 2, 2, 10, 53,
-	3, 2, 2, 2, 12, 57, 3, 2, 2, 2, 14, 73, 3, 2, 2, 2, 16, 75, 3, 2, 2, 2,
-	18, 85, 3, 2, 2, 2, 20, 94, 3, 2, 2, 2, 22, 102, 3, 2, 2, 2, 24, 25, 5,
-	4, 3, 2, 25, 3, 3, 2, 2, 2, 26, 31, 5, 6, 4, 2, 27, 28, 7, 3, 2, 2, 28,
-	30, 5, 6, 4, 2, 29, 27, 3, 2, 2, 2, 30, 33, 3, 2, 2, 2, 31, 29, 3, 2, 2,
-	2, 31, 32, 3, 2, 2, 2, 32, 35, 3, 2, 2, 2, 33, 31, 3, 2, 2, 2, 34, 36,
-	7, 3, 2, 2, 35, 34, 3, 2, 2, 2, 35, 36, 3, 2, 2, 2, 36, 5, 3, 2, 2, 2,
-	37, 42, 5, 16, 9, 2, 38, 42, 5, 8, 5, 2, 39, 42, 5, 10, 6, 2, 40, 42, 5,
-	12, 7, 2, 41, 37, 3, 2, 2, 2, 41, 38, 3, 2, 2, 2, 41, 39, 3, 2, 2, 2, 41,
-	40, 3, 2, 2, 2, 42, 7, 3, 2, 2, 2, 43, 44, 5, 14, 8, 2, 44, 45, 7, 4, 2,
-	2, 45, 50, 5, 14, 8, 2, 46, 47, 7, 4, 2, 2, 47, 49, 5, 14, 8, 2, 48, 46,
-	3, 2, 2, 2, 49, 52, 3, 2, 2, 2, 50, 48, 3, 2, 2, 2, 50, 51, 3, 2, 2, 2,
-	51, 9, 3, 2, 2, 2, 52, 50, 3, 2, 2, 2, 53, 54, 5, 16, 9, 2, 54, 55, 7,
-	5, 2, 2, 55, 56, 7, 15, 2, 2, 56, 11, 3, 2, 2, 2, 57, 58, 5, 16, 9, 2,
-	58, 59, 7, 6, 2, 2, 59, 60, 7, 15, 2, 2, 60, 13, 3, 2, 2, 2, 61, 74, 5,
-	16, 9, 2, 62, 63, 7, 7, 2, 2, 63, 68, 5, 16, 9, 2, 64, 65, 7, 8, 2, 2,
-	65, 67, 5, 16, 9, 2, 66, 64, 3, 2, 2, 2, 67, 70, 3, 2, 2, 2, 68, 66, 3,
-	2, 2, 2, 68, 69, 3, 2, 2, 2, 69, 71, 3, 2, 2, 2, 70, 68, 3, 2, 2, 2, 71,
-	72, 7, 9, 2, 2, 72, 74, 3, 2, 2, 2, 73, 61, 3, 2, 2, 2, 73, 62, 3, 2, 2,
-	2, 74, 15, 3, 2, 2, 2, 75, 76, 7, 10, 2, 2, 76, 80, 5, 18, 10, 2, 77, 79,
-	5, 20, 11, 2, 78, 77, 3, 2, 2, 2, 79, 82, 3, 2, 2, 2, 80, 78, 3, 2, 2,
-	2, 80, 81, 3, 2, 2, 2, 81, 83, 3, 2, 2, 2, 82, 80, 3, 2, 2, 2, 83, 84,
-	7, 11, 2, 2, 84, 17, 3, 2, 2, 2, 85, 88, 7, 19, 2, 2, 86, 87, 7, 12, 2,
-	2, 87, 89, 7, 19, 2, 2, 88, 86, 3, 2, 2, 2, 88, 89, 3, 2, 2, 2, 89, 92,
-	3, 2, 2, 2, 90, 91, 7, 13, 2, 2, 91, 93, 7, 19, 2, 2, 92, 90, 3, 2, 2,
-	2, 92, 93, 3, 2, 2, 2, 93, 19, 3, 2, 2, 2, 94, 95, 7, 19, 2, 2, 95, 96,
-	7, 14, 2, 2, 96, 97, 5, 22, 12, 2, 97, 21, 3, 2, 2, 2, 98, 103, 7, 15,
-	2, 2, 99, 103, 7, 19, 2, 2, 100, 103, 7, 16, 2, 2, 101, 103, 7, 17, 2,
-	2, 102, 98, 3, 2, 2, 2, 102, 99, 3, 2, 2, 2, 102, 100, 3, 2, 2, 2, 102,
-	101, 3, 2, 2, 2, 103, 23, 3, 2, 2, 2, 12, 31, 35, 41, 50, 68, 73, 80, 88,
-	92, 102,
+	4, 8, 9, 8, 4, 9, 9, 9, 4, 10, 9, 10, 4, 11, 9, 11, 4, 12, 9, 12, 4, 13,
+	9, 13, 3, 2, 3, 2, 3, 3, 3, 3, 3, 3, 7, 3, 32, 10, 3, 12, 3, 14, 3, 35,
+	11, 3, 3, 3, 5, 3, 38, 10, 3, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 5, 4, 45, 10,
+	4, 3, 5, 3, 5, 3, 5, 3, 5, 3, 5, 7, 5, 52, 10, 5, 12, 5, 14, 5, 55, 11,
+	5, 3, 6, 3, 6, 3, 6, 3, 6, 3, 7, 3, 7, 3, 7, 3, 7, 3, 8, 3, 8, 3, 8, 3,
+	9, 3, 9, 3, 9, 3, 9, 3, 9, 7, 9, 73, 10, 9, 12, 9, 14, 9, 76, 11, 9, 3,
+	9, 3, 9, 5, 9, 80, 10, 9, 3, 10, 3, 10, 3, 10, 7, 10, 85, 10, 10, 12, 10,
+	14, 10, 88, 11, 10, 3, 10, 3, 10, 3, 11, 3, 11, 3, 11, 5, 11, 95, 10, 11,
+	3, 11, 3, 11, 5, 11, 99, 10, 11, 3, 12, 3, 12, 3, 12, 3, 12, 3, 13, 3,
+	13, 3, 13, 3, 13, 5, 13, 109, 10, 13, 3, 13, 2, 2, 14, 2, 4, 6, 8, 10,
+	12, 14, 16, 18, 20, 22, 24, 2, 2, 2, 113, 2, 26, 3, 2, 2, 2, 4, 28, 3,
+	2, 2, 2, 6, 44, 3, 2, 2, 2, 8, 46, 3, 2, 2, 2, 10, 56, 3, 2, 2, 2, 12,
+	60, 3, 2, 2, 2, 14, 64, 3, 2, 2, 2, 16, 79, 3, 2, 2, 2, 18, 81, 3, 2, 2,
+	2, 20, 91, 3, 2, 2, 2, 22, 100, 3, 2, 2, 2, 24, 108, 3, 2, 2, 2, 26, 27,
+	5, 4, 3, 2, 27, 3, 3, 2, 2, 2, 28, 33, 5, 6, 4, 2, 29, 30, 7, 3, 2, 2,
+	30, 32, 5, 6, 4, 2, 31, 29, 3, 2, 2, 2, 32, 35, 3, 2, 2, 2, 33, 31, 3,
+	2, 2, 2, 33, 34, 3, 2, 2, 2, 34, 37, 3, 2, 2, 2, 35, 33, 3, 2, 2, 2, 36,
+	38, 7, 3, 2, 2, 37, 36, 3, 2, 2, 2, 37, 38, 3, 2, 2, 2, 38, 5, 3, 2, 2,
+	2, 39, 45, 5, 18, 10, 2, 40, 45, 5, 8, 5, 2, 41, 45, 5, 10, 6, 2, 42, 45,
+	5, 12, 7, 2, 43, 45, 5, 14, 8, 2, 44, 39, 3, 2, 2, 2, 44, 40, 3, 2, 2,
+	2, 44, 41, 3, 2, 2, 2, 44, 42, 3, 2, 2, 2, 44, 43, 3, 2, 2, 2, 45, 7, 3,
+	2, 2, 2, 46, 47, 5, 16, 9, 2, 47, 48, 7, 4, 2, 2, 48, 53, 5, 16, 9, 2,
+	49, 50, 7, 4, 2, 2, 50, 52, 5, 16, 9, 2, 51, 49, 3, 2, 2, 2, 52, 55, 3,
+	2, 2, 2, 53, 51, 3, 2, 2, 2, 53, 54, 3, 2, 2, 2, 54, 9, 3, 2, 2, 2, 55,
+	53, 3, 2, 2, 2, 56, 57, 5, 18, 10, 2, 57, 58, 7, 5, 2, 2, 58, 59, 7, 16,
+	2, 2, 59, 11, 3, 2, 2, 2, 60, 61, 5, 18, 10, 2, 61, 62, 7, 6, 2, 2, 62,
+	63, 7, 16, 2, 2, 63, 13, 3, 2, 2, 2, 64, 65, 7, 7, 2, 2, 65, 66, 7, 20,
+	2, 2, 66, 15, 3, 2, 2, 2, 67, 80, 5, 18, 10, 2, 68, 69, 7, 8, 2, 2, 69,
+	74, 5, 18, 10, 2, 70, 71, 7, 9, 2, 2, 71, 73, 5, 18, 10, 2, 72, 70, 3,
+	2, 2, 2, 73, 76, 3, 2, 2, 2, 74, 72, 3, 2, 2, 2, 74, 75, 3, 2, 2, 2, 75,
+	77, 3, 2, 2, 2, 76, 74, 3, 2, 2, 2, 77, 78, 7, 10, 2, 2, 78, 80, 3, 2,
+	2, 2, 79, 67, 3, 2, 2, 2, 79, 68, 3, 2, 2, 2, 80, 17, 3, 2, 2, 2, 81, 82,
+	7, 11, 2, 2, 82, 86, 5, 20, 11, 2, 83, 85, 5, 22, 12, 2, 84, 83, 3, 2,
+	2, 2, 85, 88, 3, 2, 2, 2, 86, 84, 3, 2, 2, 2, 86, 87, 3, 2, 2, 2, 87, 89,
+	3, 2, 2, 2, 88, 86, 3, 2, 2, 2, 89, 90, 7, 12, 2, 2, 90, 19, 3, 2, 2, 2,
+	91, 94, 7, 20, 2, 2, 92, 93, 7, 13, 2, 2, 93, 95, 7, 20, 2, 2, 94, 92,
+	3, 2, 2, 2, 94, 95, 3, 2, 2, 2, 95, 98, 3, 2, 2, 2, 96, 97, 7, 14, 2, 2,
+	97, 99, 7, 20, 2, 2, 98, 96, 3, 2, 2, 2, 98, 99, 3, 2, 2, 2, 99, 21, 3,
+	2, 2, 2, 100, 101, 7, 20, 2, 2, 101, 102, 7, 15, 2, 2, 102, 103, 5, 24,
+	13, 2, 103, 23, 3, 2, 2, 2, 104, 109, 7, 16, 2, 2, 105, 109, 7, 20, 2,
+	2, 106, 109, 7, 17, 2, 2, 107, 109, 7, 18, 2, 2, 108, 104, 3, 2, 2, 2,
+	108, 105, 3, 2, 2, 2, 108, 106, 3, 2, 2, 2, 108, 107, 3, 2, 2, 2, 109,
+	25, 3, 2, 2, 2, 12, 33, 37, 44, 53, 74, 79, 86, 94, 98, 108,
 }
 var literalNames = []string{
-	"", "';'", "'->'", "'<->'", "'<--'", "'{'", "','", "'}'", "'['", "']'",
-	"'@'", "':'", "'='",
+	"", "';'", "'->'", "'<->'", "'<--'", "'<-chan'", "'{'", "','", "'}'", "'['",
+	"']'", "'@'", "':'", "'='",
 }
 var symbolicNames = []string{
-	"", "", "", "", "", "", "", "", "", "", "", "", "", "QUOTED_STRING", "INT",
-	"FLOAT", "WS", "ID",
+	"", "", "", "", "", "", "", "", "", "", "", "", "", "", "QUOTED_STRING",
+	"INT", "FLOAT", "WS", "ID",
 }
 
 var ruleNames = []string{
-	"graph", "stmt_list", "stmt", "link_stmt", "call_stmt", "cast_stmt", "endpoint",
-	"node_def", "node_id", "node_prop", "property",
+	"graph", "stmt_list", "stmt", "link_stmt", "call_stmt", "cast_stmt", "sink_stmt",
+	"endpoint", "node_def", "node_id", "node_prop", "property",
 }
 
 type nmdParser struct {
@@ -117,11 +119,12 @@ const (
 	nmdParserT__9          = 10
 	nmdParserT__10         = 11
 	nmdParserT__11         = 12
-	nmdParserQUOTED_STRING = 13
-	nmdParserINT           = 14
-	nmdParserFLOAT         = 15
-	nmdParserWS            = 16
-	nmdParserID            = 17
+	nmdParserT__12         = 13
+	nmdParserQUOTED_STRING = 14
+	nmdParserINT           = 15
+	nmdParserFLOAT         = 16
+	nmdParserWS            = 17
+	nmdParserID            = 18
 )
 
 // nmdParser rules.
@@ -132,11 +135,12 @@ const (
 	nmdParserRULE_link_stmt = 3
 	nmdParserRULE_call_stmt = 4
 	nmdParserRULE_cast_stmt = 5
-	nmdParserRULE_endpoint  = 6
-	nmdParserRULE_node_def  = 7
-	nmdParserRULE_node_id   = 8
-	nmdParserRULE_node_prop = 9
-	nmdParserRULE_property  = 10
+	nmdParserRULE_sink_stmt = 6
+	nmdParserRULE_endpoint  = 7
+	nmdParserRULE_node_def  = 8
+	nmdParserRULE_node_id   = 9
+	nmdParserRULE_node_prop = 10
+	nmdParserRULE_property  = 11
 )
 
 // IGraphContext is an interface to support dynamic dispatch.
@@ -229,7 +233,7 @@ func (p *nmdParser) Graph() (localctx IGraphContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(22)
+		p.SetState(24)
 		p.Stmt_list()
 	}
 
@@ -342,36 +346,36 @@ func (p *nmdParser) Stmt_list() (localctx IStmt_listContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(24)
+		p.SetState(26)
 		p.Stmt()
 	}
-	p.SetState(29)
+	p.SetState(31)
 	p.GetErrorHandler().Sync(p)
 	_alt = p.GetInterpreter().AdaptivePredict(p.GetTokenStream(), 0, p.GetParserRuleContext())
 
 	for _alt != 2 && _alt != antlr.ATNInvalidAltNumber {
 		if _alt == 1 {
 			{
-				p.SetState(25)
+				p.SetState(27)
 				p.Match(nmdParserT__0)
 			}
 			{
-				p.SetState(26)
+				p.SetState(28)
 				p.Stmt()
 			}
 
 		}
-		p.SetState(31)
+		p.SetState(33)
 		p.GetErrorHandler().Sync(p)
 		_alt = p.GetInterpreter().AdaptivePredict(p.GetTokenStream(), 0, p.GetParserRuleContext())
 	}
-	p.SetState(33)
+	p.SetState(35)
 	p.GetErrorHandler().Sync(p)
 	_la = p.GetTokenStream().LA(1)
 
 	if _la == nmdParserT__0 {
 		{
-			p.SetState(32)
+			p.SetState(34)
 			p.Match(nmdParserT__0)
 		}
 
@@ -458,6 +462,16 @@ func (s *StmtContext) Cast_stmt() ICast_stmtContext {
 	return t.(ICast_stmtContext)
 }
 
+func (s *StmtContext) Sink_stmt() ISink_stmtContext {
+	var t = s.GetTypedRuleContext(reflect.TypeOf((*ISink_stmtContext)(nil)).Elem(), 0)
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(ISink_stmtContext)
+}
+
 func (s *StmtContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
@@ -498,35 +512,42 @@ func (p *nmdParser) Stmt() (localctx IStmtContext) {
 		}
 	}()
 
-	p.SetState(39)
+	p.SetState(42)
 	p.GetErrorHandler().Sync(p)
 	switch p.GetInterpreter().AdaptivePredict(p.GetTokenStream(), 2, p.GetParserRuleContext()) {
 	case 1:
 		p.EnterOuterAlt(localctx, 1)
 		{
-			p.SetState(35)
+			p.SetState(37)
 			p.Node_def()
 		}
 
 	case 2:
 		p.EnterOuterAlt(localctx, 2)
 		{
-			p.SetState(36)
+			p.SetState(38)
 			p.Link_stmt()
 		}
 
 	case 3:
 		p.EnterOuterAlt(localctx, 3)
 		{
-			p.SetState(37)
+			p.SetState(39)
 			p.Call_stmt()
 		}
 
 	case 4:
 		p.EnterOuterAlt(localctx, 4)
 		{
-			p.SetState(38)
+			p.SetState(40)
 			p.Cast_stmt()
+		}
+
+	case 5:
+		p.EnterOuterAlt(localctx, 5)
+		{
+			p.SetState(41)
+			p.Sink_stmt()
 		}
 
 	}
@@ -638,32 +659,32 @@ func (p *nmdParser) Link_stmt() (localctx ILink_stmtContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(41)
+		p.SetState(44)
 		p.Endpoint()
 	}
 	{
-		p.SetState(42)
+		p.SetState(45)
 		p.Match(nmdParserT__1)
 	}
 	{
-		p.SetState(43)
+		p.SetState(46)
 		p.Endpoint()
 	}
-	p.SetState(48)
+	p.SetState(51)
 	p.GetErrorHandler().Sync(p)
 	_la = p.GetTokenStream().LA(1)
 
 	for _la == nmdParserT__1 {
 		{
-			p.SetState(44)
+			p.SetState(47)
 			p.Match(nmdParserT__1)
 		}
 		{
-			p.SetState(45)
+			p.SetState(48)
 			p.Endpoint()
 		}
 
-		p.SetState(50)
+		p.SetState(53)
 		p.GetErrorHandler().Sync(p)
 		_la = p.GetTokenStream().LA(1)
 	}
@@ -776,15 +797,15 @@ func (p *nmdParser) Call_stmt() (localctx ICall_stmtContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(51)
+		p.SetState(54)
 		p.Node_def()
 	}
 	{
-		p.SetState(52)
+		p.SetState(55)
 		p.Match(nmdParserT__2)
 	}
 	{
-		p.SetState(53)
+		p.SetState(56)
 
 		var _m = p.Match(nmdParserQUOTED_STRING)
 
@@ -899,19 +920,128 @@ func (p *nmdParser) Cast_stmt() (localctx ICast_stmtContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(55)
+		p.SetState(58)
 		p.Node_def()
 	}
 	{
-		p.SetState(56)
+		p.SetState(59)
 		p.Match(nmdParserT__3)
 	}
 	{
-		p.SetState(57)
+		p.SetState(60)
 
 		var _m = p.Match(nmdParserQUOTED_STRING)
 
 		localctx.(*Cast_stmtContext).cmd = _m
+	}
+
+	return localctx
+}
+
+// ISink_stmtContext is an interface to support dynamic dispatch.
+type ISink_stmtContext interface {
+	antlr.ParserRuleContext
+
+	// GetParser returns the parser.
+	GetParser() antlr.Parser
+
+	// GetChannel returns the channel token.
+	GetChannel() antlr.Token
+
+	// SetChannel sets the channel token.
+	SetChannel(antlr.Token)
+
+	// IsSink_stmtContext differentiates from other interfaces.
+	IsSink_stmtContext()
+}
+
+type Sink_stmtContext struct {
+	*antlr.BaseParserRuleContext
+	parser  antlr.Parser
+	channel antlr.Token
+}
+
+func NewEmptySink_stmtContext() *Sink_stmtContext {
+	var p = new(Sink_stmtContext)
+	p.BaseParserRuleContext = antlr.NewBaseParserRuleContext(nil, -1)
+	p.RuleIndex = nmdParserRULE_sink_stmt
+	return p
+}
+
+func (*Sink_stmtContext) IsSink_stmtContext() {}
+
+func NewSink_stmtContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *Sink_stmtContext {
+	var p = new(Sink_stmtContext)
+
+	p.BaseParserRuleContext = antlr.NewBaseParserRuleContext(parent, invokingState)
+
+	p.parser = parser
+	p.RuleIndex = nmdParserRULE_sink_stmt
+
+	return p
+}
+
+func (s *Sink_stmtContext) GetParser() antlr.Parser { return s.parser }
+
+func (s *Sink_stmtContext) GetChannel() antlr.Token { return s.channel }
+
+func (s *Sink_stmtContext) SetChannel(v antlr.Token) { s.channel = v }
+
+func (s *Sink_stmtContext) ID() antlr.TerminalNode {
+	return s.GetToken(nmdParserID, 0)
+}
+
+func (s *Sink_stmtContext) GetRuleContext() antlr.RuleContext {
+	return s
+}
+
+func (s *Sink_stmtContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
+	return antlr.TreesStringTree(s, ruleNames, recog)
+}
+
+func (s *Sink_stmtContext) EnterRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(nmdListener); ok {
+		listenerT.EnterSink_stmt(s)
+	}
+}
+
+func (s *Sink_stmtContext) ExitRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(nmdListener); ok {
+		listenerT.ExitSink_stmt(s)
+	}
+}
+
+func (p *nmdParser) Sink_stmt() (localctx ISink_stmtContext) {
+	localctx = NewSink_stmtContext(p, p.GetParserRuleContext(), p.GetState())
+	p.EnterRule(localctx, 12, nmdParserRULE_sink_stmt)
+
+	defer func() {
+		p.ExitRule()
+	}()
+
+	defer func() {
+		if err := recover(); err != nil {
+			if v, ok := err.(antlr.RecognitionException); ok {
+				localctx.SetException(v)
+				p.GetErrorHandler().ReportError(p, v)
+				p.GetErrorHandler().Recover(p, v)
+			} else {
+				panic(err)
+			}
+		}
+	}()
+
+	p.EnterOuterAlt(localctx, 1)
+	{
+		p.SetState(62)
+		p.Match(nmdParserT__4)
+	}
+	{
+		p.SetState(63)
+
+		var _m = p.Match(nmdParserID)
+
+		localctx.(*Sink_stmtContext).channel = _m
 	}
 
 	return localctx
@@ -1000,7 +1130,7 @@ func (s *EndpointContext) ExitRule(listener antlr.ParseTreeListener) {
 
 func (p *nmdParser) Endpoint() (localctx IEndpointContext) {
 	localctx = NewEndpointContext(p, p.GetParserRuleContext(), p.GetState())
-	p.EnterRule(localctx, 12, nmdParserRULE_endpoint)
+	p.EnterRule(localctx, 14, nmdParserRULE_endpoint)
 	var _la int
 
 	defer func() {
@@ -1019,48 +1149,48 @@ func (p *nmdParser) Endpoint() (localctx IEndpointContext) {
 		}
 	}()
 
-	p.SetState(71)
+	p.SetState(77)
 	p.GetErrorHandler().Sync(p)
 
 	switch p.GetTokenStream().LA(1) {
-	case nmdParserT__7:
+	case nmdParserT__8:
 		p.EnterOuterAlt(localctx, 1)
 		{
-			p.SetState(59)
+			p.SetState(65)
 			p.Node_def()
 		}
 
-	case nmdParserT__4:
+	case nmdParserT__5:
 		p.EnterOuterAlt(localctx, 2)
 		{
-			p.SetState(60)
-			p.Match(nmdParserT__4)
+			p.SetState(66)
+			p.Match(nmdParserT__5)
 		}
 		{
-			p.SetState(61)
+			p.SetState(67)
 			p.Node_def()
 		}
-		p.SetState(66)
+		p.SetState(72)
 		p.GetErrorHandler().Sync(p)
 		_la = p.GetTokenStream().LA(1)
 
-		for _la == nmdParserT__5 {
+		for _la == nmdParserT__6 {
 			{
-				p.SetState(62)
-				p.Match(nmdParserT__5)
+				p.SetState(68)
+				p.Match(nmdParserT__6)
 			}
 			{
-				p.SetState(63)
+				p.SetState(69)
 				p.Node_def()
 			}
 
-			p.SetState(68)
+			p.SetState(74)
 			p.GetErrorHandler().Sync(p)
 			_la = p.GetTokenStream().LA(1)
 		}
 		{
-			p.SetState(69)
-			p.Match(nmdParserT__6)
+			p.SetState(75)
+			p.Match(nmdParserT__7)
 		}
 
 	default:
@@ -1163,7 +1293,7 @@ func (s *Node_defContext) ExitRule(listener antlr.ParseTreeListener) {
 
 func (p *nmdParser) Node_def() (localctx INode_defContext) {
 	localctx = NewNode_defContext(p, p.GetParserRuleContext(), p.GetState())
-	p.EnterRule(localctx, 14, nmdParserRULE_node_def)
+	p.EnterRule(localctx, 16, nmdParserRULE_node_def)
 	var _la int
 
 	defer func() {
@@ -1184,30 +1314,30 @@ func (p *nmdParser) Node_def() (localctx INode_defContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(73)
-		p.Match(nmdParserT__7)
+		p.SetState(79)
+		p.Match(nmdParserT__8)
 	}
 	{
-		p.SetState(74)
+		p.SetState(80)
 		p.Node_id()
 	}
-	p.SetState(78)
+	p.SetState(84)
 	p.GetErrorHandler().Sync(p)
 	_la = p.GetTokenStream().LA(1)
 
 	for _la == nmdParserID {
 		{
-			p.SetState(75)
+			p.SetState(81)
 			p.Node_prop()
 		}
 
-		p.SetState(80)
+		p.SetState(86)
 		p.GetErrorHandler().Sync(p)
 		_la = p.GetTokenStream().LA(1)
 	}
 	{
-		p.SetState(81)
-		p.Match(nmdParserT__8)
+		p.SetState(87)
+		p.Match(nmdParserT__9)
 	}
 
 	return localctx
@@ -1314,7 +1444,7 @@ func (s *Node_idContext) ExitRule(listener antlr.ParseTreeListener) {
 
 func (p *nmdParser) Node_id() (localctx INode_idContext) {
 	localctx = NewNode_idContext(p, p.GetParserRuleContext(), p.GetState())
-	p.EnterRule(localctx, 16, nmdParserRULE_node_id)
+	p.EnterRule(localctx, 18, nmdParserRULE_node_id)
 	var _la int
 
 	defer func() {
@@ -1335,23 +1465,23 @@ func (p *nmdParser) Node_id() (localctx INode_idContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(83)
+		p.SetState(89)
 
 		var _m = p.Match(nmdParserID)
 
 		localctx.(*Node_idContext).name = _m
 	}
-	p.SetState(86)
+	p.SetState(92)
 	p.GetErrorHandler().Sync(p)
 	_la = p.GetTokenStream().LA(1)
 
-	if _la == nmdParserT__9 {
+	if _la == nmdParserT__10 {
 		{
-			p.SetState(84)
-			p.Match(nmdParserT__9)
+			p.SetState(90)
+			p.Match(nmdParserT__10)
 		}
 		{
-			p.SetState(85)
+			p.SetState(91)
 
 			var _m = p.Match(nmdParserID)
 
@@ -1359,17 +1489,17 @@ func (p *nmdParser) Node_id() (localctx INode_idContext) {
 		}
 
 	}
-	p.SetState(90)
+	p.SetState(96)
 	p.GetErrorHandler().Sync(p)
 	_la = p.GetTokenStream().LA(1)
 
-	if _la == nmdParserT__10 {
+	if _la == nmdParserT__11 {
 		{
-			p.SetState(88)
-			p.Match(nmdParserT__10)
+			p.SetState(94)
+			p.Match(nmdParserT__11)
 		}
 		{
-			p.SetState(89)
+			p.SetState(95)
 
 			var _m = p.Match(nmdParserID)
 
@@ -1477,7 +1607,7 @@ func (s *Node_propContext) ExitRule(listener antlr.ParseTreeListener) {
 
 func (p *nmdParser) Node_prop() (localctx INode_propContext) {
 	localctx = NewNode_propContext(p, p.GetParserRuleContext(), p.GetState())
-	p.EnterRule(localctx, 18, nmdParserRULE_node_prop)
+	p.EnterRule(localctx, 20, nmdParserRULE_node_prop)
 
 	defer func() {
 		p.ExitRule()
@@ -1497,18 +1627,18 @@ func (p *nmdParser) Node_prop() (localctx INode_propContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(92)
+		p.SetState(98)
 
 		var _m = p.Match(nmdParserID)
 
 		localctx.(*Node_propContext).key = _m
 	}
 	{
-		p.SetState(93)
-		p.Match(nmdParserT__11)
+		p.SetState(99)
+		p.Match(nmdParserT__12)
 	}
 	{
-		p.SetState(94)
+		p.SetState(100)
 
 		var _x = p.Property()
 
@@ -1706,7 +1836,7 @@ func (s *PropIntContext) ExitRule(listener antlr.ParseTreeListener) {
 
 func (p *nmdParser) Property() (localctx IPropertyContext) {
 	localctx = NewPropertyContext(p, p.GetParserRuleContext(), p.GetState())
-	p.EnterRule(localctx, 20, nmdParserRULE_property)
+	p.EnterRule(localctx, 22, nmdParserRULE_property)
 
 	defer func() {
 		p.ExitRule()
@@ -1724,7 +1854,7 @@ func (p *nmdParser) Property() (localctx IPropertyContext) {
 		}
 	}()
 
-	p.SetState(100)
+	p.SetState(106)
 	p.GetErrorHandler().Sync(p)
 
 	switch p.GetTokenStream().LA(1) {
@@ -1732,7 +1862,7 @@ func (p *nmdParser) Property() (localctx IPropertyContext) {
 		localctx = NewPropQuoteStringContext(p, localctx)
 		p.EnterOuterAlt(localctx, 1)
 		{
-			p.SetState(96)
+			p.SetState(102)
 			p.Match(nmdParserQUOTED_STRING)
 		}
 
@@ -1740,7 +1870,7 @@ func (p *nmdParser) Property() (localctx IPropertyContext) {
 		localctx = NewPropIdContext(p, localctx)
 		p.EnterOuterAlt(localctx, 2)
 		{
-			p.SetState(97)
+			p.SetState(103)
 			p.Match(nmdParserID)
 		}
 
@@ -1748,7 +1878,7 @@ func (p *nmdParser) Property() (localctx IPropertyContext) {
 		localctx = NewPropIntContext(p, localctx)
 		p.EnterOuterAlt(localctx, 3)
 		{
-			p.SetState(98)
+			p.SetState(104)
 			p.Match(nmdParserINT)
 		}
 
@@ -1756,7 +1886,7 @@ func (p *nmdParser) Property() (localctx IPropertyContext) {
 		localctx = NewPropFloatContext(p, localctx)
 		p.EnterOuterAlt(localctx, 4)
 		{
-			p.SetState(99)
+			p.SetState(105)
 			p.Match(nmdParserFLOAT)
 		}
 

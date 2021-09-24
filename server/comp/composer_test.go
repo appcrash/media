@@ -41,18 +41,17 @@ func TestComposerBasic(t *testing.T) {
 	}
 	ch1 := make(chan *event.Event, 2)
 	ch2 := make(chan *event.Event, 2)
-	c.RegisterChannel("src1", ch1) // statically register
-	if err := c.PrepareNodes(graph); err != nil {
+	if err := c.ComposeNodes(graph); err != nil {
 		t.Fatal("prepare node failed", err)
 	}
-
+	c.LinkChannel("src1", ch1)
 	mp := c.GetMessageProvider(comp.TYPE_ENTRY)
 	mp.PushMessage(comp.NewDataMessage("hello"))
 	evt := <-ch1
 	if evt.GetObj().(comp.DataMessage).String() != "hello" {
 		t.Fatal("send/recv message not equal for src1")
 	}
-	c.RegisterChannel("src2", ch2)
+	c.LinkChannel("src2", ch2)
 	mp.PushMessage(comp.NewDataMessage("hello again"))
 	evt = <-ch2
 	if evt.GetObj().(comp.DataMessage).String() != "hello again" {
@@ -70,7 +69,7 @@ func TestComposerWrongNodeType(t *testing.T) {
 	if err := c.ParseGraphDescription(gd); err != nil {
 		t.Fatal("parse graph failed")
 	}
-	if err := c.PrepareNodes(event.NewEventGraph()); err == nil {
+	if err := c.ComposeNodes(event.NewEventGraph()); err == nil {
 		t.Fatal("should fail to prepare wrong type nodes")
 	}
 }
@@ -86,11 +85,11 @@ func ExampleComposerPubSub() {
 		return
 	}
 	ch := make(chan *event.Event, 2)
-	c.RegisterChannel("src", ch)
-	if err := c.PrepareNodes(graph); err != nil {
+	if err := c.ComposeNodes(graph); err != nil {
 		fmt.Println("prepare node failed")
 		return
 	}
+	c.LinkChannel("src", ch)
 	mp := c.GetMessageProvider(comp.TYPE_ENTRY)
 	mp.PushMessage(comp.NewDataMessage("foobar"))
 	evt := <-ch
@@ -115,7 +114,7 @@ func ExampleComposerMultipleEntry() {
 		fmt.Println("parse graph failed")
 		return
 	}
-	if err := c.PrepareNodes(graph); err != nil {
+	if err := c.ComposeNodes(graph); err != nil {
 		fmt.Println("prepare node failed")
 		return
 	}
@@ -141,7 +140,7 @@ func ExampleComposerController() {
 		fmt.Println("parse graph failed, ", err)
 		return
 	}
-	if err := c.PrepareNodes(graph); err != nil {
+	if err := c.ComposeNodes(graph); err != nil {
 		fmt.Println("prepare node failed, ", err)
 		return
 	}
@@ -166,7 +165,7 @@ func ExampleComposerInterSession() {
 		fmt.Println("parse graph failed")
 		return
 	}
-	if c1.PrepareNodes(graph) != nil || c2.PrepareNodes(graph) != nil {
+	if c1.ComposeNodes(graph) != nil || c2.ComposeNodes(graph) != nil {
 		fmt.Println("prepare node failed")
 		return
 	}

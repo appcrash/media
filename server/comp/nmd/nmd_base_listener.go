@@ -56,6 +56,12 @@ func (s *BasenmdListener) EnterCast_stmt(ctx *Cast_stmtContext) {}
 // ExitCast_stmt is called when production cast_stmt is exited.
 func (s *BasenmdListener) ExitCast_stmt(ctx *Cast_stmtContext) {}
 
+// EnterSink_stmt is called when production sink_stmt is entered.
+func (s *BasenmdListener) EnterSink_stmt(ctx *Sink_stmtContext) {}
+
+// ExitSink_stmt is called when production sink_stmt is exited.
+func (s *BasenmdListener) ExitSink_stmt(ctx *Sink_stmtContext) {}
+
 // EnterEndpoint is called when production endpoint is entered.
 func (s *BasenmdListener) EnterEndpoint(ctx *EndpointContext) {}
 

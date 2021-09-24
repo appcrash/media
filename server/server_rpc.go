@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/appcrash/media/server/rpc"
 	"runtime/debug"
 )
@@ -39,7 +40,7 @@ func (srv *MediaServer) StartSession(_ context.Context, param *rpc.StartParam) (
 				return nil, errors.New("session already started")
 			}
 			if err := session.Start(); err != nil {
-				return nil, errors.New("start session failed")
+				return nil, errors.New(fmt.Sprintf("start session failed: %v", err))
 			}
 		} else {
 			return nil, errors.New("not a session object")
@@ -111,11 +112,10 @@ func (srv *MediaServer) ExecuteActionWithNotify(action *rpc.Action, stream rpc.M
 		arg := action.GetCmdArg()
 		if e, ok1 := srv.streamExecutorMap.Load(cmd); ok1 {
 			exec := e.(CommandExecute)
-			ctrlIn := make(ExecuteCtrlChan)
-			ctrlOut := make(ExecuteCtrlChan)
+			ctrlIn := make(ExecuteCtrlChan, 10)
+			ctrlOut := make(ExecuteCtrlChan, 10)
 			go exec.ExecuteWithNotify(session, cmd, arg, ctrlIn, ctrlOut)
 
-			shouldExit := false
 		outLoop:
 			for {
 				select {
@@ -125,15 +125,12 @@ func (srv *MediaServer) ExecuteActionWithNotify(action *rpc.Action, stream rpc.M
 						Event:     msg,
 					}
 					if !more {
-						shouldExit = true
+						// executor loop already exits by itself, break without notification
+						break outLoop
 					}
 					if err := stream.Send(&event); err != nil {
 						logger.Errorf("send action event of stream(%v) with event %v error", session, event.String())
-						shouldExit = true
-					}
-					if shouldExit {
-						// either executor runs out of message or send stream with error, exit the loop
-						// notify executor by closing the ctrl channel
+						// notify executor loop to exit
 						close(ctrlIn)
 						break outLoop
 					}

@@ -7,11 +7,13 @@ stmt : node_def
      | link_stmt
      | call_stmt
      | cast_stmt
+     | sink_stmt
      ;
 
 link_stmt : endpoint '->' endpoint ('->' endpoint)* ;
 call_stmt : node_def '<->' cmd=QUOTED_STRING ;
 cast_stmt : node_def '<--' cmd=QUOTED_STRING ;
+sink_stmt : '<-chan' channel=ID ;
 
 endpoint : node_def
          | '{' node_def (',' node_def)* '}'

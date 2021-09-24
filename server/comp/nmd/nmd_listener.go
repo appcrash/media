@@ -25,6 +25,9 @@ type nmdListener interface {
 	// EnterCast_stmt is called when entering the cast_stmt production.
 	EnterCast_stmt(c *Cast_stmtContext)
 
+	// EnterSink_stmt is called when entering the sink_stmt production.
+	EnterSink_stmt(c *Sink_stmtContext)
+
 	// EnterEndpoint is called when entering the endpoint production.
 	EnterEndpoint(c *EndpointContext)
 
@@ -66,6 +69,9 @@ type nmdListener interface {
 
 	// ExitCast_stmt is called when exiting the cast_stmt production.
 	ExitCast_stmt(c *Cast_stmtContext)
+
+	// ExitSink_stmt is called when exiting the sink_stmt production.
+	ExitSink_stmt(c *Sink_stmtContext)
 
 	// ExitEndpoint is called when exiting the endpoint production.
 	ExitEndpoint(c *EndpointContext)

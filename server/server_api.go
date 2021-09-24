@@ -47,6 +47,7 @@ func StartServer(grpcIp string, grpcPort uint16,
 		sourceF:           sourceF,
 		sinkF:             sinkF,
 	}
+	server.registerCommandExecutor(&ScriptCommandHandler{}) // built-in script executor
 	for _, e := range executorList {
 		server.registerCommandExecutor(e)
 	}

@@ -13,6 +13,7 @@ type Listener struct {
 	NodeDefs []*NodeDef
 	CallDefs []*CallActionDefs
 	CastDefs []*CastActionDefs
+	SinkDefs []*SinkActionDefs
 
 	nodeMap       map[string]*NodeDef
 	nbNode        int
@@ -173,4 +174,8 @@ func (l *Listener) ExitCast_stmt(ctx *Cast_stmtContext) {
 	cast.Cmd = cmd
 	l.CastDefs = append(l.CastDefs, cast)
 	l.nodeDefStack = nil
+}
+
+func (l *Listener) ExitSink_stmt(ctx *Sink_stmtContext) {
+	l.SinkDefs = append(l.SinkDefs, &SinkActionDefs{ctx.channel.GetText()})
 }

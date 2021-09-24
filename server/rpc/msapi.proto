@@ -16,7 +16,8 @@ message CreateParam {
   uint32 peer_port = 2;              // remote rtp port
   uint32 payload_dynamic_type = 3;   // negotiated payload type, dynamic(96 ~ 127), fixed type will ignore this field
   CodecType payload_codec_type = 4;  // used to identify mime type, like "AMR","PCM_ALAW"
-  string graph_desc = 5;             // used to describe event graph
+  string codec_param = 5;            // parameter of codec, like fmtp: ...
+  string graph_desc = 6;             // used to describe event graph
 }
 
 message StartParam {

@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+// TODO: every statement should have sequence id
+
 type NodeProp struct {
 	Key, Type string
 	Value     interface{}
@@ -50,4 +52,8 @@ type CallActionDefs struct {
 
 type CastActionDefs struct {
 	CallActionDefs
+}
+
+type SinkActionDefs struct {
+	ChannelName string
 }

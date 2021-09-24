@@ -10,6 +10,9 @@ import (
 
 type GraphTopology struct {
 	nodeDefs       []*NodeDef
+	callDefs       []*CallActionDefs
+	castDefs       []*CastActionDefs
+	sinkDefs       []*SinkActionDefs
 	sortedNodeDefs []*NodeDef // topographical sorted, node with less dependency comes first
 	nbParseError   int
 }
@@ -27,11 +30,26 @@ func (gt *GraphTopology) ParseGraph(sessionId, desc string) error {
 	antlr.ParseTreeWalkerDefault.Walk(listener, parser.Graph())
 
 	gt.nodeDefs = listener.NodeDefs
+	gt.callDefs = listener.CallDefs
+	gt.castDefs = listener.CastDefs
+	gt.sinkDefs = listener.SinkDefs
 	return gt.topographicalSort()
 }
 
 func (gt *GraphTopology) GetSortedNodeDefs() []*NodeDef {
 	return gt.sortedNodeDefs
+}
+
+func (gt *GraphTopology) GetCallActions() []*CallActionDefs {
+	return gt.callDefs
+}
+
+func (gt *GraphTopology) GetCastActions() []*CastActionDefs {
+	return gt.castDefs
+}
+
+func (gt *GraphTopology) GetSinkActions() []*SinkActionDefs {
+	return gt.sinkDefs
 }
 
 // O(n*n) sort algorithm, ok when n is small

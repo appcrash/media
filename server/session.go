@@ -15,17 +15,19 @@ import (
 )
 
 type MediaSession struct {
-	server            *MediaServer
-	isStarted         bool
-	sessionId         string
-	localIp           *net.IPAddr
-	localPort         int
-	rtpPort           uint16
-	rtpSession        *rtp.Session
+	server     *MediaServer
+	isStarted  bool
+	sessionId  string
+	localIp    *net.IPAddr
+	localPort  int
+	rtpPort    uint16
+	rtpSession *rtp.Session
+
 	payloadTypeNumber uint32
 	payloadCodec      rpc.CodecType
-	stopCounter       uint32
+	codecParam        string
 
+	stopCounter  uint32
 	sndCtrlC     chan string
 	rcvCtrlC     chan string
 	rcvRtcpCtrlC chan string
@@ -46,6 +48,10 @@ func (s *MediaSession) GetPayloadType() uint32 {
 
 func (s *MediaSession) GetCodecType() rpc.CodecType {
 	return s.payloadCodec
+}
+
+func (s *MediaSession) GetCodecParam() string {
+	return s.codecParam
 }
 
 func (s *MediaSession) GetEventGraph() *event.Graph {
@@ -89,6 +95,7 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, e
 		rtpPort:           localPort,
 		payloadTypeNumber: mediaParam.GetPayloadDynamicType(),
 		payloadCodec:      mediaParam.GetPayloadCodecType(),
+		codecParam:        mediaParam.GetCodecParam(),
 
 		// use buffered version to avoid deadlock
 		sndCtrlC:     make(chan string, 2),
@@ -120,7 +127,7 @@ func (s *MediaSession) setupGraph() error {
 			return err
 		}
 	}
-	if err := s.composer.PrepareNodes(s.server.graph); err != nil {
+	if err := s.composer.ComposeNodes(s.server.graph); err != nil {
 		return err
 	}
 	for _, cai := range ca {
@@ -370,7 +377,7 @@ func (s *MediaSession) AddRemote(ip string, port int) (err error) {
 	return
 }
 
-// statically or dynamically add a channel to event graph
-func (s *MediaSession) RegisterChannel(name string, ch chan<- *event.Event) {
-	s.composer.RegisterChannel(name, ch)
+// LinkChannel links *ch* to the channel registered as *name* in graph description
+func (s *MediaSession) LinkChannel(name string, ch chan<- *event.Event) {
+	s.composer.LinkChannel(name, ch)
 }

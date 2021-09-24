@@ -19,17 +19,21 @@ type Composer struct {
 	dispatch        *Dispatch
 	nodeList        []SessionAware // topographical sorted nodes
 
-	// channel handling, can static or dynamically add channels
-	mutex              sync.Mutex
-	pendingChannelNode map[string]*PubSubNode
-	namedChannel       map[string]chan<- *event.Event
+	// channel handling, channels are registered by parsing nmd graph description, then linked dynamically
+	mutex        sync.Mutex
+	namedChannel map[string]*channelInfo
+}
+
+type channelInfo struct {
+	isConnected bool
+	peerNode    *PubSubNode
+	ch          chan<- *event.Event
 }
 
 func NewSessionComposer(sessionId string) *Composer {
 	sc := &Composer{
-		sessionId:          sessionId,
-		pendingChannelNode: make(map[string]*PubSubNode),
-		namedChannel:       make(map[string]chan<- *event.Event),
+		sessionId:    sessionId,
+		namedChannel: make(map[string]*channelInfo),
 	}
 	return sc
 }
@@ -41,8 +45,8 @@ func (c *Composer) ParseGraphDescription(desc string) (err error) {
 	return
 }
 
-// PrepareNodes create node instances by type, add them to graph, and link them
-func (c *Composer) PrepareNodes(graph *event.Graph) (err error) {
+// ComposeNodes create node instances by type, add them to graph, and link them
+func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 	var nodeIds []*Id
 	nodeDefs := c.gt.GetSortedNodeDefs()
 	nbNode := len(nodeDefs)
@@ -115,46 +119,41 @@ func (c *Composer) PrepareNodes(graph *event.Graph) (err error) {
 
 	// subscribe channels, for all nodes of type pubsub, find the registered channel with same name
 	// as specified in pubsub's "channel" property
-	if len(c.namedChannel) > 0 {
-		for i, n := range nodeDefs {
-			if n.Type != TYPE_PUBSUB {
-				continue
-			}
-			var chNameList string
-			var ok bool
-			for _, p := range n.Props {
-				if p.Key == "channel" {
-					if p.Type != "str" || p.Value == nil {
-						err = errors.New(fmt.Sprintf("pubsub channel value is not string: %v", p.Value))
-						return
-					}
-					if chNameList, ok = p.Value.(string); ok {
-					} else {
-						err = errors.New(fmt.Sprintf("pubsub channel value can not converted to string: %v", p.Value))
-						return
-					}
-					break
+	for i, n := range nodeDefs {
+		if n.Type != TYPE_PUBSUB {
+			continue
+		}
+		var chNameList string
+		var ok bool
+		for _, p := range n.Props {
+			if p.Key == "channel" {
+				if p.Type != "str" || p.Value == nil {
+					err = errors.New(fmt.Sprintf("pubsub channel value is not string: %v", p.Value))
+					return
 				}
-			}
-			if chNameList == "" {
-				logger.Debugf("pubsub channel props is nil")
-				continue
-			}
-
-			psNode := c.nodeList[i].(*PubSubNode)
-			// pubsub property, for example: channel=a,b,c ...
-			logger.Println("chNameList ", chNameList)
-			for _, chName := range strings.Split(chNameList, ",") {
-				if ch, exist := c.namedChannel[chName]; exist {
-					// the channel is already registered, just subscribe it to pubsub node now
-					if err = psNode.SubscribeChannel(chName, ch); err != nil {
-						return
-					}
+				if chNameList, ok = p.Value.(string); ok {
 				} else {
-					// the channel is required by pubsub, but has not registered yet, add it to pending list,
-					// so we can use composer to register it later dynamically
-					c.pendingChannelNode[chName] = psNode
+					err = errors.New(fmt.Sprintf("pubsub channel value can not converted to string: %v", p.Value))
+					return
 				}
+				break
+			}
+		}
+		if chNameList == "" {
+			logger.Debugf("pubsub channel props is nil")
+			continue
+		}
+
+		psNode := c.nodeList[i].(*PubSubNode)
+		// pubsub property, for example: channel=a,b,c ...
+		logger.Println("chNameList ", chNameList)
+		for _, chName := range strings.Split(chNameList, ",") {
+			if _, exist := c.namedChannel[chName]; exist {
+				// the channel is already registered
+				err = errors.New(fmt.Sprintf("channel:%v can only subscribe to one pubsub node", chName))
+				return
+			} else {
+				c.namedChannel[chName] = &channelInfo{peerNode: psNode}
 			}
 		}
 	}
@@ -180,17 +179,39 @@ func (c *Composer) GetController() Controller {
 	return c.dispatch
 }
 
-func (c *Composer) RegisterChannel(name string, ch chan<- *event.Event) {
+func (c *Composer) LinkChannel(name string, ch chan<- *event.Event) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	// check if the channel is in pending list, if found, a pubsub node is waiting for it
-	if psNode, exist := c.pendingChannelNode[name]; exist {
-		psNode.SubscribeChannel(name, ch)
-		delete(c.pendingChannelNode, name)
-	} else {
-		// statically register this channel to used in PrepareNodes phase
-		c.namedChannel[name] = ch
+	// check if the channel is connected, if found and not connected, a pubsub node is waiting for it
+	if ci, exist := c.namedChannel[name]; exist {
+		if ci.isConnected {
+			return errors.New("channel is already connected")
+		}
+		if err := ci.peerNode.SubscribeChannel(name, ch); err != nil {
+			return err
+		}
+		ci.ch = ch
+		ci.isConnected = true
+		return nil
 	}
+	return errors.New(fmt.Sprintf("no such channel: %v", name))
+}
+
+func (c *Composer) UnlinkChannel(name string) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	if ci, exist := c.namedChannel[name]; exist {
+		if !ci.isConnected {
+			return errors.New("channel is not connected")
+		}
+		if err := ci.peerNode.UnsubscribeChannel(name); err != nil {
+			return err
+		}
+		ci.ch = nil
+		ci.isConnected = true
+		return nil
+	}
+	return errors.New(fmt.Sprintf("no such channel: %v", name))
 }
 
 func (c *Composer) ExitGraph() {

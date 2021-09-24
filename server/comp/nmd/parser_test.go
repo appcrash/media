@@ -50,3 +50,19 @@ func TestCallCast(t *testing.T) {
 		t.Fatal("parse cast statement failed")
 	}
 }
+
+func TestSink(t *testing.T) {
+	testStr := `[a] <-> 'call cmd';
+                <-chan mychannel`
+	input := antlr.NewInputStream(testStr)
+	lexer := nmd.NewnmdLexer(input)
+	stream := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
+	parser := nmd.NewnmdParser(stream)
+	listener := nmd.NewListener("test_session")
+	antlr.ParseTreeWalkerDefault.Walk(listener, parser.Graph())
+
+	sinkDef := listener.SinkDefs[0]
+	if sinkDef.ChannelName != "mychannel" {
+		t.Fatal("parse sink statement failed")
+	}
+}
