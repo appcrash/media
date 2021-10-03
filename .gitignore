@@ -5,3 +5,5 @@ compile_commands.json
 
 /*.wav
 /*.amr
+
+cov-int/

@@ -1,0 +1,45 @@
+name: Coverity Scan
+
+on:
+  schedule:
+    - cron: '40 2 * * *'
+
+jobs:
+  upload-scan:
+    runs-on: ubuntu-latest
+    container: appcrash/ffmpeg:debian
+    env:
+      TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+      VERSION: ${GITHUB_SHA:10} 
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.15'
+
+      - name: coverity setup
+        run: |
+          curl -X POST -d "token=$TOKEN&project=appcrash%2Fmedia" https://scan.coverity.com/download/linux64 -o coverity.tgz 
+          mkdir coverity
+          tar zxf coverity.tgz --strip 1 -C coverity
+
+      - name: coverity scan
+        run: |
+          export PATH=`pwd`/coverity/bin:$PATH
+          cov-build --dir cov-int gcc -shared -fpic -o libcodec.so ./codec/*.c 
+
+      - name: upload data
+        run: |
+          tar czvf media.tgz cov-int
+          curl \
+            --form token=$TOKEN \
+            --form email=cosmosgleam@gmail.com \
+            --form file=@media.tgz \ 
+            --form version="$VERSION" \
+            --form description="scheduled_scan" \ 
+            https://scan.coverity.com/builds?project=appcrash%2Fmedia
+
+
+
+
