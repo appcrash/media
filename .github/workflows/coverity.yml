@@ -14,9 +14,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
-        with:
-          go-version: '1.15'
 
       - name: coverity setup
         run: |
@@ -27,7 +24,7 @@ jobs:
       - name: coverity scan
         run: |
           export PATH=`pwd`/coverity/bin:$PATH
-          cov-build --dir cov-int gcc -shared -fpic -o libcodec.so ./codec/*.c 
+          cov-build --dir cov-int make -C codec
 
       - name: upload data
         run: |
