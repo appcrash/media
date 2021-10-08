@@ -355,6 +355,10 @@ void transcode_iterate(struct TranscodeContext *trans_ctx,char *compressed_data,
      * and the memory to which *data* field points would not be freed by libav* library
      */
     packet = av_packet_alloc();
+    if (!packet) {
+        *reason = -1;
+        return;
+    }
     av_init_packet(packet);
     packet->data = (uint8_t*)compressed_data;
     packet->size = compressed_size;
@@ -384,9 +388,7 @@ void transcode_iterate(struct TranscodeContext *trans_ctx,char *compressed_data,
     }
 
 error:
-    if (packet) {
-        av_packet_free(&packet);
-    }
+    av_packet_free(&packet);
 }
 
 void transcode_free(struct TranscodeContext *trans_ctx)

@@ -9,6 +9,10 @@ struct MixContext *mix_init_context(const char *param_string,int length)
     parse_param_string(param_string,length,&dict);
 
     mix_ctx = av_malloc(sizeof(*mix_ctx));
+    if (!mix_ctx) {
+        PERR("failed to initialize mix context");
+        return NULL;
+    }
     bzero(mix_ctx, sizeof(*mix_ctx));
     mix_ctx->out_buffer = buffer_alloc(102400);
     if (!mix_ctx->out_buffer) {
@@ -38,9 +42,7 @@ struct MixContext *mix_init_context(const char *param_string,int length)
 
     return mix_ctx;
 error:
-    if (mix_ctx) {
-        av_free(mix_ctx);
-    }
+    av_free(mix_ctx);
     return NULL;
 }
 

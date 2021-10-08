@@ -40,7 +40,7 @@ func (srv *MediaServer) StartSession(_ context.Context, param *rpc.StartParam) (
 				return nil, errors.New("session already started")
 			}
 			if err := session.Start(); err != nil {
-				return nil, errors.New(fmt.Sprintf("start session failed: %v", err))
+				return nil, fmt.Errorf("start session failed: %v", err)
 			}
 		} else {
 			return nil, errors.New("not a session object")

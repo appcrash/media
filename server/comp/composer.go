@@ -87,14 +87,14 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 	// for each node, its dependent nodes are in graph when adding it to graph
 	for i, n := range c.nodeList {
 		if !graph.AddNode(n) {
-			err = errors.New(fmt.Sprintf("failed to add node %v to graph", n.GetNodeName()))
+			err = fmt.Errorf("failed to add node %v to graph", n.GetNodeName())
 			return
 		}
 		deps := nodeDefs[i].Deps
 		for _, ni := range deps {
 			// set pipe end to local session nodes
 			if n.SetPipeOut(c.sessionId, ni.Name) != nil {
-				err = errors.New(fmt.Sprintf("failed to link %v => %v", n.GetNodeName(), ni.Name))
+				err = fmt.Errorf("failed to link %v => %v", n.GetNodeName(), ni.Name)
 				return
 			}
 		}
@@ -128,12 +128,12 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 		for _, p := range n.Props {
 			if p.Key == "channel" {
 				if p.Type != "str" || p.Value == nil {
-					err = errors.New(fmt.Sprintf("pubsub channel value is not string: %v", p.Value))
+					err = fmt.Errorf("pubsub channel value is not string: %v", p.Value)
 					return
 				}
 				if chNameList, ok = p.Value.(string); ok {
 				} else {
-					err = errors.New(fmt.Sprintf("pubsub channel value can not converted to string: %v", p.Value))
+					err = fmt.Errorf("pubsub channel value can not converted to string: %v", p.Value)
 					return
 				}
 				break
@@ -150,7 +150,7 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 		for _, chName := range strings.Split(chNameList, ",") {
 			if _, exist := c.namedChannel[chName]; exist {
 				// the channel is already registered
-				err = errors.New(fmt.Sprintf("channel:%v can only subscribe to one pubsub node", chName))
+				err = fmt.Errorf("channel:%v can only subscribe to one pubsub node", chName)
 				return
 			} else {
 				c.namedChannel[chName] = &channelInfo{peerNode: psNode}
@@ -194,7 +194,7 @@ func (c *Composer) LinkChannel(name string, ch chan<- *event.Event) error {
 		ci.isConnected = true
 		return nil
 	}
-	return errors.New(fmt.Sprintf("no such channel: %v", name))
+	return fmt.Errorf("no such channel: %v", name)
 }
 
 func (c *Composer) UnlinkChannel(name string) error {
@@ -211,7 +211,7 @@ func (c *Composer) UnlinkChannel(name string) error {
 		ci.isConnected = true
 		return nil
 	}
-	return errors.New(fmt.Sprintf("no such channel: %v", name))
+	return fmt.Errorf("no such channel: %v", name)
 }
 
 func (c *Composer) ExitGraph() {

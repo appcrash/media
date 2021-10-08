@@ -49,9 +49,8 @@ func AmrSplitToFrames(payload []byte, isAmrwb bool) (frames [][]byte) {
 func AmrFrameToRtpPayload(frames [][]byte, isAmrwb bool, isOctetAlignMode bool) (rtpPayload [][]byte) {
 	if isOctetAlignMode {
 		return amrOctetModeFrameToRtpPayload(frames)
-	} else {
-		return amrBandwidthEfficientModeFrameToRtpPayload(frames, isAmrwb)
 	}
+	return amrBandwidthEfficientModeFrameToRtpPayload(frames, isAmrwb)
 }
 
 // AmrRtpPayloadToFrame skip the header, count the frames in the index, then extract each frame data
@@ -190,7 +189,7 @@ func amrBandwidthEfficientModeRtpPayloadToFrame(payload []byte, isAmrwb bool) (f
 			for i := 0; i < size-1; i++ {
 				b1, b2 := payload[startByte], payload[startByte+1]
 				frame[i] = ((b1 & mask1) << leftShift) | ((b2 >> rightShift) & mask2)
-				startByte += 1
+				startByte++
 			}
 			// be careful to handle last byte when not aligned
 			if remainingBits != 0 {

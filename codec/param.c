@@ -50,8 +50,5 @@ cleanup:
     if (type_name) {
         av_free(type_name);
     }
-    if (value) {
-        av_free(value);
-    }
     *dict = d;
 }
