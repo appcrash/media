@@ -5,19 +5,19 @@ import (
 	"fmt"
 	"github.com/appcrash/media/server/comp/nmd"
 	"github.com/appcrash/media/server/event"
+	"sort"
 	"strings"
 	"sync"
 )
 
-// we create every node and config their properties based on the collected info, then
+// Composer creates every node and config their properties based on the collected info, then
 // link them and send initial events as described before putting them into working state.
-
 type Composer struct {
-	sessionId       string
-	gt              *nmd.GraphTopology
-	messageProvider []MessageProvider
-	dispatch        *Dispatch
-	nodeList        []SessionAware // topographical sorted nodes
+	sessionId           string
+	gt                  *nmd.GraphTopology
+	messageProviderList []MessageProvider
+	dispatch            *Dispatch
+	nodeList            []SessionAware // topographical sorted nodes
 
 	// channel handling, channels are registered by parsing nmd graph description, then linked dynamically
 	mutex        sync.Mutex
@@ -76,12 +76,18 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 		}
 		c.nodeList = append(c.nodeList, sn)
 		if provider, ok := sn.(MessageProvider); ok {
-			c.messageProvider = append(c.messageProvider, provider)
+			c.messageProviderList = append(c.messageProviderList, provider)
 		}
 
 		id := NewId(sn.GetNodeScope(), sn.GetNodeName())
 		nodeIds = append(nodeIds, id)
 	}
+
+	// sort message providers, those can handle specific payload type comes first
+	sort.SliceStable(c.messageProviderList, func(i, j int) bool {
+		return c.messageProviderList[i].Priority() < c.messageProviderList[j].Priority()
+	})
+	logger.Debugf("session(%s) has %v message providers", c.sessionId, len(c.messageProviderList))
 
 	// add all nodes to graph, create links between them, as nodes are already topographical sorted,
 	// for each node, its dependent nodes are in graph when adding it to graph
@@ -167,12 +173,17 @@ func (c *Composer) GetSortedNodes() (ni []*nmd.NodeDef) {
 
 // GetMessageProvider get entry by its name
 func (c *Composer) GetMessageProvider(name string) MessageProvider {
-	for _, provider := range c.messageProvider {
+	for _, provider := range c.messageProviderList {
 		if provider.GetName() == name {
 			return provider
 		}
 	}
 	return nil
+}
+
+func (c *Composer) GetMessageProviderList() (mps []MessageProvider) {
+	mps = c.messageProviderList
+	return
 }
 
 func (c *Composer) GetController() Controller {

@@ -20,6 +20,7 @@ func (srv *MediaServer) PrepareSession(_ context.Context, param *rpc.CreateParam
 		session.finalize()
 		return nil, err
 	}
+
 	logger.Infof("rpc: prepared session %v", session.sessionId)
 	rpcSession := rpc.Session{}
 	rpcSession.SessionId = session.sessionId
@@ -36,9 +37,6 @@ func (srv *MediaServer) StartSession(_ context.Context, param *rpc.StartParam) (
 	logger.Infof("rpc: start session %v", sessionId)
 	if obj, exist := sessionMap.Load(sessionId); exist {
 		if session, ok := obj.(*MediaSession); ok {
-			if session.isStarted {
-				return nil, errors.New("session already started")
-			}
 			if err := session.Start(); err != nil {
 				return nil, fmt.Errorf("start session failed: %v", err)
 			}

@@ -5,19 +5,24 @@ package rpc;
 option go_package = "github.com/appcrash/media/server/rpc";
 
 enum CodecType {
-  RAW = 0;     // raw data
-  PCM_ALAW = 1;
-  AMRNB = 2;
-  AMRWB = 3;
+  RAW = 0;     // raw packet data
+  TELEPHONE_EVENT = 1;
+  PCM_ALAW = 2;
+  AMRNB = 3;
+  AMRWB = 4;
+}
+
+message CodecInfo {
+  uint32 payload_number = 1;  // negotiated payload type, dynamic(96 ~ 127) or fixed type
+  CodecType payload_type = 2; // used to identify mime type, like "AMR","PCM_ALAW"
+  string codec_param = 3;     // parameter of codec, like fmtp: ...
 }
 
 message CreateParam {
   string peer_ip = 1;                // remote rtp ip
   uint32 peer_port = 2;              // remote rtp port
-  uint32 payload_dynamic_type = 3;   // negotiated payload type, dynamic(96 ~ 127), fixed type will ignore this field
-  CodecType payload_codec_type = 4;  // used to identify mime type, like "AMR","PCM_ALAW"
-  string codec_param = 5;            // parameter of codec, like fmtp: ...
-  string graph_desc = 6;             // used to describe event graph
+  repeated CodecInfo codecs = 3;
+  string graph_desc = 4;             // used to describe event graph
 }
 
 message StartParam {

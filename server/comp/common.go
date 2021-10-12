@@ -75,10 +75,12 @@ type Controller interface {
 	Cast(session, name string, args []string)
 }
 
-// MessageProvider can push data message to event graph
+// MessageProvider can push data message to event-graph
 type MessageProvider interface {
 	GetName() string
 	PushMessage(data DataMessage) error
+	CanHandlePayloadType(pt uint8) bool
+	Priority() uint32 // multiple message providers can be ordered by priority
 }
 
 // Registry service for new node type with predefined factories

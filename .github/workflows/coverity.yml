@@ -10,7 +10,6 @@ jobs:
     container: appcrash/ffmpeg:debian
     env:
       TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
-      VERSION: ${GITHUB_SHA:10} 
 
     steps:
       - uses: actions/checkout@v2
@@ -29,7 +28,7 @@ jobs:
       - name: upload data
         run: |
           tar czvf media.tgz cov-int
-          curl --form token=$TOKEN --form email=cosmosgleam@gmail.com --form file=@media.tgz --form version="$VERSION" --form description="scheduled_scan" https://scan.coverity.com/builds?project=appcrash%2Fmedia
+          curl --form token=$TOKEN --form email=cosmosgleam@gmail.com --form file=@media.tgz --form version="${GITHUB_SHA::10}" --form description="scheduled_scan" https://scan.coverity.com/builds?project=appcrash%2Fmedia
 
 
 
