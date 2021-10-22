@@ -52,7 +52,7 @@ func (d *Dispatch) connectTo(nl []*Id) (err error) {
 			d.linkMap[node.String()] = linkId
 			d.mutex.Unlock()
 		} else {
-			err = errors.New(fmt.Sprintf("dispatch connect to %v failed", node.Name))
+			err = fmt.Errorf("dispatch connect to %v failed", node.Name)
 			return
 		}
 	}

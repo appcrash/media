@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/appcrash/media/server/prom"
 	"github.com/appcrash/media/server/rpc"
+	"github.com/prometheus/client_golang/prometheus"
 	"runtime/debug"
 )
 
@@ -86,6 +88,7 @@ func (srv *MediaServer) ExecuteAction(_ context.Context, action *rpc.Action) (*r
 		if e, ok1 := srv.simpleExecutorMap.Load(cmd); ok1 {
 			exec := e.(CommandExecute)
 			exec.Execute(session, cmd, arg)
+			prom.SessionAction.With(prometheus.Labels{"cmd": cmd, "type": "simple"}).Inc()
 			result.State = "ok"
 			return &result, nil
 		}
@@ -134,6 +137,7 @@ func (srv *MediaServer) ExecuteActionWithNotify(action *rpc.Action, stream rpc.M
 					}
 				}
 			}
+			prom.SessionAction.With(prometheus.Labels{"cmd": cmd, "type": "stream"}).Inc()
 		}
 
 		return nil

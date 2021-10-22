@@ -3,6 +3,8 @@ package server
 import (
 	"github.com/appcrash/GoRTP/rtp"
 	"github.com/appcrash/media/codec"
+	"github.com/appcrash/media/server/prom"
+	"github.com/prometheus/client_golang/prometheus"
 	"runtime/debug"
 	"time"
 )
@@ -11,8 +13,11 @@ import (
 func (s *MediaSession) receiveCtrlLoop() {
 	rtcpReceiver := s.rtpSession.CreateCtrlEventChan()
 	ctrlC := s.rcvRtcpCtrlC
+	gauge := prom.SessionGoroutine.With(prometheus.Labels{"type": "recv_ctrl"})
+	gauge.Inc()
 
 	defer func() {
+		gauge.Dec()
 		logger.Debugf("session:%v stop ctrl recv", s.GetSessionId())
 		s.doneC <- "done"
 	}()
@@ -41,6 +46,8 @@ func (s *MediaSession) receiveCtrlLoop() {
 }
 
 func (s *MediaSession) receivePacketLoop() {
+	gauge := prom.SessionGoroutine.With(prometheus.Labels{"type": "recv"})
+	gauge.Inc()
 	// Create and store the data receive channel.
 	defer func() {
 		if r := recover(); r != nil {
@@ -50,6 +57,7 @@ func (s *MediaSession) receivePacketLoop() {
 	}()
 
 	defer func() {
+		gauge.Dec()
 		s.doneC <- "done"
 	}()
 
@@ -87,6 +95,9 @@ outLoop:
 
 func (s *MediaSession) sendPacketLoop() {
 	var ts uint32 = 0
+	gauge := prom.SessionGoroutine.With(prometheus.Labels{"type": "send"})
+	gauge.Inc()
+
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Fatalln("sendPacketLoop panic %v", r)
@@ -94,6 +105,7 @@ func (s *MediaSession) sendPacketLoop() {
 		}
 	}()
 	defer func() {
+		gauge.Dec()
 		s.doneC <- "done"
 	}()
 

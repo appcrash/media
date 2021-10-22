@@ -1,11 +1,22 @@
 package server
 
 import (
+	"github.com/appcrash/media/server/prom"
 	"github.com/appcrash/media/server/rpc"
 	"sync"
 )
 
 var sessionMap = sync.Map{}
+
+func addToSessionMap(session *MediaSession) {
+	sessionMap.Store(session.sessionId, session)
+	prom.CreatedSession.Inc()
+}
+
+func removeFromSessionMap(session *MediaSession) {
+	sessionMap.Delete(session.sessionId)
+	prom.CreatedSession.Dec()
+}
 
 func (srv *MediaServer) getNextAvailableRtpPort() uint16 {
 	return srv.portPool.get()
@@ -43,6 +54,7 @@ func (srv *MediaServer) createSession(param *rpc.CreateParam) (session *MediaSes
 	if err = session.activate(); err != nil {
 		return
 	}
-	sessionMap.Store(session.sessionId, session)
+	prom.AllSession.Inc()
+	addToSessionMap(session)
 	return session, nil
 }

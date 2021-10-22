@@ -4,6 +4,7 @@ import (
 	"github.com/appcrash/GoRTP/rtp"
 	"github.com/appcrash/media/server/comp"
 	"github.com/appcrash/media/server/event"
+	"github.com/appcrash/media/server/prom"
 	"github.com/appcrash/media/server/rpc"
 	"net"
 	"time"
@@ -53,6 +54,8 @@ func (s *MediaSession) Start() (err error) {
 	if err = s.rtpSession.StartSession(); err != nil {
 		return
 	}
+	prom.StartedSession.Inc()
+
 	go s.receiveCtrlLoop()
 	go s.receivePacketLoop()
 	go s.sendPacketLoop()

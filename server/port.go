@@ -1,5 +1,7 @@
 package server
 
+import "github.com/appcrash/media/server/prom"
+
 type portPool struct {
 	freePortC  chan uint16 // store rtp ports (even number)
 	start, end uint16
@@ -28,6 +30,7 @@ func (p *portPool) get() (port uint16) {
 	// if pool is empty, return 0 as this port wouldn't be used by applications
 	select {
 	case port = <-p.freePortC:
+		prom.UsedPortPair.Inc()
 	default:
 	}
 	return
@@ -35,4 +38,5 @@ func (p *portPool) get() (port uint16) {
 
 func (p *portPool) put(port uint16) {
 	p.freePortC <- port
+	prom.UsedPortPair.Dec()
 }

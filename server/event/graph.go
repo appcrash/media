@@ -1,6 +1,7 @@
 package event
 
 import (
+	"github.com/appcrash/media/server/prom"
 	"github.com/appcrash/media/server/utils"
 	"reflect"
 	"time"
@@ -24,6 +25,16 @@ type nodeInfo struct {
 	maxLink     int
 }
 
+func (eg *Graph) updateNodeStats() {
+	nb := float64(len(eg.nodeMap))
+	prom.NodeGraphNodes.Set(nb)
+}
+
+func (eg *Graph) updateLinkStats() {
+	nb := float64(len(eg.linkSet))
+	prom.NodeGraphLinks.Set(nb)
+}
+
 func (eg *Graph) findNode(scope string, name string) *NodeDelegate {
 	if nodeList, ok := eg.scopeMap[scope]; ok {
 		for _, node := range nodeList {
@@ -43,6 +54,7 @@ func (eg *Graph) addNode(nd *NodeDelegate, maxLink int) {
 		eg.scopeMap[scope] = append(nodeList, nd)
 	}
 	eg.nodeMap[nd.getId()] = &nodeInfo{maxLink: maxLink}
+	eg.updateNodeStats()
 }
 
 func (eg *Graph) delNode(nd *NodeDelegate) {
@@ -67,6 +79,7 @@ func (eg *Graph) delNode(nd *NodeDelegate) {
 		}
 	}
 	delete(eg.nodeMap, nd.getId())
+	eg.updateNodeStats()
 }
 
 func (eg *Graph) getNodeInfo(nodeId string) *nodeInfo {
@@ -91,6 +104,7 @@ func (eg *Graph) addLink(nd *NodeDelegate, l *dlink) {
 	} else {
 		logger.Errorf("[graph]: can not addLink %v\n", l)
 	}
+	eg.updateLinkStats()
 }
 
 // tear down a dlink in node delegate
@@ -130,6 +144,7 @@ func (eg *Graph) delLink(nd *NodeDelegate, l *dlink) {
 	lastLink := (*linkArray)[length-1]
 	(*linkArray)[index] = lastLink
 	*linkArray = (*linkArray)[:length-1]
+	eg.updateLinkStats()
 }
 
 func (eg *Graph) deliveryEvent(evt *Event) {
@@ -324,7 +339,7 @@ func (eg *Graph) AddNode(node Node) (success bool) {
 	cb := func() { c <- true }
 	evt := newNodeAddRequest(nodeAddRequest{node, cb})
 	eg.deliveryEvent(evt)
-	if err := utils.WaitChannelWithTimeout(c, 1, 1*time.Second); err == nil {
+	if err := utils.WaitChannelWithTimeout(c, 1, 5*time.Second); err == nil {
 		success = true
 	}
 	return

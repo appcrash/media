@@ -2,7 +2,7 @@ package event
 
 import (
 	"errors"
-	"fmt"
+	"github.com/appcrash/media/server/prom"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -22,15 +22,14 @@ type NodeDelegate struct {
 	deliveryTimeout time.Duration // in milliseconds
 
 	invokeMutex sync.Mutex
-	wg          sync.WaitGroup
 	// lock-free dlink array with fixed size(maxLink)
 	// even though links field and its pointers(*atomic.Value) is not
 	// volatile(that means they can be cpu-local cached), it doesn't matter.
 	// in fact, all of them are read-only once created,
 	// accessing element by atomic.Load always gets the latest value it points to
 	// the limitation of max links are the trade-off between performance and
-	// flexibility. if links can dynamic grow and event delivery has to atomic
-	// read it everytime(instead of cached) because we have to rewrite this variable
+	// flexibility. if links can dynamically grow and event delivery has to atomic
+	// read it every time(instead of cached) because we have to rewrite this variable
 	// when enlarging array. in real world, output link number is fixed in most case,
 	// so putting this limitation doesn't hurt much
 	links []*atomic.Value
@@ -166,7 +165,8 @@ func (nd *NodeDelegate) systemEventLoop() (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			var ok bool
-			fmt.Errorf("[graph]: bug %v\n", r)
+			prom.NodeSystemEventException.Inc()
+			logger.Errorf("[graph]: bug %v\n", r)
 			if err, ok = r.(error); ok {
 				return
 			}
@@ -288,6 +288,7 @@ func (nd *NodeDelegate) userEventLoop(done chan int) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			var ok bool
+			prom.NodeUserEventException.Inc()
 			if err, ok = r.(error); ok {
 				return
 			}

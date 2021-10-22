@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/appcrash/GoRTP/rtp"
 	"github.com/appcrash/media/server/comp"
+	"github.com/appcrash/media/server/prom"
 	"github.com/appcrash/media/server/rpc"
 	"github.com/google/uuid"
 	"net"
@@ -174,5 +175,6 @@ func (s *MediaSession) finalize() {
 	if s.rtpPort != 0 {
 		s.server.reclaimRtpPort(s.rtpPort)
 	}
-	sessionMap.Delete(s.sessionId)
+	prom.StartedSession.Dec()
+	removeFromSessionMap(s)
 }

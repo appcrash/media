@@ -7,6 +7,7 @@ require (
 	github.com/appcrash/GoRTP v0.0.0-20211011055644-4a09f69361d7
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.1.2
+	github.com/prometheus/client_golang v1.11.0
 	github.com/sirupsen/logrus v1.8.1
 	google.golang.org/grpc v1.37.1
 	google.golang.org/protobuf v1.27.1
