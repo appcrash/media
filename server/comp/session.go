@@ -103,9 +103,17 @@ func (s *SessionNode) Call(session, name string, args []string) (resp []string) 
 	return s.ctrl.Call(session, name, args)
 }
 
+func (s *SessionNode) CallSys(name string, args []string) (resp []string) {
+	return s.Call(SYS_NODE_SCOPE, name, args)
+}
+
 // Cast forward to controller
 func (s *SessionNode) Cast(session, name string, args []string) {
 	s.ctrl.Cast(session, name, args)
+}
+
+func (s *SessionNode) CastSys(name string, args []string) {
+	s.Cast(SYS_NODE_SCOPE, name, args)
 }
 
 // MakeSessionNode factory method of all session aware nodes

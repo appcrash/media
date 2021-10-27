@@ -11,7 +11,7 @@ import (
 // business commands normally change node's behaviour by send control messages to them with Call() or Cast(),
 // nodes react to these messages which may cause more messages(change other node's behaviour,chain reaction) to send.
 // all of these messages are sent from Dispatch.
-// it is a SessionNode as well as implementing Controller interfaces, so provide api to callers while sending
+// it is a SessionNode as well as implementing Controller interfaces, so it provides api to callers as well as sending
 // messages to any other nodes in the event graph.
 type Dispatch struct {
 	SessionNode

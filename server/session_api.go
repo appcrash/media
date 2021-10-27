@@ -7,6 +7,7 @@ import (
 	"github.com/appcrash/media/server/prom"
 	"github.com/appcrash/media/server/rpc"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -16,8 +17,42 @@ const (
 	sessionStatusStopped
 )
 
+type MediaSession struct {
+	server     *MediaServer
+	sessionId  string
+	localIp    *net.IPAddr
+	localPort  int
+	rtpPort    uint16
+	rtpSession *rtp.Session
+	instanceId string // which instance created this session
+
+	audioPayloadNumber uint8
+	audioPayloadCodec  rpc.CodecType
+	audioCodecParam    string
+
+	telephoneEventPayloadNumber uint8
+
+	mutex                sync.Mutex
+	createTimestamp      time.Time
+	activeCheckTimestamp time.Time // last time we send session info state to instance, updated by server
+	activeEchoTimestamp  time.Time // last time we recv session info state from instance, updated by server
+	status               int
+	sndCtrlC             chan string
+	rcvCtrlC             chan string
+	rcvRtcpCtrlC         chan string
+	doneC                chan string // notify this channel when loop is done
+
+	source   []Source
+	sink     []Sink
+	composer *comp.Composer
+}
+
 func (s *MediaSession) GetSessionId() string {
 	return s.sessionId
+}
+
+func (s *MediaSession) GetStatus() int {
+	return s.status
 }
 
 func (s *MediaSession) GetAudioPayloadType() uint8 {

@@ -4,40 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"github.com/appcrash/GoRTP/rtp"
+	"github.com/appcrash/media/server/channel"
 	"github.com/appcrash/media/server/comp"
 	"github.com/appcrash/media/server/prom"
 	"github.com/appcrash/media/server/rpc"
 	"github.com/google/uuid"
-	"net"
 	"strings"
-	"sync"
+	"time"
 )
-
-type MediaSession struct {
-	server     *MediaServer
-	sessionId  string
-	localIp    *net.IPAddr
-	localPort  int
-	rtpPort    uint16
-	rtpSession *rtp.Session
-
-	audioPayloadNumber uint8
-	audioPayloadCodec  rpc.CodecType
-	audioCodecParam    string
-
-	telephoneEventPayloadNumber uint8
-
-	mutex        sync.Mutex
-	status       int
-	sndCtrlC     chan string
-	rcvCtrlC     chan string
-	rcvRtcpCtrlC chan string
-	doneC        chan string // notify this channel when loop is done
-
-	source   []Source
-	sink     []Sink
-	composer *comp.Composer
-}
 
 func profileOfCodec(c rpc.CodecType) (profile string) {
 	switch c {
@@ -58,6 +32,10 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, e
 	if localPort = srv.getNextAvailableRtpPort(); localPort == 0 {
 		return nil, errors.New("server runs out of port resource")
 	}
+	instanceId := mediaParam.InstanceId
+	if !channel.GetSystemChannel().HasInstance(instanceId) {
+		return nil, fmt.Errorf("the instance %v not registered, cannot create session", instanceId)
+	}
 	sid := uuid.New().String()
 	sid = strings.Replace(sid, "-", "", -1) // ID in nmd language doesn't contains '-'
 	gd := mediaParam.GetGraphDesc()
@@ -66,13 +44,18 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, e
 		logger.Errorln(err)
 		return nil, errors.New("composer parse graph description failed")
 	}
-
+	now := time.Now()
 	s := MediaSession{
-		server:    srv,
-		sessionId: sid,
-		localIp:   srv.rtpServerIpAddr,
-		localPort: int(localPort),
-		rtpPort:   localPort,
+		server:     srv,
+		sessionId:  sid,
+		localIp:    srv.rtpServerIpAddr,
+		localPort:  int(localPort),
+		rtpPort:    localPort,
+		instanceId: instanceId,
+
+		createTimestamp:      now,
+		activeCheckTimestamp: now,
+		activeEchoTimestamp:  now,
 
 		// use buffered version to avoid deadlock
 		sndCtrlC:     make(chan string, 2),
@@ -178,5 +161,5 @@ func (s *MediaSession) finalize() {
 		s.server.reclaimRtpPort(s.rtpPort)
 	}
 	prom.StartedSession.Dec()
-	removeFromSessionMap(s)
+	s.server.removeFromSessionMap(s)
 }

@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/appcrash/media/server/channel"
 	"github.com/appcrash/media/server/prom"
 	"github.com/appcrash/media/server/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"runtime/debug"
+	"sync"
 )
 
 func (srv *MediaServer) PrepareSession(_ context.Context, param *rpc.CreateParam) (*rpc.Session, error) {
@@ -37,13 +39,12 @@ func (srv *MediaServer) PrepareSession(_ context.Context, param *rpc.CreateParam
 func (srv *MediaServer) StartSession(_ context.Context, param *rpc.StartParam) (*rpc.Status, error) {
 	sessionId := param.GetSessionId()
 	logger.Infof("rpc: start session %v", sessionId)
-	if obj, exist := sessionMap.Load(sessionId); exist {
-		if session, ok := obj.(*MediaSession); ok {
-			if err := session.Start(); err != nil {
-				return nil, fmt.Errorf("start session failed: %v", err)
-			}
-		} else {
-			return nil, errors.New("not a session object")
+	srv.sessionMutex.Lock()
+	session, exist := srv.sessionMap[sessionId]
+	srv.sessionMutex.Unlock()
+	if exist {
+		if err := session.Start(); err != nil {
+			return nil, fmt.Errorf("start session failed: %v", err)
 		}
 	} else {
 		return nil, errors.New("session not exist")
@@ -55,13 +56,11 @@ func (srv *MediaServer) StartSession(_ context.Context, param *rpc.StartParam) (
 func (srv *MediaServer) StopSession(_ context.Context, param *rpc.StopParam) (*rpc.Status, error) {
 	sessionId := param.GetSessionId()
 	logger.Infof("rpc: stop session %v", sessionId)
-	if obj, exist := sessionMap.Load(sessionId); exist {
-		if session, ok := obj.(*MediaSession); ok {
-			session.Stop()
-			return &rpc.Status{Status: "ok"}, nil
-		} else {
-			return nil, errors.New("not a session object")
-		}
+	srv.sessionMutex.Lock()
+	session, exist := srv.sessionMap[sessionId]
+	if exist {
+		session.Stop()
+		return &rpc.Status{Status: "ok"}, nil
 	} else {
 		return nil, errors.New("session not exist")
 	}
@@ -69,10 +68,12 @@ func (srv *MediaServer) StopSession(_ context.Context, param *rpc.StopParam) (*r
 
 func (srv *MediaServer) ExecuteAction(_ context.Context, action *rpc.Action) (*rpc.ActionResult, error) {
 	sessionId := action.SessionId
-	s, ok := sessionMap.Load(sessionId)
 	result := rpc.ActionResult{
 		SessionId: sessionId,
 	}
+	srv.sessionMutex.Lock()
+	session, ok := srv.sessionMap[sessionId]
+	srv.sessionMutex.Unlock()
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -82,11 +83,12 @@ func (srv *MediaServer) ExecuteAction(_ context.Context, action *rpc.Action) (*r
 	}()
 
 	if ok {
-		session := s.(*MediaSession)
 		cmd := action.GetCmd()
 		arg := action.GetCmdArg()
-		if e, ok1 := srv.simpleExecutorMap.Load(cmd); ok1 {
-			exec := e.(CommandExecute)
+		srv.executorMutex.Lock()
+		exec, exist := srv.simpleExecutorMap[cmd]
+		srv.executorMutex.Unlock()
+		if exist {
 			exec.Execute(session, cmd, arg)
 			prom.SessionAction.With(prometheus.Labels{"cmd": cmd, "type": "simple"}).Inc()
 			result.State = "ok"
@@ -99,7 +101,9 @@ func (srv *MediaServer) ExecuteAction(_ context.Context, action *rpc.Action) (*r
 
 func (srv *MediaServer) ExecuteActionWithNotify(action *rpc.Action, stream rpc.MediaApi_ExecuteActionWithNotifyServer) error {
 	sessionId := action.SessionId
-	s, ok := sessionMap.Load(sessionId)
+	srv.sessionMutex.Lock()
+	session, ok := srv.sessionMap[sessionId]
+	srv.sessionMutex.Unlock()
 	defer func() {
 		if r := recover(); r != nil {
 			debug.PrintStack()
@@ -108,11 +112,12 @@ func (srv *MediaServer) ExecuteActionWithNotify(action *rpc.Action, stream rpc.M
 	}()
 
 	if ok {
-		session := s.(*MediaSession)
 		cmd := action.GetCmd()
 		arg := action.GetCmdArg()
-		if e, ok1 := srv.streamExecutorMap.Load(cmd); ok1 {
-			exec := e.(CommandExecute)
+		srv.executorMutex.Lock()
+		exec, exist := srv.streamExecutorMap[cmd]
+		srv.executorMutex.Unlock()
+		if exist {
 			ctrlIn := make(ExecuteCtrlChan, 10)
 			ctrlOut := make(ExecuteCtrlChan, 10)
 			go exec.ExecuteWithNotify(session, cmd, arg, ctrlIn, ctrlOut)
@@ -144,4 +149,99 @@ func (srv *MediaServer) ExecuteActionWithNotify(action *rpc.Action, stream rpc.M
 	}
 
 	return errors.New("cmd not exist")
+}
+
+func (srv *MediaServer) SystemChannel(stream rpc.MediaApi_SystemChannelServer) error {
+	sendNotifyC := make(chan string, 2)
+	recvNotifyC := make(chan string, 2)
+	wg := &sync.WaitGroup{}
+	var instanceId string
+	var errorNotified bool
+	var fromC, toC chan *rpc.SystemEvent
+
+	logger.Infof("server's system channel is connected")
+	// only work after REGISTER is seen
+	for {
+		in, err := stream.Recv()
+		if err != nil {
+			logger.Errorf("system channel rpc error %v", err)
+			return err
+		}
+		if in.Cmd == rpc.SystemCommand_REGISTER {
+			instanceId = in.InstanceId
+			if instanceId == "" {
+				err = fmt.Errorf("system channel got null instance id when registering")
+				logger.Error(err)
+				return err
+			}
+			break
+		} else {
+			if !errorNotified {
+				errorNotified = true
+				logger.Errorf("system channel got event before client registers itself")
+			}
+		}
+	}
+
+	logger.Infof("instance (%v) enters system channel rpc", instanceId)
+	// the client has registered itself
+	sc := channel.GetSystemChannel()
+	if is, err := sc.RegisterInstance(instanceId); err != nil {
+		return err
+	} else {
+		fromC, toC = is.FromInstanceC, is.ToInstanceC
+	}
+	logger.Infof("instance (%v) has registered system channel", instanceId)
+
+	wg.Add(2)
+	go func() {
+		defer func() {
+			wg.Done()
+			logger.Infof("system channel rpc, exit recv loop")
+		}()
+
+		for {
+			in, err := stream.Recv()
+			if err != nil {
+				sendNotifyC <- "recv_error"
+				break
+			}
+			fromC <- in
+
+			// check exit ...
+			select {
+			case <-recvNotifyC:
+				return
+			default:
+			}
+		}
+	}()
+
+	go func() {
+		defer func() {
+			wg.Done()
+			logger.Infof("system channel rpc, exit send loop")
+		}()
+
+		for {
+			select {
+			case msg, more := <-toC:
+				if !more {
+					recvNotifyC <- "send_error"
+					return
+				}
+				if err := stream.Send(msg); err != nil {
+					logger.Errorf("system cahnnel rpc, send message error: %v", err)
+					recvNotifyC <- "send_error"
+					return
+				}
+			case <-sendNotifyC:
+				return
+			}
+		}
+	}()
+
+	wg.Wait()
+	logger.Infof("instance (%v) has exited system channel rpc", instanceId)
+	return nil
 }

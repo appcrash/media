@@ -119,7 +119,7 @@ func amrOctetModeFrameToRtpPayload(frame [][]byte) (rtpPayload [][]byte) {
 	return
 }
 
-// In bandwidth-efficient mode, a ToC entry takes the following format:
+// FromInstanceC bandwidth-efficient mode, a ToC entry takes the following format:
 //  0 1 2 3 4 5
 // +-+-+-+-+-+-+
 // |F|  FT   |Q|

@@ -23,6 +23,7 @@ message CreateParam {
   uint32 peer_port = 2;              // remote rtp port
   repeated CodecInfo codecs = 3;
   string graph_desc = 4;             // used to describe event graph
+  string instance_id = 5;            // which instance creates this session
 }
 
 message StartParam {
@@ -63,10 +64,25 @@ message ActionEvent {
 }
 
 
+enum SystemCommand {
+  REGISTER = 0;
+  KEEPALIVE = 1;
+  SESSION_INFO = 2;
+}
+
+message SystemEvent {
+  SystemCommand cmd = 1;
+  string instance_id = 2;
+  string session_id = 3;
+  string event = 4;
+}
+
+
 service MediaApi {
   rpc PrepareSession(CreateParam) returns (Session) {}
   rpc StartSession(StartParam) returns (Status) {}
   rpc StopSession(StopParam) returns (Status) {}
   rpc ExecuteAction(Action) returns (ActionResult) {}
   rpc ExecuteActionWithNotify(Action) returns (stream ActionEvent) {}
+  rpc SystemChannel(stream SystemEvent) returns (stream SystemEvent) {}
 }
