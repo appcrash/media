@@ -9,6 +9,7 @@ import (
 	"github.com/appcrash/media/server/rpc"
 	"github.com/google/uuid"
 	"net"
+	"strings"
 	"sync"
 )
 
@@ -58,6 +59,7 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, e
 		return nil, errors.New("server runs out of port resource")
 	}
 	sid := uuid.New().String()
+	sid = strings.Replace(sid, "-", "", -1) // ID in nmd language doesn't contains '-'
 	gd := mediaParam.GetGraphDesc()
 	composer := comp.NewSessionComposer(sid)
 	if err := composer.ParseGraphDescription(gd); err != nil {
