@@ -21,13 +21,21 @@ func (sc *ScriptCommandHandler) Execute(s *MediaSession, _ string, args string) 
 	ctrl := s.GetController()
 	for _, call := range gt.GetCallActions() {
 		cmd, node := call.Cmd, call.Node
-		cmds := comp.WithString(cmd)
+		cmds, err := comp.WithString(cmd)
+		if err != nil {
+			logger.Errorf("session:%v execute call: node(%v) with %v has error %v", sessionId, node, cmds, err)
+			continue
+		}
 		logger.Infof("session:%v execute call: node(%v) with %v", sessionId, node, cmds)
 		ctrl.Call(node.Scope, node.Name, cmds)
 	}
 	for _, cast := range gt.GetCastActions() {
 		cmd, node := cast.Cmd, cast.Node
-		cmds := comp.WithString(cmd)
+		cmds, err := comp.WithString(cmd)
+		if err != nil {
+			logger.Errorf("session:%v execute cast: node(%v) with %v has error %v", sessionId, node, cmds, err)
+			continue
+		}
 		logger.Infof("session:%v execute cast: node(%v) with %v", sessionId, node, cmds)
 		ctrl.Cast(node.Scope, node.Name, cmds)
 	}
