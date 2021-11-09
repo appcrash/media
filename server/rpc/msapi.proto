@@ -65,9 +65,10 @@ message ActionEvent {
 
 
 enum SystemCommand {
-  REGISTER = 0;
-  KEEPALIVE = 1;
-  SESSION_INFO = 2;
+  USER_EVENT = 0;  // used by other subsystem
+  REGISTER = 1;
+  KEEPALIVE = 2;
+  SESSION_INFO = 3;
 }
 
 message SystemEvent {
