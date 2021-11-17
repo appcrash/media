@@ -12,8 +12,8 @@ import (
 func (srv *MediaServer) init(ip *net.IPAddr, portStart, portEnd uint16) {
 	srv.rtpServerIpAddr = ip
 	srv.portPool.init(portStart, portEnd)
-	go srv.healthCheck()
-	channel.GetSystemChannel().AddListener(srv)
+	//go srv.healthCheck()
+	//channel.GetSystemChannel().AddListener(srv)
 }
 
 func (srv *MediaServer) addToSessionMap(session *MediaSession) {

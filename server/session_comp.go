@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/appcrash/GoRTP/rtp"
-	"github.com/appcrash/media/server/channel"
 	"github.com/appcrash/media/server/comp"
 	"github.com/appcrash/media/server/prom"
 	"github.com/appcrash/media/server/rpc"
@@ -32,10 +31,10 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, e
 	if localPort = srv.getNextAvailableRtpPort(); localPort == 0 {
 		return nil, errors.New("server runs out of port resource")
 	}
-	instanceId := mediaParam.InstanceId
-	if !channel.GetSystemChannel().HasInstance(instanceId) {
-		return nil, fmt.Errorf("the instance %v not registered, cannot create session", instanceId)
-	}
+	//instanceId := mediaParam.InstanceId
+	//if !channel.GetSystemChannel().HasInstance(instanceId) {
+	//	return nil, fmt.Errorf("the instance %v not registered, cannot create session", instanceId)
+	//}
 	sid := uuid.New().String()
 	sid = strings.Replace(sid, "-", "", -1) // ID in nmd language doesn't contains '-'
 	gd := mediaParam.GetGraphDesc()
@@ -46,12 +45,12 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, e
 	}
 	now := time.Now()
 	s := MediaSession{
-		server:     srv,
-		sessionId:  sid,
-		localIp:    srv.rtpServerIpAddr,
-		localPort:  int(localPort),
-		rtpPort:    localPort,
-		instanceId: instanceId,
+		server:    srv,
+		sessionId: sid,
+		localIp:   srv.rtpServerIpAddr,
+		localPort: int(localPort),
+		rtpPort:   localPort,
+		//instanceId: instanceId,
 
 		createTimestamp:      now,
 		activeCheckTimestamp: now,
