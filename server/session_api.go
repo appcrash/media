@@ -125,7 +125,7 @@ func (s *MediaSession) Stop() {
 			}
 		}
 		if nbDone != 3 {
-			logger.Errorf("s(%v) loops don't stop normally, finished number:%v", s.sessionId, nbDone)
+			logger.Errorf("session(%v) loops don't stop normally, finished number:%v", s.sessionId, nbDone)
 		}
 	}
 

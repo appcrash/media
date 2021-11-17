@@ -21,7 +21,7 @@ func (s *MediaSession) receiveCtrlLoop(ctx context.Context) {
 		logger.Debugf("session:%v stop ctrl recv", s.GetSessionId())
 		s.doneC <- "done"
 	}()
-
+	cancelC := ctx.Done()
 	for {
 		select {
 		case eventArray, more := <-rtcpReceiver:
@@ -33,11 +33,11 @@ func (s *MediaSession) receiveCtrlLoop(ctx context.Context) {
 				if evt.EventType == rtp.RtcpBye {
 					// peer send bye, notify data send/receive loop to stop
 					logger.Debugln("rtp peer says bye")
-					s.Stop()
+					go s.Stop() // CAVEAT: don't call Stop() in this goroutine
 					return
 				}
 			}
-		case <-ctx.Done():
+		case <-cancelC:
 			return
 		}
 	}
@@ -63,6 +63,7 @@ func (s *MediaSession) receivePacketLoop(ctx context.Context) {
 	rtpSession := s.rtpSession
 	dataReceiver := rtpSession.CreateDataReceiveChan()
 	var data []byte
+	cancelC := ctx.Done()
 	for {
 		select {
 		case rp, more := <-dataReceiver:
@@ -81,7 +82,7 @@ func (s *MediaSession) receivePacketLoop(ctx context.Context) {
 				}
 			}
 			rp.FreePacket()
-		case <-ctx.Done():
+		case <-cancelC:
 			return
 		}
 	}
@@ -106,7 +107,7 @@ func (s *MediaSession) sendPacketLoop(ctx context.Context) {
 
 	timeStep := codec.GetCodecTimeStep(s.audioPayloadCodec)
 	ticker := time.NewTicker(time.Duration(timeStep) * time.Millisecond)
-
+	cancelC := ctx.Done()
 outLoop:
 	for {
 		select {
@@ -128,7 +129,7 @@ outLoop:
 				packet.FreePacket()
 				ts += tsDelta
 			}
-		case <-ctx.Done():
+		case <-cancelC:
 			break outLoop
 		}
 	}
