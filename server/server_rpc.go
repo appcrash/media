@@ -58,6 +58,7 @@ func (srv *MediaServer) StopSession(_ context.Context, param *rpc.StopParam) (*r
 	logger.Infof("rpc: stop session %v", sessionId)
 	srv.sessionMutex.Lock()
 	session, exist := srv.sessionMap[sessionId]
+	srv.sessionMutex.Unlock()
 	if exist {
 		session.Stop()
 		return &rpc.Status{Status: "ok"}, nil
