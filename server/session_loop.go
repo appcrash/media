@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"github.com/appcrash/GoRTP/rtp"
 	"github.com/appcrash/media/codec"
 	"github.com/appcrash/media/server/prom"
@@ -10,9 +11,8 @@ import (
 )
 
 // receive rtcp packet
-func (s *MediaSession) receiveCtrlLoop() {
+func (s *MediaSession) receiveCtrlLoop(ctx context.Context) {
 	rtcpReceiver := s.rtpSession.CreateCtrlEventChan()
-	ctrlC := s.rcvRtcpCtrlC
 	gauge := prom.SessionGoroutine.With(prometheus.Labels{"type": "recv_ctrl"})
 	gauge.Inc()
 
@@ -37,15 +37,13 @@ func (s *MediaSession) receiveCtrlLoop() {
 					return
 				}
 			}
-		case msg := <-ctrlC:
-			if msg == "stop" {
-				return
-			}
+		case <-ctx.Done():
+			return
 		}
 	}
 }
 
-func (s *MediaSession) receivePacketLoop() {
+func (s *MediaSession) receivePacketLoop(ctx context.Context) {
 	gauge := prom.SessionGoroutine.With(prometheus.Labels{"type": "recv"})
 	gauge.Inc()
 	// Create and store the data receive channel.
@@ -58,13 +56,13 @@ func (s *MediaSession) receivePacketLoop() {
 
 	defer func() {
 		gauge.Dec()
+		logger.Debugf("session:%v stop local receive", s.GetSessionId())
 		s.doneC <- "done"
 	}()
 
 	rtpSession := s.rtpSession
 	dataReceiver := rtpSession.CreateDataReceiveChan()
 	var data []byte
-outLoop:
 	for {
 		select {
 		case rp, more := <-dataReceiver:
@@ -83,17 +81,13 @@ outLoop:
 				}
 			}
 			rp.FreePacket()
-		case cmd := <-s.rcvCtrlC:
-			if cmd == "stop" {
-				logger.Debugf("session:%v stop local receive", s.GetSessionId())
-				break outLoop
-			}
+		case <-ctx.Done():
+			return
 		}
 	}
-
 }
 
-func (s *MediaSession) sendPacketLoop() {
+func (s *MediaSession) sendPacketLoop(ctx context.Context) {
 	var ts uint32 = 0
 	gauge := prom.SessionGoroutine.With(prometheus.Labels{"type": "send"})
 	gauge.Inc()
@@ -106,6 +100,7 @@ func (s *MediaSession) sendPacketLoop() {
 	}()
 	defer func() {
 		gauge.Dec()
+		logger.Debugf("session:%v stop local send", s.GetSessionId())
 		s.doneC <- "done"
 	}()
 
@@ -133,11 +128,8 @@ outLoop:
 				packet.FreePacket()
 				ts += tsDelta
 			}
-		case cmd := <-s.sndCtrlC:
-			if cmd == "stop" {
-				logger.Debugf("session:%v stop local send", s.GetSessionId())
-				break outLoop
-			}
+		case <-ctx.Done():
+			break outLoop
 		}
 	}
 

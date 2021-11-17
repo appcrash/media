@@ -58,11 +58,8 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, e
 		activeEchoTimestamp:  now,
 
 		// use buffered version to avoid deadlock
-		sndCtrlC:     make(chan string, 2),
-		rcvCtrlC:     make(chan string, 2),
-		rcvRtcpCtrlC: make(chan string, 2),
-		doneC:        make(chan string, 3),
-		status:       sessionStatusCreated,
+		doneC:  make(chan string, 3),
+		status: sessionStatusCreated,
 
 		composer: composer,
 	}

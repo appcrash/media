@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"github.com/appcrash/GoRTP/rtp"
 	"github.com/appcrash/media/server/comp"
 	"github.com/appcrash/media/server/event"
@@ -37,9 +38,7 @@ type MediaSession struct {
 	activeCheckTimestamp time.Time // last time we send session info state to instance, updated by server
 	activeEchoTimestamp  time.Time // last time we recv session info state from instance, updated by server
 	status               int
-	sndCtrlC             chan string
-	rcvCtrlC             chan string
-	rcvRtcpCtrlC         chan string
+	cancelFunc           context.CancelFunc
 	doneC                chan string // notify this channel when loop is done
 
 	source   []Source
@@ -91,9 +90,11 @@ func (s *MediaSession) Start() (err error) {
 	}
 	prom.StartedSession.Inc()
 
-	go s.receiveCtrlLoop()
-	go s.receivePacketLoop()
-	go s.sendPacketLoop()
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancelFunc = cancel
+	go s.receiveCtrlLoop(ctx)
+	go s.receivePacketLoop(ctx)
+	go s.sendPacketLoop(ctx)
 	s.status = sessionStatusStarted
 	return
 }
@@ -101,7 +102,6 @@ func (s *MediaSession) Start() (err error) {
 func (s *MediaSession) Stop() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	nbStopped := 0
 	nbDone := 0
 	if s.status == sessionStatusStopped {
 		logger.Errorf("try to stop already terminated session(%v)", s.sessionId)
@@ -112,37 +112,21 @@ func (s *MediaSession) Stop() {
 		goto cleanup
 	}
 
-stop:
-	for nbStopped < 3 {
-		select {
-		case s.sndCtrlC <- "stop":
-			s.sndCtrlC = nil
-			nbStopped++
-		case s.rcvCtrlC <- "stop":
-			s.rcvCtrlC = nil
-			nbStopped++
-		case s.rcvRtcpCtrlC <- "stop":
-			s.rcvRtcpCtrlC = nil
-			nbStopped++
-		case <-time.After(2 * time.Second):
-			// TODO: how to avoid memory leak
-			logger.Errorf("s(%v) stops timeout", s.sessionId)
-			break stop
+	if s.cancelFunc != nil {
+		s.cancelFunc()
+		// for debug purpose, check all loops are finished normally
+	done:
+		for nbDone < 3 {
+			select {
+			case <-s.doneC:
+				nbDone++
+			case <-time.After(10 * time.Second):
+				break done
+			}
 		}
-	}
-
-	// for debug purpose, check all loops are finished normally
-done:
-	for nbDone < 3 {
-		select {
-		case <-s.doneC:
-			nbDone++
-		case <-time.After(2 * time.Second):
-			break done
+		if nbDone != 3 {
+			logger.Errorf("s(%v) loops don't stop normally, finished number:%v", s.sessionId, nbDone)
 		}
-	}
-	if nbDone != 3 {
-		logger.Errorf("s(%v) loops don't stop normally, finished number:%v", s.sessionId, nbDone)
 	}
 
 cleanup:
