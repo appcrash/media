@@ -87,10 +87,10 @@ func (s *SessionNode) DataPipeReady() bool {
 	return s.dataLinkId >= 0
 }
 
-// SendData utility method to put data message to next node
-func (s *SessionNode) SendData(msg DataMessage) (err error) {
+// SendMessage utility method to put data message to next node
+func (s *SessionNode) SendMessage(msg Message) (err error) {
 	if s.DataPipeReady() {
-		evt := NewDataEvent(msg)
+		evt := msg.AsEvent()
 		s.delegate.Deliver(s.dataLinkId, evt)
 	} else {
 		err = errors.New("data link is not established")

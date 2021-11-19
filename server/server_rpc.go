@@ -37,33 +37,15 @@ func (srv *MediaServer) PrepareSession(_ context.Context, param *rpc.CreateParam
 }
 
 func (srv *MediaServer) StartSession(_ context.Context, param *rpc.StartParam) (*rpc.Status, error) {
-	sessionId := param.GetSessionId()
-	logger.Infof("rpc: start session %v", sessionId)
-	srv.sessionMutex.Lock()
-	session, exist := srv.sessionMap[sessionId]
-	srv.sessionMutex.Unlock()
-	if exist {
-		if err := session.Start(); err != nil {
-			return nil, fmt.Errorf("start session failed: %v", err)
-		}
-	} else {
-		return nil, errors.New("session not exist")
-	}
-
-	return &rpc.Status{Status: "ok"}, nil
+	err := srv.startSession(param)
+	return &rpc.Status{Status: "ok"}, err
 }
 
 func (srv *MediaServer) StopSession(_ context.Context, param *rpc.StopParam) (*rpc.Status, error) {
-	sessionId := param.GetSessionId()
-	logger.Infof("rpc: stop session %v", sessionId)
-	srv.sessionMutex.Lock()
-	session, exist := srv.sessionMap[sessionId]
-	srv.sessionMutex.Unlock()
-	if exist {
-		session.Stop()
-		return &rpc.Status{Status: "ok"}, nil
+	if err := srv.stopSession(param); err != nil {
+		return nil, err
 	} else {
-		return nil, errors.New("session not exist")
+		return &rpc.Status{Status: "ok"}, nil
 	}
 }
 

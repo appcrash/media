@@ -20,6 +20,8 @@ func profileOfCodec(c rpc.CodecType) (profile string) {
 		profile = "AMR"
 	case rpc.CodecType_AMRWB:
 		profile = "AMR-WB"
+	case rpc.CodecType_H264:
+		profile = "H264"
 	case rpc.CodecType_TELEPHONE_EVENT:
 		profile = "TELEPHONE-EVENT"
 	}
@@ -68,19 +70,19 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, e
 	}
 	for _, ci := range codecInfos {
 		switch ci.PayloadType {
-		case rpc.CodecType_PCM_ALAW, rpc.CodecType_AMRNB, rpc.CodecType_AMRWB:
-			if s.audioPayloadNumber != 0 {
+		case rpc.CodecType_PCM_ALAW, rpc.CodecType_AMRNB, rpc.CodecType_AMRWB, rpc.CodecType_H264:
+			if s.avPayloadNumber != 0 {
 				return nil, fmt.Errorf("create session with more than one audio type:"+
-					" previous number:%v, this number:%v", s.audioPayloadNumber, ci.PayloadNumber)
+					" previous number:%v, this number:%v", s.avPayloadNumber, ci.PayloadNumber)
 			}
-			s.audioPayloadNumber = uint8(ci.PayloadNumber)
-			s.audioPayloadCodec = ci.PayloadType
-			s.audioCodecParam = ci.CodecParam
+			s.avPayloadNumber = uint8(ci.PayloadNumber)
+			s.avPayloadCodec = ci.PayloadType
+			s.avCodecParam = ci.CodecParam
 		case rpc.CodecType_TELEPHONE_EVENT:
 			s.telephoneEventPayloadNumber = uint8(ci.PayloadNumber)
 		}
 	}
-	if s.audioPayloadNumber == 0 {
+	if s.avPayloadNumber == 0 {
 		return nil, errors.New("create session without any audio codec info")
 	}
 
@@ -137,8 +139,8 @@ func (s *MediaSession) activate() (err error) {
 	if errStr != "" {
 		return errors.New(string(errStr))
 	}
-	if profile := profileOfCodec(s.audioPayloadCodec); profile != "" {
-		s.rtpSession.SsrcStreamOutForIndex(strLocalIdx).SetProfile(profile, byte(s.audioPayloadNumber))
+	if profile := profileOfCodec(s.avPayloadCodec); profile != "" {
+		s.rtpSession.SsrcStreamOutForIndex(strLocalIdx).SetProfile(profile, byte(s.avPayloadNumber))
 	} else {
 		return errors.New("unsupported rtp payload profile")
 	}

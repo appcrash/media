@@ -5,13 +5,14 @@
 #include <libavcodec/avcodec.h>
 #include <libavutil/avutil.h>
 #include <libswresample/swresample.h>
+#include <libswscale/swscale.h>
+#include <libavutil/imgutils.h>
 #include <libavfilter/avfilter.h>
 #include <libavfilter/buffersrc.h>
 #include <libavfilter/buffersink.h>
 #include <libavutil/audio_fifo.h>
 #include <libavutil/avstring.h>
 #include <libavutil/opt.h>
-
 
 struct DataBuffer
 {

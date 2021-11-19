@@ -1,5 +1,7 @@
 package comp
 
+import "fmt"
+
 const entryNodeDefaultPayloadType = 255
 
 // EntryNode is a basic message provider that simply forward data message to event graph
@@ -13,16 +15,16 @@ type EntryNode struct {
 
 func newEntryNode() SessionAware {
 	node := &EntryNode{}
-	node.Name = TYPE_ENTRY
+	node.Name = TypeENTRY
 	node.payloadType = entryNodeDefaultPayloadType
 	return node
 }
 
-func (e *EntryNode) PushMessage(data DataMessage) error {
-	if data != nil {
-		_ = e.SendData(data)
+func (e *EntryNode) PushMessage(msg Message) error {
+	if msg != nil {
+		return e.SendMessage(msg)
 	}
-	return nil
+	return fmt.Errorf("push nil message")
 }
 
 func (e *EntryNode) Priority() uint32 {

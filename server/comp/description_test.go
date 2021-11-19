@@ -28,7 +28,7 @@ func TestGraphLoop(t *testing.T) {
              [d] -> [c]`
 	sc := comp.NewSessionComposer("test")
 	err := sc.ParseGraphDescription(desc)
-	t.Logf("correctly detect error: %v", err)
+	//t.Logf("correctly detect: %v", err)
 	if err == nil {
 		t.Fatal("loop not detected")
 	}

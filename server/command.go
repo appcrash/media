@@ -80,7 +80,7 @@ func (sc *ScriptCommandHandler) ExecuteWithNotify(s *MediaSession, cmd string, a
 				continue
 			}
 			select {
-			case ctrlOut <- string(evt.GetObj().(comp.DataMessage)):
+			case ctrlOut <- string(evt.GetObj().(comp.RawByteMessage)):
 			default:
 			}
 		case _, more := <-ctrlIn:

@@ -68,7 +68,7 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 		sn := MakeSessionNode(n.Type, c.sessionId, n.Props)
 		if sn == nil {
 			logger.Errorf("unknown node type: %v\n", n.Name)
-			err = errors.New("can not make unknown node")
+			err = fmt.Errorf("can not make unknown node: %v", n.Type)
 			return
 		}
 		if err = sn.Init(); err != nil {
@@ -108,7 +108,7 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 
 	// now every node is added to graph and linked
 	// create dispatch node which links to all nodes in the session
-	c.dispatch = MakeSessionNode(TYPE_DISPATCH, c.sessionId, nil).(*Dispatch)
+	c.dispatch = MakeSessionNode(TypeDISPATCH, c.sessionId, nil).(*Dispatch)
 	c.dispatch.SetMaxLink(nbNode * 2) // reserved nbNode for dynamical link requests
 	if !graph.AddNode(c.dispatch) {
 		err = errors.New("fail to add send-node to graph")
@@ -126,7 +126,7 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 	// subscribe channels, for all nodes of type pubsub, find the registered channel with same name
 	// as specified in pubsub's "channel" property
 	for i, n := range nodeDefs {
-		if n.Type != TYPE_PUBSUB {
+		if n.Type != TypePUBSUB {
 			continue
 		}
 		var chNameList string
@@ -152,7 +152,7 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 
 		psNode := c.nodeList[i].(*PubSubNode)
 		// pubsub property, for example: channel=a,b,c ...
-		logger.Println("chNameList ", chNameList)
+		logger.Debugln("chNameList ", chNameList)
 		for _, chName := range strings.Split(chNameList, ",") {
 			if _, exist := c.namedChannel[chName]; exist {
 				// the channel is already registered

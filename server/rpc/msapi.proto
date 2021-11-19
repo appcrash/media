@@ -10,6 +10,7 @@ enum CodecType {
   PCM_ALAW = 2;
   AMRNB = 3;
   AMRWB = 4;
+  H264 = 5;
 }
 
 message CodecInfo {

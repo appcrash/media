@@ -26,8 +26,9 @@ type MediaServer struct {
 	rtpServerIpAddr   *net.IPAddr
 	portPool          *portPool
 
-	sourceF []SourceFactory
-	sinkF   []SinkFactory
+	sourceF         []SourceFactory
+	sinkF           []SinkFactory
+	sessionListener []SessionListener
 
 	graph *event.Graph
 
@@ -38,23 +39,42 @@ type MediaServer struct {
 	streamExecutorMap map[string]CommandExecute
 }
 
+type Config struct {
+	RtpIp               string
+	StartPort, EndPort  uint16
+	ExecutorList        []CommandExecute
+	SourceFactoryList   []SourceFactory
+	SinkFactoryList     []SinkFactory
+	SessionListenerList []SessionListener
+
+	GrpcIp           string
+	GrpcPort         uint16
+	GrpcRegisterMore RegisterMore
+}
+
 type RegisterMore func(s grpc.ServiceRegistrar)
 
-func StartServer(grpcIp string, grpcPort uint16,
-	rtpIp string, rtpPortStart uint16, rtpPortEnd uint16,
-	regMore RegisterMore,
-	executorList []CommandExecute, sourceF []SourceFactory, sinkF []SinkFactory) (err error) {
+// SessionListener methods are called concurrently, so it must be goroutine safe
+type SessionListener interface {
+	OnSessionCreated(s *MediaSession)
+	OnSessionStarted(s *MediaSession)
+	OnSessionStopped(s *MediaSession)
+}
+
+func StartServer(c *Config) (err error) {
 	var lis net.Listener
 	var ip *net.IPAddr
-	if lis, err = net.Listen("tcp", fmt.Sprintf("%s:%d", grpcIp, grpcPort)); err != nil {
-		logger.Errorf("failed to listen to port(%v) for grpc", grpcPort)
+	if lis, err = net.Listen("tcp", fmt.Sprintf("%s:%d", c.GrpcIp, c.GrpcPort)); err != nil {
+		logger.Errorf("failed to listen to port(%v) for grpc", c.GrpcPort)
 		return
 	}
+	rtpIp, rtpStartPort, rtpEndPort := c.RtpIp, c.StartPort, c.EndPort
 	server := MediaServer{
 		rtpServerIpString: rtpIp,
 		portPool:          new(portPool),
-		sourceF:           sourceF,
-		sinkF:             sinkF,
+		sourceF:           c.SourceFactoryList,
+		sinkF:             c.SinkFactoryList,
+		sessionListener:   c.SessionListenerList,
 		sessionMap:        make(map[string]*MediaSession),
 		simpleExecutorMap: make(map[string]CommandExecute),
 		streamExecutorMap: make(map[string]CommandExecute),
@@ -63,17 +83,17 @@ func StartServer(grpcIp string, grpcPort uint16,
 	if ip, err = net.ResolveIPAddr("ip", rtpIp); err != nil {
 		return
 	}
-	server.init(ip, rtpPortStart, rtpPortEnd)
+	server.init(ip, rtpStartPort, rtpEndPort)
 	server.registerCommandExecutor(&ScriptCommandHandler{}) // built-in script executor
-	for _, e := range executorList {
+	for _, e := range c.ExecutorList {
 		server.registerCommandExecutor(e)
 	}
 
 	var opts []grpc.ServerOption
 	grpcServer := grpc.NewServer(opts...)
 	rpc.RegisterMediaApiServer(grpcServer, &server)
-	if regMore != nil {
-		regMore(grpcServer)
+	if c.GrpcRegisterMore != nil {
+		c.GrpcRegisterMore(grpcServer)
 	}
 	grpcServer.Serve(lis)
 	return nil

@@ -18,7 +18,7 @@ import (
 //
 // for output(subscriber), one of:
 // 1. other node that receives event from pubsub node (inter-node communication)
-// 2. provider a channel of type (chan<- *event.Event) to which pubsub deliveries (consume event from event graph),
+// 2. provider a channel of type (chan<- *event.Event) to which pubsub delivers (consume event from event graph),
 // the channel must be buffered channel, i.e. cap(c) != 0, and in the SAME session of this node, so communication
 // across sessions must take inter-node measures
 //
@@ -31,7 +31,7 @@ import (
 // event graph -----> pubsub -----> |outside|
 //                          consume
 
-const PUBSUB_DEFAULT_DELIVERY_TIMEOUT = 20 * time.Millisecond
+const PubsubDefaultDeliveryTimeout = 20 * time.Millisecond
 
 const (
 	psSubscribeTypeNode = iota
@@ -60,14 +60,16 @@ func (p *PubSubNode) OnEvent(evt *event.Event) {
 		return
 	}
 	switch evt.GetCmd() {
-	case DATA_OUTPUT:
-		if c, ok := obj.(Cloneable); ok {
+	case RawByte, Generic:
+		if c, ok := obj.(CloneableMessage); ok {
 			p.Publish(c)
 		}
-	case CTRL_CALL:
+	case CtrlCall:
 		if msg, ok := obj.(*CtrlMessage); ok {
 			p.handleCall(msg)
 		}
+	case CtrlCast:
+		// none
 	}
 }
 
@@ -103,7 +105,7 @@ func (p *PubSubNode) SetPipeOut(session, name string) error {
 
 //------------------------------- api & implementation --------------------------------------
 
-func (p *PubSubNode) Publish(obj Cloneable) {
+func (p *PubSubNode) Publish(obj CloneableMessage) {
 	var subscribers []*psSubscriberInfo
 	if obj == nil {
 		return
@@ -133,13 +135,23 @@ func (p *PubSubNode) Publish(obj Cloneable) {
 			if s.linkId < 0 {
 				continue
 			}
-			evt := event.NewEvent(DATA_OUTPUT, obj.Clone())
+			msg := obj.Clone()
+			if msg == nil {
+				logger.Debugf("pubsub got message that clone to nil")
+				continue
+			}
+			evt := msg.AsEvent()
 			p.delegate.Deliver(s.linkId, evt)
 		case psSubscribeTypeChannel:
 			if s.channel == nil {
 				continue
 			}
-			evt := event.NewEvent(DATA_OUTPUT, obj.Clone())
+			msg := obj.Clone()
+			if msg == nil {
+				logger.Debugf("pubsub got message that clone to nil")
+				continue
+			}
+			evt := msg.AsEvent()
 			select {
 			case s.channel <- evt:
 			default:
@@ -150,8 +162,8 @@ func (p *PubSubNode) Publish(obj Cloneable) {
 
 func newPubSubNode() SessionAware {
 	node := new(PubSubNode)
-	node.Name = TYPE_PUBSUB
-	node.SetDeliveryTimeout(PUBSUB_DEFAULT_DELIVERY_TIMEOUT)
+	node.Name = TypePUBSUB
+	node.SetDeliveryTimeout(PubsubDefaultDeliveryTimeout)
 	return node
 }
 

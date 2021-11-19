@@ -27,9 +27,9 @@ type MediaSession struct {
 	rtpSession *rtp.Session
 	instanceId string // which instance created this session
 
-	audioPayloadNumber uint8
-	audioPayloadCodec  rpc.CodecType
-	audioCodecParam    string
+	avPayloadNumber uint8
+	avPayloadCodec  rpc.CodecType
+	avCodecParam    string
 
 	telephoneEventPayloadNumber uint8
 
@@ -55,15 +55,15 @@ func (s *MediaSession) GetStatus() int {
 }
 
 func (s *MediaSession) GetAudioPayloadType() uint8 {
-	return s.audioPayloadNumber
+	return s.avPayloadNumber
 }
 
-func (s *MediaSession) GetAudioCodecType() rpc.CodecType {
-	return s.audioPayloadCodec
+func (s *MediaSession) GetAVCodecType() rpc.CodecType {
+	return s.avPayloadCodec
 }
 
-func (s *MediaSession) GetAudioCodecParam() string {
-	return s.audioCodecParam
+func (s *MediaSession) GetAVCodecParam() string {
+	return s.avCodecParam
 }
 
 func (s *MediaSession) GetTelephoneEventPayloadType() uint8 {

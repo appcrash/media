@@ -17,6 +17,8 @@ func GetCodecTimeStep(codec rpc.CodecType) int {
 		fallthrough
 	case rpc.CodecType_AMRWB:
 		return 20
+	case rpc.CodecType_H264:
+		return 1000 / 25 // TODO: use dynamic framerate
 	}
 
 	// unknown codec

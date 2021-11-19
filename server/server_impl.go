@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"github.com/appcrash/media/server/channel"
 	"github.com/appcrash/media/server/prom"
@@ -40,6 +41,23 @@ func (srv *MediaServer) reclaimRtpPort(port uint16) {
 	}
 }
 
+func (srv *MediaServer) invokeSessionListener(session *MediaSession, status int) {
+	switch status {
+	case sessionStatusCreated:
+		for _, listener := range srv.sessionListener {
+			listener.OnSessionCreated(session)
+		}
+	case sessionStatusStarted:
+		for _, listener := range srv.sessionListener {
+			listener.OnSessionStarted(session)
+		}
+	case sessionStatusStopped:
+		for _, listener := range srv.sessionListener {
+			listener.OnSessionStopped(session)
+		}
+	}
+}
+
 func (srv *MediaServer) createSession(param *rpc.CreateParam) (session *MediaSession, err error) {
 	defer func() {
 		if err != nil && session != nil {
@@ -68,7 +86,40 @@ func (srv *MediaServer) createSession(param *rpc.CreateParam) (session *MediaSes
 	}
 	prom.AllSession.Inc()
 	srv.addToSessionMap(session)
+	srv.invokeSessionListener(session, sessionStatusCreated)
 	return session, nil
+}
+
+func (srv *MediaServer) startSession(param *rpc.StartParam) (err error) {
+	sessionId := param.GetSessionId()
+	logger.Infof("rpc: start session %v", sessionId)
+	srv.sessionMutex.Lock()
+	session, exist := srv.sessionMap[sessionId]
+	srv.sessionMutex.Unlock()
+	if exist {
+		err = session.Start()
+	} else {
+		err = errors.New("session not exist")
+	}
+	if err == nil {
+		srv.invokeSessionListener(session, sessionStatusStarted)
+	}
+	return
+}
+
+func (srv *MediaServer) stopSession(param *rpc.StopParam) (err error) {
+	sessionId := param.GetSessionId()
+	logger.Infof("rpc: stop session %v", sessionId)
+	srv.sessionMutex.Lock()
+	session, exist := srv.sessionMap[sessionId]
+	srv.sessionMutex.Unlock()
+	if exist {
+		session.Stop()
+		srv.invokeSessionListener(session, sessionStatusStopped)
+	} else {
+		err = errors.New("session not exist")
+	}
+	return
 }
 
 // APIs that allow plugging in method to:

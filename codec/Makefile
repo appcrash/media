@@ -4,6 +4,10 @@ LDFLAGS=`pkg-config --libs libavformat libavcodec libavutil libswresample libavf
 
 OBJS:=$(patsubst %.c,%.o,$(wildcard *.c))
 
+# to generate compile_commands.json:
+# pip3 install compiledb
+# compiledb make
+
 libcodec.a: $(OBJS)
 	ar rcs $@ $^
 
