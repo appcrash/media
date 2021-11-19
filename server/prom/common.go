@@ -27,7 +27,7 @@ var (
 	})
 	StartedSession = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "started_session",
-		Help: "Created and started session",
+		Help: "Created as well as started session",
 	})
 	AllSession = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "all_session",
