@@ -188,3 +188,33 @@ func ExampleComposerInterSession() {
 	// p2 print from_session_2_again
 
 }
+
+func ExamplePubSubEnableDisable() {
+	gd := `[e1:entry] -> [pubsub] -> {[p1:print],[p2:print]}`
+	comp.RegisterNodeFactory("print", newPrintNode)
+	c := comp.NewSessionComposer("test_session")
+	graph := event.NewEventGraph()
+	if err := c.ParseGraphDescription(gd); err != nil {
+		fmt.Println("parse graph failed")
+		return
+	}
+	if err := c.ComposeNodes(graph); err != nil {
+		fmt.Println("prepare node failed")
+		return
+	}
+	mp := c.GetMessageProvider("e1")
+	ctrl := c.GetController()
+	mp.PushMessage(comp.NewDataMessage("foo"))
+	ctrl.Call("", "pubsub", comp.With("disable", "node", "test_session", "p1"))
+	mp.PushMessage(comp.NewDataMessage("bar"))
+	ctrl.Call("", "pubsub", comp.With("enable", "node", "test_session", "p1"))
+	mp.PushMessage(comp.NewDataMessage("foobar"))
+	time.Sleep(50 * time.Millisecond)
+
+	// Unordered OUTPUT:
+	// p1 print foo
+	// p2 print foo
+	// p2 print bar
+	// p1 print foobar
+	// p2 print foobar
+}

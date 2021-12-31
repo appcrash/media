@@ -200,7 +200,7 @@ func (eg *Graph) onAddNode(req *nodeAddRequest) {
 
 	elem := ps.Elem()
 	if elem.Kind() == reflect.Struct {
-		field := elem.FieldByName("maxLink")
+		field := elem.FieldByName("maxLink") // CAVEAT: change the name once NodeProperty field change accordingly
 		if field.IsValid() {
 			switch field.Kind() {
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:

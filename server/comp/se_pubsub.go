@@ -43,6 +43,7 @@ type psSubscriberInfo struct {
 	linkId  int                 // if subscriber is a node
 	channel chan<- *event.Event // if subscriber is a chan
 	name    string
+	enabled bool
 }
 
 type PubSubNode struct {
@@ -109,14 +110,26 @@ func (p *PubSubNode) Publish(obj Cloneable) {
 	if obj == nil {
 		return
 	}
+
 	p.mutex.Lock()
-	subscribers = p.subscribers // copy the array, release lock
+	size := len(p.subscribers)
+	if size == 0 {
+		p.mutex.Unlock()
+		return
+	}
+	subscribers = make([]*psSubscriberInfo, size)
+	// as subscribers may change during event delivering,
+	// copy the array, then release lock
+	copy(subscribers, p.subscribers)
 	p.mutex.Unlock()
 
 	// publish message to all subscribers
 	// for node: delivery timeout by field 'deliveryTimeout'
 	// for channel: nonblock sending without timeout, so must use buffered channel to avoid losing message
 	for _, s := range subscribers {
+		if !s.enabled {
+			continue
+		}
 		switch s.subType {
 		case psSubscribeTypeNode:
 			if s.linkId < 0 {
@@ -150,6 +163,7 @@ func psNewNodeSubscriber(scope, nodeName string, linkId int) *psSubscriberInfo {
 	si.subType = psSubscribeTypeNode
 	si.name = name
 	si.linkId = linkId
+	si.enabled = true
 	return si
 }
 
@@ -160,6 +174,7 @@ func psNewChannelSubscriber(chName string, c chan<- *event.Event) *psSubscriberI
 	si.name = name
 	si.channel = c
 	si.linkId = -1
+	si.enabled = true
 	return si
 }
 
@@ -175,6 +190,8 @@ func (p *PubSubNode) findSubInfo(name string) (index int, si *psSubscriberInfo) 
 	if name == "" {
 		return -1, nil
 	}
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 	for i, n := range p.subscribers {
 		if n.name == name {
 			return i, n
@@ -204,18 +221,58 @@ func (p *PubSubNode) deleteSubscriber(index int) {
 func (p *PubSubNode) handleCall(msg *CtrlMessage) {
 	m := msg.M
 	if ml := len(m); ml > 0 {
-		switch m[0] {
+		action := m[0]
+		switch action {
 		case "conn":
+			// conn {sessionName} {nodeName}
 			if ml == 3 {
 				toSession, toName := m[1], m[2]
 				if err := p.SetPipeOut(toSession, toName); err == nil {
 					msg.C <- WithOk()
-				} else {
-					msg.C <- WithError()
+					return
 				}
 			}
+			goto error
+		case "enable":
+			// enable node {sessionName} {nodeName}
+			// enable channel {channelName}
+			fallthrough
+		case "disable":
+			// disable node {sessionName} {nodeName}
+			// disable channel {channelName}
+			var si *psSubscriberInfo
+			switch ml {
+			case 3:
+				if m[1] != "channel" {
+					goto error
+				}
+				channelName := m[2]
+				_, si = p.findChannelSubscriber(channelName)
+				goto error
+			case 4:
+				if m[1] != "node" {
+					goto error
+				}
+				sessionName, nodeName := m[2], m[3]
+				_, si = p.findNodeSubscriber(sessionName, nodeName)
+			}
+			if si == nil {
+				goto error
+			}
+			p.mutex.Lock()
+			if action == "enable" {
+				si.enabled = true
+			} else {
+				si.enabled = false
+			}
+			p.mutex.Unlock()
+			msg.C <- WithOk()
+			return
 		}
 	}
+
+error:
+	msg.C <- WithError()
 }
 
 // SubscribeNode add a node as a subscriber of this pubsub node

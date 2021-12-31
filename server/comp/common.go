@@ -112,7 +112,7 @@ func RegisterNodeFactory(typeName string, f SessionNodeFactory) error {
 	return nil
 }
 
-// DataMessage is used to pass data between nodes in session
+// DataMessage is used to pass data between nodes intra/inter session
 type DataMessage []byte
 type Cloneable interface {
 	Clone() Cloneable
