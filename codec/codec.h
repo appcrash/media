@@ -152,3 +152,9 @@ void mix_free(struct MixContext *mix_ctx);
  */
 int init_transcode_filter_graph(struct TranscodeContext *trans_ctx,const char *graph_desc_str);
 int init_mix_filter_graph(struct MixContext *mix_ctx,AVDictionary *dict);
+
+
+/*
+ * video functions
+ */
+void video_render();
