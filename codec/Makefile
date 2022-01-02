@@ -1,6 +1,6 @@
 CC=gcc
-CFLAGS=`pkg-config --cflags libavformat libavcodec libavutil libswresample libavfilter`
-LDFLAGS=`pkg-config --libs libavformat libavcodec libavutil libswresample libavfilter`
+CFLAGS=`pkg-config --cflags libavformat libavcodec libavutil libswresample libavfilter freetype2`
+LDFLAGS=`pkg-config --libs libavformat libavcodec libavutil libswresample libavfilter freetype2`
 
 OBJS:=$(patsubst %.c,%.o,$(wildcard *.c))
 

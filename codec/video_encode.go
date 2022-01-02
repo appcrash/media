@@ -1,6 +1,6 @@
 package codec
 
-//#cgo pkg-config: libavformat libavcodec libavutil libswresample libavfilter
+//#cgo pkg-config: libavformat libavcodec libavutil libswresample libavfilter freetype2
 //
 //#include <stdio.h>
 //#include <stdlib.h>
