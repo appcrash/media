@@ -37,16 +37,30 @@ static void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt, FILE 
     }
 }
 
+static void draw_glyph(char *surface_buffer,char *bitmap_buffer,int x,int y,
+                       int surface_width,int width,int height)
+{
+    int xx,yy,p,q;
+
+    printf("x:%d, y:%d, surface width:%d, bitmap_width:%d, bitmap_height:%d\n",x,y,surface_width,width,height);
+
+    for (int i = 0; i < width;i++) {
+        for(int j = 0;j < height;j++) {
+            xx = x + i;
+            yy = y + j;
+            p = (yy * surface_width + xx) * 3;
+            q = j * width + i;
+            surface_buffer[p] = bitmap_buffer[q];
+        }
+    }
+}
+
+
 void video_render()
 {
     AVCodec *codec;
     AVCodecContext *c;
     int x,y,ret;
-
-    if (FT_Init_FreeType(&ft_library)) {
-        fprintf(stderr,"failed to init ft library\n");
-        return;
-    }
 
     codec = avcodec_find_encoder_by_name("libx264rgb");
     if (!codec) {
@@ -91,18 +105,50 @@ void video_render()
     }
 
     FT_Face face;
-    int error = FT_New_Face(ft_library, "/usr/share/fonts/truetype/noto/NotoSansMyanmar-Bold.ttf", 0, &face);
+    FT_UInt32 code = 0x6211;
+    FT_Glyph glyph;
+
+    if (FT_Init_FreeType(&ft_library)) {
+        fprintf(stderr,"failed to init ft library\n");
+        return;
+    }
+
+    //int error = FT_New_Face(ft_library, "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", 0, &face);
+    int error = FT_New_Face(ft_library, "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc", 0, &face);
+
     if (error) {
         fprintf(stderr,"failed to create new face\n");
         return;
     }
+    /* if (error = FT_Set_Char_Size(face, 50 * 64, 0, 100, 0)) { */
+    /*     fprintf(stderr,"failed to set char size:0x%x\n",error); */
+    /* } */
+    if (error = FT_Set_Pixel_Sizes(face, 0, 200)) {
+        fprintf(stderr,"failed to set pixeml size: 0x%x\n",error);
+    }
+    if (error = FT_Load_Char(face, code, FT_LOAD_RENDER)) {
+        fprintf(stderr,"failed to load char 0x%x\n",error);
+    }
+    if (FT_Get_Glyph(face->glyph, &glyph)) {
+        fprintf(stderr,"failed to get glyph\n");
+    }
+    fprintf(stderr, "bitmap: left: %x, top:%x, width:%x, rows:%x,pixel_mode:%x\n", face->glyph->bitmap_left,face->glyph->bitmap_top,
+            face->glyph->bitmap.width,face->glyph->bitmap.rows,face->glyph->bitmap.pixel_mode);
+    fprintf(stderr,"num_glyphs: %d, fixed_size:%d,faces:%d\n",face->num_glyphs,face->num_fixed_sizes,face->num_faces);
+
+    if (glyph->format != FT_GLYPH_FORMAT_BITMAP) {
+        printf("format is not bitmap \n");
+    }
+    if (error = FT_Glyph_To_Bitmap(&glyph, FT_RENDER_MODE_NORMAL, 0, 1)) {
+        fprintf(stderr,"to bitmap error:0x%x\n",error);
+    }
+    FT_BitmapGlyph bglyph = (FT_BitmapGlyph)glyph;
+    FT_Bitmap bitmap = bglyph->bitmap;
 
     for (int i = 0; i < 250; i++) {
         av_frame_make_writable(frame);
         //fprintf(stderr,"linesize is %d,width is %d\n",frame->linesize[0],c->width);
 
-        /* prepare a dummy image */
-        /* Y */
         for (y = 0; y < c->height; y++) {
 
             for (x = 0; x < c->width; x++) {
@@ -116,17 +162,11 @@ void video_render()
                 } else {
                     p1[1] = i;
                 }
+
             }
         }
-
-        /* Cb and Cr */
-        /* for (y = 0; y < c->height/2; y++) { */
-        /*     for (x = 0; x < c->width/2; x++) { */
-        /*         frame->data[1][y * frame->linesize[1] + x] = 128 + y + i * 2; */
-        /*         frame->data[2][y * frame->linesize[2] + x] = 64 + x + i * 5; */
-        /*     } */
-        /* } */
-
+        FT_GlyphSlot slot = face->glyph;
+        draw_glyph(frame->data[0], bitmap.buffer, 100, 100, frame->width, bitmap.width,bitmap.rows);
         frame->pts = i;
 
         encode(c,frame,pkt,f);
