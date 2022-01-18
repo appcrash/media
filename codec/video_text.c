@@ -8,7 +8,7 @@
 
 static FT_Library ft_library;
 
-static void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt, FILE *outfile)
+static struct DataBuffer* encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt, FILE *outfile)
 {
     int ret;
 
@@ -30,11 +30,15 @@ static void encode(AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt, FILE 
             fprintf(stderr, "Error during encoding\n");
             exit(1);
         }
+        struct DataBuffer *buff = buffer_alloc(2048);
+        buffer_fill(buff, pkt->data, pkt->size);
+        return buff;
 
         printf("Write packet %3"PRId64" (size=%5d)\n", pkt->pts, pkt->size);
         fwrite(pkt->data, 1, pkt->size, outfile);
         av_packet_unref(pkt);
     }
+    return NULL;
 }
 
 static void draw_glyph(char *surface_buffer,char *bitmap_buffer,int x,int y,
@@ -56,7 +60,7 @@ static void draw_glyph(char *surface_buffer,char *bitmap_buffer,int x,int y,
 }
 
 
-void video_render()
+struct DataBuffer* video_render()
 {
     AVCodec *codec;
     AVCodecContext *c;
@@ -169,9 +173,13 @@ void video_render()
         draw_glyph(frame->data[0], bitmap.buffer, 100, 100, frame->width, bitmap.width,bitmap.rows);
         frame->pts = i;
 
-        encode(c,frame,pkt,f);
+        struct DataBuffer *buff = encode(c,frame,pkt,f);
+        if (buff) {
+            return buff;
+        }
     }
 
+    return NULL;
     encode(c,NULL,pkt,f);
 
 

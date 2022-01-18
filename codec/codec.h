@@ -157,4 +157,4 @@ int init_mix_filter_graph(struct MixContext *mix_ctx,AVDictionary *dict);
 /*
  * video functions
  */
-void video_render();
+struct DataBuffer* video_render();

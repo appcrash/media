@@ -10,7 +10,10 @@ package codec
 //#include <libavformat/avformat.h>
 //#include "codec.h"
 import "C"
+import "unsafe"
 
 func EncodeText() {
-	C.video_render()
+	buff := C.video_render()
+	payload := C.GoBytes(unsafe.Pointer(buff.data), buff.size)
+	analyzeH264(payload)
 }
