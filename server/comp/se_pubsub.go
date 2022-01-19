@@ -18,7 +18,7 @@ import (
 //
 // for output(subscriber), one of:
 // 1. other node that receives event from pubsub node (inter-node communication)
-// 2. provider a channel of type (chan<- *event.Event) to which pubsub deliveries (consume event from event graph),
+// 2. provider a channel of type (chan<- *event.Event) to which pubsub delivers (consume event from event graph),
 // the channel must be buffered channel, i.e. cap(c) != 0, and in the SAME session of this node, so communication
 // across sessions must take inter-node measures
 //
