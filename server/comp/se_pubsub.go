@@ -72,8 +72,6 @@ func (p *PubSubNode) OnEvent(evt *event.Event) {
 }
 
 func (p *PubSubNode) OnLinkDown(_ int, scope string, nodeName string) {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
 	if index, si := p.findNodeSubscriber(scope, nodeName); si != nil {
 		// a node subscriber is down, just remove it from subscribers
 		p.deleteSubscriber(index)
