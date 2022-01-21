@@ -60,11 +60,11 @@ func (p *PubSubNode) OnEvent(evt *event.Event) {
 		return
 	}
 	switch evt.GetCmd() {
-	case DATA_OUTPUT:
+	case DataOutput:
 		if c, ok := obj.(Cloneable); ok {
 			p.Publish(c)
 		}
-	case CTRL_CALL:
+	case CtrlCall:
 		if msg, ok := obj.(*CtrlMessage); ok {
 			p.handleCall(msg)
 		}
@@ -133,13 +133,13 @@ func (p *PubSubNode) Publish(obj Cloneable) {
 			if s.linkId < 0 {
 				continue
 			}
-			evt := event.NewEvent(DATA_OUTPUT, obj.Clone())
+			evt := event.NewEvent(DataOutput, obj.Clone())
 			p.delegate.Deliver(s.linkId, evt)
 		case psSubscribeTypeChannel:
 			if s.channel == nil {
 				continue
 			}
-			evt := event.NewEvent(DATA_OUTPUT, obj.Clone())
+			evt := event.NewEvent(DataOutput, obj.Clone())
 			select {
 			case s.channel <- evt:
 			default:
@@ -150,7 +150,7 @@ func (p *PubSubNode) Publish(obj Cloneable) {
 
 func newPubSubNode() SessionAware {
 	node := new(PubSubNode)
-	node.Name = TYPE_PUBSUB
+	node.Name = TypePUBSUB
 	node.SetDeliveryTimeout(PUBSUB_DEFAULT_DELIVERY_TIMEOUT)
 	return node
 }

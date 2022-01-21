@@ -62,24 +62,19 @@ func (s *MediaSession) receivePacketLoop(ctx context.Context) {
 
 	rtpSession := s.rtpSession
 	dataReceiver := rtpSession.CreateDataReceiveChan()
-	var data []byte
 	cancelC := ctx.Done()
 	for {
 		select {
 		case rp, more := <-dataReceiver:
-			var shouldContinue bool
 			if !more {
 				// RTP stack closed this channel, so stop receiving anymore
 				return
 			}
 
 			// push received data to all sinks, then free the packet
-			data = nil
+			si := &SinkInfo{Packet: rp}
 			for _, sk := range s.sink {
-				data, shouldContinue = sk.HandleData(s, rp, data)
-				if !shouldContinue {
-					break
-				}
+				sk.HandleData(s, si)
 			}
 			rp.FreePacket()
 		case <-cancelC:
@@ -89,13 +84,12 @@ func (s *MediaSession) receivePacketLoop(ctx context.Context) {
 }
 
 func (s *MediaSession) sendPacketLoop(ctx context.Context) {
-	var ts uint32 = 0
 	gauge := prom.SessionGoroutine.With(prometheus.Labels{"type": "send"})
 	gauge.Inc()
 
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Fatalln("sendPacketLoop panic %v", r)
+			logger.Errorln("sendPacketLoop panic %v", r)
 			debug.PrintStack()
 		}
 	}()
@@ -105,29 +99,34 @@ func (s *MediaSession) sendPacketLoop(ctx context.Context) {
 		s.doneC <- "done"
 	}()
 
-	timeStep := codec.GetCodecTimeStep(s.audioPayloadCodec)
+	timeStep := codec.GetCodecTimeStep(s.avPayloadCodec)
 	ticker := time.NewTicker(time.Duration(timeStep) * time.Millisecond)
 	cancelC := ctx.Done()
 outLoop:
 	for {
 		select {
 		case <-ticker.C:
-			var data []byte
-			var tsDelta uint32
-
+			si := &SourceInfo{}
 			// pull data from all sources
 			for _, source := range s.source {
-				data, tsDelta = source.PullData(s, data, tsDelta)
+				source.PullData(s, si)
 			}
-			if data != nil {
-				if s.rtpSession == nil {
-					break outLoop
+
+			// send all packets based on SourceInfo link list
+			// for video, a frame can have more than one packet with same timestamp
+			for si != nil {
+				payload, pts, mark := si.Payload, si.Pts, si.Marker
+				if payload != nil {
+					if s.rtpSession == nil {
+						break outLoop
+					}
+					packet := s.rtpSession.NewDataPacket(pts)
+					packet.SetMarker(mark)
+					packet.SetPayload(payload)
+					_, _ = s.rtpSession.WriteData(packet)
+					packet.FreePacket()
 				}
-				packet := s.rtpSession.NewDataPacket(ts)
-				packet.SetPayload(data)
-				_, _ = s.rtpSession.WriteData(packet)
-				packet.FreePacket()
-				ts += tsDelta
+				si = si.Next
 			}
 		case <-cancelC:
 			break outLoop

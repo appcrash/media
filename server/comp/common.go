@@ -15,9 +15,9 @@ func InitLogger(gl *logrus.Logger) {
 }
 
 const (
-	TYPE_ENTRY    = "entry"
-	TYPE_PUBSUB   = "pubsub"
-	TYPE_DISPATCH = "dispatch"
+	TypeENTRY    = "entry"
+	TypePUBSUB   = "pubsub"
+	TypeDISPATCH = "dispatch"
 )
 
 type Id struct {
@@ -88,9 +88,9 @@ type MessageProvider interface {
 type SessionNodeFactory func() SessionAware
 
 var sessionNodeRegistry = map[string]SessionNodeFactory{
-	TYPE_ENTRY:    newEntryNode,
-	TYPE_PUBSUB:   newPubSubNode,
-	TYPE_DISPATCH: newDispatch,
+	TypeENTRY:    newEntryNode,
+	TypePUBSUB:   newPubSubNode,
+	TypeDISPATCH: newDispatch,
 }
 
 func getNodeByName(typeName string) SessionAware {
@@ -142,23 +142,23 @@ func NewCallEvent(M []string) *event.Event {
 		M: M,
 		C: make(chan []string, 1),
 	}
-	return event.NewEvent(CTRL_CALL, msg)
+	return event.NewEvent(CtrlCall, msg)
 }
 
 func NewCastEvent(M []string) *event.Event {
 	msg := &CtrlMessage{
 		M: M,
 	}
-	return event.NewEvent(CTRL_CAST, msg)
+	return event.NewEvent(CtrlCast, msg)
 }
 
 func NewDataEvent(dm DataMessage) *event.Event {
-	return event.NewEvent(DATA_OUTPUT, dm)
+	return event.NewEvent(DataOutput, dm)
 }
 
 // public commands
 const (
-	CTRL_CALL = iota + 10000
-	CTRL_CAST
-	DATA_OUTPUT
+	CtrlCall = iota + 10000
+	CtrlCast
+	DataOutput
 )

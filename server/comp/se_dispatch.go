@@ -121,6 +121,6 @@ func newDispatch() SessionAware {
 	n := &Dispatch{
 		linkMap: make(map[string]int),
 	}
-	n.Name = TYPE_DISPATCH
+	n.Name = TypeDISPATCH
 	return n
 }

@@ -13,7 +13,7 @@ type EntryNode struct {
 
 func newEntryNode() SessionAware {
 	node := &EntryNode{}
-	node.Name = TYPE_ENTRY
+	node.Name = TypeENTRY
 	node.payloadType = entryNodeDefaultPayloadType
 	return node
 }

@@ -18,14 +18,14 @@ func newPrintNode() comp.SessionAware {
 
 func (p *printNode) OnEvent(e *event.Event) {
 	switch e.GetCmd() {
-	case comp.DATA_OUTPUT:
+	case comp.DataOutput:
 		msg := e.GetObj().(comp.DataMessage)
 		fmt.Printf("%v print %v\n", p.Name, msg)
-	case comp.CTRL_CALL:
+	case comp.CtrlCall:
 		msg := e.GetObj().(*comp.CtrlMessage)
 		reply := comp.WithOk(p.Name)
 		msg.C <- reply
-	case comp.CTRL_CAST:
+	case comp.CtrlCast:
 		msg := e.GetObj().(*comp.CtrlMessage)
 		data := msg.M[0]
 		p.SendData(comp.NewDataMessage(data))
@@ -45,7 +45,7 @@ func TestComposerBasic(t *testing.T) {
 		t.Fatal("prepare node failed", err)
 	}
 	c.LinkChannel("src1", ch1)
-	mp := c.GetMessageProvider(comp.TYPE_ENTRY)
+	mp := c.GetMessageProvider(comp.TypeENTRY)
 	mp.PushMessage(comp.NewDataMessage("hello"))
 	evt := <-ch1
 	if evt.GetObj().(comp.DataMessage).String() != "hello" {
@@ -90,7 +90,7 @@ func ExampleComposerPubSub() {
 		return
 	}
 	c.LinkChannel("src", ch)
-	mp := c.GetMessageProvider(comp.TYPE_ENTRY)
+	mp := c.GetMessageProvider(comp.TypeENTRY)
 	mp.PushMessage(comp.NewDataMessage("foobar"))
 	evt := <-ch
 	msg := evt.GetObj().(comp.DataMessage).String()

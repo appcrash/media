@@ -101,7 +101,7 @@ func (srv *MediaServer) startSession(param *rpc.StartParam) (err error) {
 	} else {
 		err = errors.New("session not exist")
 	}
-	if err != nil {
+	if err == nil {
 		srv.invokeSessionListener(session, sessionStatusStarted)
 	}
 	return

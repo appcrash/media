@@ -15,6 +15,17 @@ type CommandTrait struct {
 	CmdTrait TraitEnum
 }
 
+type SourceInfo struct {
+	Payload []byte      // rtp payload
+	Pts     uint32      // presentation timestamp
+	Marker  bool        // should mark-bit in rtp header be set?
+	Next    *SourceInfo // more SourceInfo, if any
+}
+
+type SinkInfo struct {
+	Packet *rtp.DataPacket
+}
+
 type CommandExecute interface {
 	Execute(s *MediaSession, cmd string, args string)
 	ExecuteWithNotify(s *MediaSession, cmd string, args string, ctrlIn ExecuteCtrlChan, ctrlOut ExecuteCtrlChan)
@@ -22,21 +33,18 @@ type CommandExecute interface {
 }
 
 // Source provides data for RTP session
-// either generates data by it own or append/change data from previous source
-// data from last source in source-list would be used by RTP send loop ultimately
-// so be careful to order of sources
-// NOTE: the first source would get previousData as nil, previousTs as 0
+// either generates data by it own or append/change data from previous source by
+// modifying SourceInfo object, once it is passed through all sources, RTP send loop
+// ultimately create new packet from SourceInfo then send it
+// so be careful the order of sources
 type Source interface {
-	PullData(s *MediaSession, previousData []byte, previousTs uint32) (data []byte, timestampAdvanced uint32)
+	PullData(s *MediaSession, si *SourceInfo)
 }
 
 // Sink consumes data from RTP session
 // receive loop fetches rtp data packet and feeds it to all sinks in sink-list
-// each sink should return true if the data(no matter processed by this sink or not)
-// can be used by following sinks or  return false to stop this process
-// (so following sinks can not get the data)
 type Sink interface {
-	HandleData(s *MediaSession, packet *rtp.DataPacket, previousData []byte) (data []byte, shouldContinue bool)
+	HandleData(s *MediaSession, si *SinkInfo)
 }
 
 type SourceFactory interface {

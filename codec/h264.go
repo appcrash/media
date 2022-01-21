@@ -21,6 +21,8 @@ const (
 	bitmaskRefIdc  uint8 = 0x60
 	bitmaskFuStart uint8 = 0x80
 	bitmaskFuEnd   uint8 = 0x40
+
+	defaultMtu = 1300
 )
 
 var annexbNalStartCode = []byte{0x00, 0x00, 0x00, 0x01}
@@ -152,15 +154,16 @@ func makeFuA(mtu int, nal []byte) (rtpPayload [][]byte) {
 		payload[0] = indicator
 		header := nalType
 		if isFirstFragment {
-			header |= 1 << 7 // set start bit
+			header |= bitmaskFuStart // set start bit
 			isFirstFragment = false
 		} else if fragmentPayloadSize == remainingPayloadSize {
-			header |= 1 << 6 // set end bit
+			header |= bitmaskFuEnd // set end bit
 		}
 		payload[1] = header
 		copy(payload[2:], nal[startPtr:startPtr+fragmentPayloadSize])
 		rtpPayload = append(rtpPayload, payload)
 		startPtr += fragmentPayloadSize
+		remainingPayloadSize -= fragmentPayloadSize
 	}
 	return
 }
