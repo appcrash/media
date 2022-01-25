@@ -78,7 +78,7 @@ type Controller interface {
 // MessageProvider can push data message to event-graph
 type MessageProvider interface {
 	GetName() string
-	PushMessage(data DataMessage) error
+	PushMessage(data RawByteMessage) error
 	CanHandlePayloadType(pt uint8) bool
 	Priority() uint32 // multiple message providers can be ordered by priority
 }
@@ -112,53 +112,83 @@ func RegisterNodeFactory(typeName string, f SessionNodeFactory) error {
 	return nil
 }
 
-// DataMessage is used to pass data between nodes intra/inter session
-type DataMessage []byte
-type Cloneable interface {
-	Clone() Cloneable
-}
-
-func NewDataMessage(d string) DataMessage {
-	return DataMessage(d)
-}
-
-func (m DataMessage) String() string {
-	return string(m)
-}
-func (m DataMessage) Clone() Cloneable {
-	mc := make(DataMessage, len(m))
-	copy(mc, m)
-	return mc
-}
+// RawByteMessage is used to pass byte streaming data between nodes intra/inter session, for efficiency
+type RawByteMessage []byte
 
 // CtrlMessage is used to invoke or cast function call
 type CtrlMessage struct {
 	M []string
-	C chan []string // used to receive result
+	C chan []string // used to receive result if not nil
 }
 
-func NewCallEvent(M []string) *event.Event {
-	msg := &CtrlMessage{
-		M: M,
-		C: make(chan []string, 1),
+// GenericMessage is used to encapsulate custom object in message with tagged type name
+// nodes can only communicate with each other by GenericMessage of the same tagged type
+type GenericMessage struct {
+	Subtype string
+	Obj     interface{}
+}
+
+// Message is the base interface of all kinds of message
+type Message interface {
+	AsEvent() *event.Event
+}
+
+// Cloneable is a must if message need to pass through pubsub node
+type Cloneable interface {
+	Clone() Cloneable
+}
+
+func NewRawByteMessage(d string) RawByteMessage {
+	return RawByteMessage(d)
+}
+
+func (m RawByteMessage) String() string {
+	return string(m)
+}
+func (m RawByteMessage) Clone() Cloneable {
+	mc := make(RawByteMessage, len(m))
+	copy(mc, m)
+	return mc
+}
+
+func (m RawByteMessage) AsEvent() *event.Event {
+	return event.NewEvent(RawByte, m)
+}
+
+func (cm *CtrlMessage) AsEvent() *event.Event {
+	if cm.C != nil {
+		return event.NewEvent(CtrlCall, cm)
+	} else {
+		return event.NewEvent(CtrlCast, cm)
 	}
-	return event.NewEvent(CtrlCall, msg)
 }
 
-func NewCastEvent(M []string) *event.Event {
-	msg := &CtrlMessage{
-		M: M,
+func (gm *GenericMessage) AsEvent() *event.Event {
+	return event.NewEvent(Generic, gm)
+}
+
+// Clone returns non-nil object only if internal object is also cloneable
+func (gm *GenericMessage) Clone() (obj Cloneable) {
+	if gm.Obj == nil {
+		return
 	}
-	return event.NewEvent(CtrlCast, msg)
-}
-
-func NewDataEvent(dm DataMessage) *event.Event {
-	return event.NewEvent(DataOutput, dm)
+	if c, ok := gm.Obj.(Cloneable); ok {
+		cc := c.Clone()
+		if cc == nil {
+			return
+		}
+		obj = &GenericMessage{
+			Subtype: gm.Subtype,
+			Obj:     cc,
+		}
+	}
+	return
 }
 
 // public commands
 const (
 	CtrlCall = iota + 10000
 	CtrlCast
-	DataOutput
+	RawByte
+	Generic
 )

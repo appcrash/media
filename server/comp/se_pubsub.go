@@ -31,7 +31,7 @@ import (
 // event graph -----> pubsub -----> |outside|
 //                          consume
 
-const PUBSUB_DEFAULT_DELIVERY_TIMEOUT = 20 * time.Millisecond
+const PubsubDefaultDeliveryTimeout = 20 * time.Millisecond
 
 const (
 	psSubscribeTypeNode = iota
@@ -60,13 +60,20 @@ func (p *PubSubNode) OnEvent(evt *event.Event) {
 		return
 	}
 	switch evt.GetCmd() {
-	case DataOutput:
+	case RawByte:
 		if c, ok := obj.(Cloneable); ok {
 			p.Publish(c)
 		}
 	case CtrlCall:
 		if msg, ok := obj.(*CtrlMessage); ok {
 			p.handleCall(msg)
+		}
+	case CtrlCast:
+		// none
+	default:
+		// same as data output only if it is cloneable
+		if c, ok := obj.(Cloneable); ok {
+			p.Publish(c)
 		}
 	}
 }
@@ -133,13 +140,13 @@ func (p *PubSubNode) Publish(obj Cloneable) {
 			if s.linkId < 0 {
 				continue
 			}
-			evt := event.NewEvent(DataOutput, obj.Clone())
+			evt := event.NewEvent(RawByte, obj.Clone())
 			p.delegate.Deliver(s.linkId, evt)
 		case psSubscribeTypeChannel:
 			if s.channel == nil {
 				continue
 			}
-			evt := event.NewEvent(DataOutput, obj.Clone())
+			evt := event.NewEvent(RawByte, obj.Clone())
 			select {
 			case s.channel <- evt:
 			default:
@@ -151,7 +158,7 @@ func (p *PubSubNode) Publish(obj Cloneable) {
 func newPubSubNode() SessionAware {
 	node := new(PubSubNode)
 	node.Name = TypePUBSUB
-	node.SetDeliveryTimeout(PUBSUB_DEFAULT_DELIVERY_TIMEOUT)
+	node.SetDeliveryTimeout(PubsubDefaultDeliveryTimeout)
 	return node
 }
 

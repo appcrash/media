@@ -18,9 +18,9 @@ func newEntryNode() SessionAware {
 	return node
 }
 
-func (e *EntryNode) PushMessage(data DataMessage) error {
+func (e *EntryNode) PushMessage(data RawByteMessage) error {
 	if data != nil {
-		_ = e.SendData(data)
+		_ = e.SendMessage(data)
 	}
 	return nil
 }

@@ -18,8 +18,8 @@ func newPrintNode() comp.SessionAware {
 
 func (p *printNode) OnEvent(e *event.Event) {
 	switch e.GetCmd() {
-	case comp.DataOutput:
-		msg := e.GetObj().(comp.DataMessage)
+	case comp.RawByte:
+		msg := e.GetObj().(comp.RawByteMessage)
 		fmt.Printf("%v print %v\n", p.Name, msg)
 	case comp.CtrlCall:
 		msg := e.GetObj().(*comp.CtrlMessage)
@@ -28,7 +28,7 @@ func (p *printNode) OnEvent(e *event.Event) {
 	case comp.CtrlCast:
 		msg := e.GetObj().(*comp.CtrlMessage)
 		data := msg.M[0]
-		p.SendData(comp.NewDataMessage(data))
+		p.SendMessage(comp.NewRawByteMessage(data))
 	}
 }
 
@@ -46,19 +46,19 @@ func TestComposerBasic(t *testing.T) {
 	}
 	c.LinkChannel("src1", ch1)
 	mp := c.GetMessageProvider(comp.TypeENTRY)
-	mp.PushMessage(comp.NewDataMessage("hello"))
+	mp.PushMessage(comp.NewRawByteMessage("hello"))
 	evt := <-ch1
-	if evt.GetObj().(comp.DataMessage).String() != "hello" {
+	if evt.GetObj().(comp.RawByteMessage).String() != "hello" {
 		t.Fatal("send/recv message not equal for src1")
 	}
 	c.LinkChannel("src2", ch2)
-	mp.PushMessage(comp.NewDataMessage("hello again"))
+	mp.PushMessage(comp.NewRawByteMessage("hello again"))
 	evt = <-ch2
-	if evt.GetObj().(comp.DataMessage).String() != "hello again" {
+	if evt.GetObj().(comp.RawByteMessage).String() != "hello again" {
 		t.Fatal("send/recv message not equal for src2")
 	}
 	evt = <-ch1
-	if evt.GetObj().(comp.DataMessage).String() != "hello again" {
+	if evt.GetObj().(comp.RawByteMessage).String() != "hello again" {
 		t.Fatal("send/recv message not equal for src1 (again)")
 	}
 }
@@ -91,9 +91,9 @@ func ExampleComposerPubSub() {
 	}
 	c.LinkChannel("src", ch)
 	mp := c.GetMessageProvider(comp.TypeENTRY)
-	mp.PushMessage(comp.NewDataMessage("foobar"))
+	mp.PushMessage(comp.NewRawByteMessage("foobar"))
 	evt := <-ch
-	msg := evt.GetObj().(comp.DataMessage).String()
+	msg := evt.GetObj().(comp.RawByteMessage).String()
 	fmt.Printf("channel got %v\n", msg)
 	time.Sleep(50 * time.Millisecond)
 
@@ -120,8 +120,8 @@ func ExampleComposerMultipleEntry() {
 	}
 	mp1 := c.GetMessageProvider("e1")
 	mp2 := c.GetMessageProvider("e2")
-	mp1.PushMessage(comp.NewDataMessage("foo"))
-	mp2.PushMessage(comp.NewDataMessage("bar"))
+	mp1.PushMessage(comp.NewRawByteMessage("foo"))
+	mp2.PushMessage(comp.NewRawByteMessage("bar"))
 	time.Sleep(50 * time.Millisecond)
 
 	// Unordered OUTPUT:
@@ -171,11 +171,11 @@ func ExampleComposerInterSession() {
 	}
 	mp1, mp2 := c1.GetMessageProvider("entry"), c2.GetMessageProvider("entry")
 	ctrl1 := c1.GetController()
-	mp1.PushMessage(comp.NewDataMessage("from_session_1"))
-	mp2.PushMessage(comp.NewDataMessage("from_session_2"))
+	mp1.PushMessage(comp.NewRawByteMessage("from_session_1"))
+	mp2.PushMessage(comp.NewRawByteMessage("from_session_2"))
 	connCmd := comp.WithConnect("test1", "p2")
 	ctrl1.Call("test2", "ps", connCmd) // ask "test2:ps" to connect to "test1:p2"
-	mp2.PushMessage(comp.NewDataMessage("from_session_2_again"))
+	mp2.PushMessage(comp.NewRawByteMessage("from_session_2_again"))
 
 	time.Sleep(50 * time.Millisecond)
 	// Unordered OUTPUT:
@@ -204,11 +204,11 @@ func ExamplePubSubEnableDisable() {
 	}
 	mp := c.GetMessageProvider("e1")
 	ctrl := c.GetController()
-	mp.PushMessage(comp.NewDataMessage("foo"))
+	mp.PushMessage(comp.NewRawByteMessage("foo"))
 	ctrl.Call("", "pubsub", comp.With("disable", "node", "test_session", "p1"))
-	mp.PushMessage(comp.NewDataMessage("bar"))
+	mp.PushMessage(comp.NewRawByteMessage("bar"))
 	ctrl.Call("", "pubsub", comp.With("enable", "node", "test_session", "p1"))
-	mp.PushMessage(comp.NewDataMessage("foobar"))
+	mp.PushMessage(comp.NewRawByteMessage("foobar"))
 	time.Sleep(50 * time.Millisecond)
 
 	// Unordered OUTPUT:

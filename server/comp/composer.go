@@ -152,7 +152,7 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 
 		psNode := c.nodeList[i].(*PubSubNode)
 		// pubsub property, for example: channel=a,b,c ...
-		logger.Println("chNameList ", chNameList)
+		logger.Debugln("chNameList ", chNameList)
 		for _, chName := range strings.Split(chNameList, ",") {
 			if _, exist := c.namedChannel[chName]; exist {
 				// the channel is already registered

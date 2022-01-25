@@ -90,13 +90,16 @@ func (d *Dispatch) Call(session, name string, args []string) (resp []string) {
 		resp = WithError("can not connect to requested node")
 		return
 	}
-	evt := NewCallEvent(args)
+	msg := &CtrlMessage{
+		M: args,
+		C: make(chan []string, 1),
+	}
+	evt := msg.AsEvent()
 	if !d.delegate.Deliver(linkId, evt) {
 		resp = []string{"err"}
 		return
 	}
-	ctrlMsg := evt.GetObj().(*CtrlMessage)
-	resp = <-ctrlMsg.C
+	resp = <-msg.C
 	return
 }
 
@@ -110,7 +113,10 @@ func (d *Dispatch) Cast(session, name string, args []string) {
 	if err != nil {
 		return
 	}
-	evt := NewCastEvent(args)
+	msg := &CtrlMessage{
+		M: args,
+	}
+	evt := msg.AsEvent()
 	if !d.delegate.Deliver(linkId, evt) {
 		return
 	}
