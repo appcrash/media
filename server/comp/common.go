@@ -78,7 +78,7 @@ type Controller interface {
 // MessageProvider can push data message to event-graph
 type MessageProvider interface {
 	GetName() string
-	PushMessage(data RawByteMessage) error
+	PushMessage(data Message) error
 	CanHandlePayloadType(pt uint8) bool
 	Priority() uint32 // multiple message providers can be ordered by priority
 }
@@ -122,7 +122,7 @@ type CtrlMessage struct {
 }
 
 // GenericMessage is used to encapsulate custom object in message with tagged type name
-// nodes can only communicate with each other by GenericMessage of the same tagged type
+// nodes can only communicate with each other who can build/handle GenericMessage of the same tagged type
 type GenericMessage struct {
 	Subtype string
 	Obj     interface{}
@@ -133,9 +133,14 @@ type Message interface {
 	AsEvent() *event.Event
 }
 
-// Cloneable is a must if message need to pass through pubsub node
 type Cloneable interface {
 	Clone() Cloneable
+}
+
+// CloneableMessage is a must if message need to pass through pubsub node
+type CloneableMessage interface {
+	Message
+	Clone() CloneableMessage
 }
 
 func NewRawByteMessage(d string) RawByteMessage {
@@ -145,7 +150,7 @@ func NewRawByteMessage(d string) RawByteMessage {
 func (m RawByteMessage) String() string {
 	return string(m)
 }
-func (m RawByteMessage) Clone() Cloneable {
+func (m RawByteMessage) Clone() CloneableMessage {
 	mc := make(RawByteMessage, len(m))
 	copy(mc, m)
 	return mc
@@ -167,8 +172,12 @@ func (gm *GenericMessage) AsEvent() *event.Event {
 	return event.NewEvent(Generic, gm)
 }
 
+func (gm *GenericMessage) String() string {
+	return fmt.Sprintf("GenericMessage type:%v value:%v", gm.Subtype, gm.Obj)
+}
+
 // Clone returns non-nil object only if internal object is also cloneable
-func (gm *GenericMessage) Clone() (obj Cloneable) {
+func (gm *GenericMessage) Clone() (obj CloneableMessage) {
 	if gm.Obj == nil {
 		return
 	}

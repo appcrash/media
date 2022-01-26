@@ -12,14 +12,26 @@ type printNode struct {
 	comp.SessionNode
 }
 
+type cloneableObj struct {
+	data string
+}
+
+func (c *cloneableObj) Clone() comp.Cloneable {
+	return &cloneableObj{c.data}
+}
+
+func (c *cloneableObj) String() string {
+	return c.data
+}
+
 func newPrintNode() comp.SessionAware {
 	return &printNode{}
 }
 
 func (p *printNode) OnEvent(e *event.Event) {
 	switch e.GetCmd() {
-	case comp.RawByte:
-		msg := e.GetObj().(comp.RawByteMessage)
+	case comp.RawByte, comp.Generic:
+		msg := e.GetObj()
 		fmt.Printf("%v print %v\n", p.Name, msg)
 	case comp.CtrlCall:
 		msg := e.GetObj().(*comp.CtrlMessage)
@@ -102,6 +114,38 @@ func ExampleComposerPubSub() {
 	// p2 print foobar
 	// p3 print foobar
 	// channel got foobar
+}
+
+func ExampleComposerGenericMessage() {
+	gd := `[entry] -> [pubsub channel='out'] -> [p1:print];`
+
+	comp.RegisterNodeFactory("print", newPrintNode)
+	c := comp.NewSessionComposer("test_session")
+	graph := event.NewEventGraph()
+	if err := c.ParseGraphDescription(gd); err != nil {
+		fmt.Println("parse graph failed")
+		return
+	}
+	ch := make(chan *event.Event, 2)
+	if err := c.ComposeNodes(graph); err != nil {
+		fmt.Println("prepare node failed")
+		return
+	}
+	c.LinkChannel("out", ch)
+	msg := &comp.GenericMessage{
+		Subtype: "cloneable",
+		Obj:     &cloneableObj{data: "cloneMe"},
+	}
+	mp := c.GetMessageProvider(comp.TypeENTRY)
+	mp.PushMessage(msg)
+	evt := <-ch
+	obj := evt.GetObj()
+	fmt.Printf("channel got %v\n", obj)
+	time.Sleep(50 * time.Millisecond)
+
+	// Unordered OUTPUT:
+	// p1 print GenericMessage type:cloneable value:cloneMe
+	// channel got GenericMessage type:cloneable value:cloneMe
 }
 
 func ExampleComposerMultipleEntry() {

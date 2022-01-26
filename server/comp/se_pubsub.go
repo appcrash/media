@@ -60,8 +60,8 @@ func (p *PubSubNode) OnEvent(evt *event.Event) {
 		return
 	}
 	switch evt.GetCmd() {
-	case RawByte:
-		if c, ok := obj.(Cloneable); ok {
+	case RawByte, Generic:
+		if c, ok := obj.(CloneableMessage); ok {
 			p.Publish(c)
 		}
 	case CtrlCall:
@@ -70,11 +70,6 @@ func (p *PubSubNode) OnEvent(evt *event.Event) {
 		}
 	case CtrlCast:
 		// none
-	default:
-		// same as data output only if it is cloneable
-		if c, ok := obj.(Cloneable); ok {
-			p.Publish(c)
-		}
 	}
 }
 
@@ -110,7 +105,7 @@ func (p *PubSubNode) SetPipeOut(session, name string) error {
 
 //------------------------------- api & implementation --------------------------------------
 
-func (p *PubSubNode) Publish(obj Cloneable) {
+func (p *PubSubNode) Publish(obj CloneableMessage) {
 	var subscribers []*psSubscriberInfo
 	if obj == nil {
 		return
@@ -140,13 +135,23 @@ func (p *PubSubNode) Publish(obj Cloneable) {
 			if s.linkId < 0 {
 				continue
 			}
-			evt := event.NewEvent(RawByte, obj.Clone())
+			msg := obj.Clone()
+			if msg == nil {
+				logger.Debugf("pubsub got message that clone to nil")
+				continue
+			}
+			evt := msg.AsEvent()
 			p.delegate.Deliver(s.linkId, evt)
 		case psSubscribeTypeChannel:
 			if s.channel == nil {
 				continue
 			}
-			evt := event.NewEvent(RawByte, obj.Clone())
+			msg := obj.Clone()
+			if msg == nil {
+				logger.Debugf("pubsub got message that clone to nil")
+				continue
+			}
+			evt := msg.AsEvent()
 			select {
 			case s.channel <- evt:
 			default:

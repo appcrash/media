@@ -88,7 +88,7 @@ func (s *SessionNode) DataPipeReady() bool {
 }
 
 // SendMessage utility method to put data message to next node
-func (s *SessionNode) SendMessage(msg RawByteMessage) (err error) {
+func (s *SessionNode) SendMessage(msg Message) (err error) {
 	if s.DataPipeReady() {
 		evt := msg.AsEvent()
 		s.delegate.Deliver(s.dataLinkId, evt)
