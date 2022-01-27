@@ -1,6 +1,8 @@
 package server
 
-import "github.com/appcrash/GoRTP/rtp"
+import (
+	"github.com/appcrash/media/server/utils"
+)
 
 type TraitEnum uint8
 type ExecuteCtrlChan chan string
@@ -15,17 +17,6 @@ type CommandTrait struct {
 	CmdTrait TraitEnum
 }
 
-type SourceInfo struct {
-	Payload []byte      // rtp payload
-	Pts     uint32      // presentation timestamp
-	Marker  bool        // should mark-bit in rtp header be set?
-	Next    *SourceInfo // more SourceInfo, if any
-}
-
-type SinkInfo struct {
-	Packet *rtp.DataPacket
-}
-
 type CommandExecute interface {
 	Execute(s *MediaSession, cmd string, args string)
 	ExecuteWithNotify(s *MediaSession, cmd string, args string, ctrlIn ExecuteCtrlChan, ctrlOut ExecuteCtrlChan)
@@ -34,17 +25,17 @@ type CommandExecute interface {
 
 // Source provides data for RTP session
 // either generates data by it own or append/change data from previous source by
-// modifying SourceInfo object, once it is passed through all sources, RTP send loop
-// ultimately create new packet from SourceInfo then send it
+// modifying PacketList object, once it is passed through all sources, RTP send loop
+// ultimately create new packet from PacketList then send it
 // so be careful the order of sources
 type Source interface {
-	PullData(s *MediaSession, si *SourceInfo)
+	PullData(s *MediaSession, si *utils.PacketList)
 }
 
 // Sink consumes data from RTP session
 // receive loop fetches rtp data packet and feeds it to all sinks in sink-list
 type Sink interface {
-	HandleData(s *MediaSession, si *SinkInfo)
+	HandleData(s *MediaSession, si *utils.PacketList)
 }
 
 type SourceFactory interface {

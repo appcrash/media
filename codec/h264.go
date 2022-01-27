@@ -2,6 +2,7 @@ package codec
 
 import (
 	"encoding/binary"
+	"github.com/appcrash/media/server/utils"
 )
 
 const (
@@ -12,22 +13,104 @@ const (
 	//|F|NRI| Type    |
 	//+---------------+
 
-	nalTypeStapa uint8 = 24
-	nalTypeFua   uint8 = 28
-	nalTypeSps   uint8 = 7
-	nalTypePps   uint8 = 8
+	NalTypeStapa uint8 = 24
+	NalTypeFua   uint8 = 28
+	NalTypeSps   uint8 = 7
+	NalTypePps   uint8 = 8
 
-	bitmaskNalType uint8 = 0x1f
-	bitmaskRefIdc  uint8 = 0x60
-	bitmaskFuStart uint8 = 0x80
-	bitmaskFuEnd   uint8 = 0x40
+	BitmaskNalType uint8 = 0x1f
+	BitmaskRefIdc  uint8 = 0x60
+	BitmaskFuStart uint8 = 0x80
+	BitmaskFuEnd   uint8 = 0x40
 
 	defaultMtu = 1300
 )
 
-var annexbNalStartCode = []byte{0x00, 0x00, 0x00, 0x01}
+func PacketListFromH264(payload []byte, pts uint32, mtu int) (pl *utils.PacketList) {
+	nals := extractNals(payload)
+	var bufferedNals [][]byte
+	var rtpPayloadArray [][]byte
+	bufferedSize := 1 // stapA header with 1 byte
+	i := 0
+	for i < len(nals) {
+		nal := nals[i]
+		size := len(nal)
+		if size+2+bufferedSize <= mtu {
+			// nal size with 2 bytes in stapA
+			bufferedNals = append(bufferedNals, nal)
+			bufferedSize += size + 2
+			i++
+			continue
+		} else {
+			// this nal can not be aggregated, just flush buffered nals if any
+			if len(bufferedNals) > 0 {
+				if len(bufferedNals) == 1 {
+					// single nal, no aggregation
+					rtpPayloadArray = append(rtpPayloadArray, bufferedNals[0])
+				} else {
+					stapA := makeStapA(bufferedNals...)
+					rtpPayloadArray = append(rtpPayloadArray, stapA)
+				}
+				bufferedNals = nil
+				bufferedSize = 1
+			}
 
-func analyzeH264(payload []byte) {
+			// check this nal again
+			if size > mtu {
+				rtpPayload := makeFuA(mtu, nal)
+				rtpPayloadArray = append(rtpPayloadArray, rtpPayload...)
+				i++
+			} else if size+2+bufferedSize < mtu {
+				// size < mtu - (2 + bufferedSize)
+				// if this nal can be put into stapA after buffer flushed, do it again
+				continue
+			} else {
+				// mtu - (2 + bufferedSize) <= size <= mtu
+				// rare case, just send as it is
+				rtpPayloadArray = append(rtpPayloadArray, nal)
+				i++
+			}
+		}
+	}
+
+	// check if buffered nals exist for the last time
+	if len(bufferedNals) > 0 {
+		if len(bufferedNals) == 1 {
+			// single nal, no aggregation
+			rtpPayloadArray = append(rtpPayloadArray, bufferedNals[0])
+		} else {
+			stapA := makeStapA(bufferedNals...)
+			rtpPayloadArray = append(rtpPayloadArray, stapA)
+		}
+	}
+
+	// all payloads are in order, make the packet list
+	makePacketList(&pl, rtpPayloadArray, pts)
+	return
+}
+
+func makePacketList(pl **utils.PacketList, rtpPayload [][]byte, pts uint32) {
+	var packet *utils.PacketList
+	prev := *pl
+	for _, payload := range rtpPayload {
+		packet = &utils.PacketList{
+			Payload: payload,
+			Pts:     pts,
+		}
+		if prev == nil {
+			*pl = packet
+		} else {
+			prev.Next = packet
+		}
+		prev = packet
+	}
+	if packet != nil {
+		// set last packet mark bit
+		packet.Marker = true
+	}
+}
+
+func splitH264ToNals(payload []byte) {
 	logger.Infof("payload len is %v", len(payload))
 	nals := extractNals(payload)
 	for _, n := range nals {
@@ -50,7 +133,7 @@ func extractNals(payload []byte) (nals [][]byte) {
 		case 0x01:
 			if zeros == 2 || zeros == 3 {
 				// found a start code
-				if prevStart != 0 {
+				if i-zeros > prevStart {
 					nal := payload[prevStart : i-zeros]
 					nals = append(nals, nal)
 				}
@@ -70,12 +153,12 @@ func extractNals(payload []byte) (nals [][]byte) {
 
 func printNal(nal []byte) {
 
-	nalType := nal[0] & bitmaskNalType
-	nalRefIdc := nal[0] & bitmaskRefIdc
+	nalType := nal[0] & BitmaskNalType
+	nalRefIdc := nal[0] & BitmaskRefIdc
 	switch nalType {
-	case nalTypeSps:
+	case NalTypeSps:
 		logger.Infof("type sps")
-	case nalTypePps:
+	case NalTypePps:
 		logger.Infof("type pps")
 	default:
 		logger.Infof("type: %d", nalType)
@@ -110,12 +193,12 @@ func makeStapA(nals ...[]byte) (rtpPayload []byte) {
 		binary.BigEndian.PutUint16(size, uint16(len(nal)))
 		rtpPayload = append(rtpPayload, size...)
 		rtpPayload = append(rtpPayload, nal...)
-		nri := nal[0] & bitmaskRefIdc
+		nri := nal[0] & BitmaskRefIdc
 		if maxNri < nri {
 			maxNri = nri
 		}
 	}
-	rtpPayload[0] = maxNri | nalTypeStapa
+	rtpPayload[0] = maxNri | NalTypeStapa
 	return
 }
 
@@ -137,9 +220,9 @@ func makeFuA(mtu int, nal []byte) (rtpPayload [][]byte) {
 	//+-+-+-+-+-+-+-+-+
 	//|S|E|R| Type    |
 	//+---------------+
-	nri := nal[0] & bitmaskRefIdc
-	nalType := nal[0] & bitmaskNalType
-	indicator := nri | nalTypeFua
+	nri := nal[0] & BitmaskRefIdc
+	nalType := nal[0] & BitmaskNalType
+	indicator := nri | NalTypeFua
 	isFirstFragment := true
 	startPtr := 1 // skip the nal header
 	remainingPayloadSize := len(nal) - startPtr
@@ -154,10 +237,10 @@ func makeFuA(mtu int, nal []byte) (rtpPayload [][]byte) {
 		payload[0] = indicator
 		header := nalType
 		if isFirstFragment {
-			header |= bitmaskFuStart // set start bit
+			header |= BitmaskFuStart // set start bit
 			isFirstFragment = false
 		} else if fragmentPayloadSize == remainingPayloadSize {
-			header |= bitmaskFuEnd // set end bit
+			header |= BitmaskFuEnd // set end bit
 		}
 		payload[1] = header
 		copy(payload[2:], nal[startPtr:startPtr+fragmentPayloadSize])

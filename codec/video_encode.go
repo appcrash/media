@@ -15,5 +15,5 @@ import "unsafe"
 func EncodeText() {
 	buff := C.video_render()
 	payload := C.GoBytes(unsafe.Pointer(buff.data), buff.size)
-	analyzeH264(payload)
+	splitH264ToNals(payload)
 }

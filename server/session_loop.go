@@ -5,6 +5,7 @@ import (
 	"github.com/appcrash/GoRTP/rtp"
 	"github.com/appcrash/media/codec"
 	"github.com/appcrash/media/server/prom"
+	"github.com/appcrash/media/server/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"runtime/debug"
 	"time"
@@ -72,9 +73,9 @@ func (s *MediaSession) receivePacketLoop(ctx context.Context) {
 			}
 
 			// push received data to all sinks, then free the packet
-			si := &SinkInfo{Packet: rp}
+			pl := utils.NewPacketListFromRtpPacket(rp)
 			for _, sk := range s.sink {
-				sk.HandleData(s, si)
+				sk.HandleData(s, pl)
 			}
 			rp.FreePacket()
 		case <-cancelC:
@@ -106,16 +107,16 @@ outLoop:
 	for {
 		select {
 		case <-ticker.C:
-			si := &SourceInfo{}
+			pl := &utils.PacketList{}
 			// pull data from all sources
 			for _, source := range s.source {
-				source.PullData(s, si)
+				source.PullData(s, pl)
 			}
 
-			// send all packets based on SourceInfo link list
+			// send all packets based on PacketList
 			// for video, a frame can have more than one packet with same timestamp
-			for si != nil {
-				payload, pts, mark := si.Payload, si.Pts, si.Marker
+			for pl != nil {
+				payload, pts, mark := pl.Payload, pl.Pts, pl.Marker
 				if payload != nil {
 					if s.rtpSession == nil {
 						break outLoop
@@ -126,7 +127,7 @@ outLoop:
 					_, _ = s.rtpSession.WriteData(packet)
 					packet.FreePacket()
 				}
-				si = si.Next
+				pl = pl.Next
 			}
 		case <-cancelC:
 			break outLoop
