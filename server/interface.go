@@ -29,7 +29,7 @@ type CommandExecute interface {
 // ultimately create new packet from PacketList then send it
 // so be careful the order of sources
 type Source interface {
-	PullData(s *MediaSession, si *utils.PacketList)
+	PullData(s *MediaSession, si **utils.PacketList)
 }
 
 // Sink consumes data from RTP session

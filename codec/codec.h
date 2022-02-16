@@ -12,6 +12,11 @@
 #include <libavutil/avstring.h>
 #include <libavutil/opt.h>
 
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#include FT_GLYPH_H
+#include FT_STROKER_H
+
 
 struct DataBuffer
 {
@@ -157,4 +162,19 @@ int init_mix_filter_graph(struct MixContext *mix_ctx,AVDictionary *dict);
 /*
  * video functions
  */
-struct DataBuffer* video_render();
+/* struct FT_Face; */
+/* struct FT_Glyph; */
+/* struct FT_Bitmap; */
+
+struct VideoContext
+{
+    AVCodecContext *encode_ctx;
+    FT_Face face;
+    FT_Glyph glyph;
+    FT_Bitmap bitmap;
+    int iteration;
+    AVPacket* packet_data[256];
+    int nb_packet;
+};
+struct VideoContext *video_init();
+void video_iterate(struct VideoContext *ctx);

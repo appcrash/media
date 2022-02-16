@@ -23,8 +23,13 @@ const (
 	BitmaskFuStart uint8 = 0x80
 	BitmaskFuEnd   uint8 = 0x40
 
-	defaultMtu = 1300
+	DefaultMtu = 1300
 )
+
+type H264Packet struct {
+	Payload []byte
+	Pts     int64
+}
 
 func PacketListFromH264(payload []byte, pts uint32, mtu int) (pl *utils.PacketList) {
 	nals := extractNals(payload)
@@ -152,7 +157,6 @@ func extractNals(payload []byte) (nals [][]byte) {
 }
 
 func printNal(nal []byte) {
-
 	nalType := nal[0] & BitmaskNalType
 	nalRefIdc := nal[0] & BitmaskRefIdc
 	switch nalType {
@@ -160,6 +164,10 @@ func printNal(nal []byte) {
 		logger.Infof("type sps")
 	case NalTypePps:
 		logger.Infof("type pps")
+	case NalTypeFua:
+		logger.Infof("type fua")
+	case NalTypeStapa:
+		logger.Infof("type stapa")
 	default:
 		logger.Infof("type: %d", nalType)
 	}

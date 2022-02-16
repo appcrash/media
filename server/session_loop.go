@@ -107,10 +107,10 @@ outLoop:
 	for {
 		select {
 		case <-ticker.C:
-			pl := &utils.PacketList{}
+			var pl *utils.PacketList
 			// pull data from all sources
 			for _, source := range s.source {
-				source.PullData(s, pl)
+				source.PullData(s, &pl)
 			}
 
 			// send all packets based on PacketList

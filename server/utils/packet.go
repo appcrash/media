@@ -7,6 +7,7 @@ import "github.com/appcrash/GoRTP/rtp"
 // build multiple packets of the same pts. those packets can be linked and send to rtp stack as a whole.
 type PacketList struct {
 	Payload     []byte // rtp payload
+	RawBuffer   []byte // rtp payload + rtp header
 	PayloadType uint8
 	Pts         uint32 // presentation timestamp
 	Marker      bool   // should mark-bit in rtp header be set?
@@ -16,8 +17,12 @@ type PacketList struct {
 }
 
 func NewPacketListFromRtpPacket(packet *rtp.DataPacket) *PacketList {
+	if packet.InUse() <= 0 || packet.Buffer() == nil {
+		return nil
+	}
 	return &PacketList{
 		Payload:     packet.Payload(),
+		RawBuffer:   packet.Buffer()[:packet.InUse()],
 		PayloadType: packet.PayloadType(),
 		Pts:         packet.Timestamp(),
 		Marker:      packet.Marker(),
