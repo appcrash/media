@@ -2,6 +2,7 @@ package codec
 
 import (
 	"encoding/binary"
+	"github.com/appcrash/media/server/comp"
 	"github.com/appcrash/media/server/utils"
 )
 
@@ -23,7 +24,7 @@ const (
 	BitmaskFuStart uint8 = 0x80
 	BitmaskFuEnd   uint8 = 0x40
 
-	DefaultMtu = 1300
+	DefaultMtu = 1400
 )
 
 type H264Packet struct {
@@ -31,7 +32,29 @@ type H264Packet struct {
 	Pts     int64
 }
 
-func PacketListFromH264(payload []byte, pts uint32, mtu int) (pl *utils.PacketList) {
+func (pkt *H264Packet) Clone() comp.Cloneable {
+	cp := &H264Packet{}
+	cp.Payload = make([]byte, len(pkt.Payload))
+	copy(cp.Payload, pkt.Payload)
+	cp.Pts = pkt.Pts
+	return cp
+}
+
+// Only packetization-modes of 0 and 1 are supported
+
+func PacketListFromH264Mode0(payload []byte, pts uint32) (pl *utils.PacketList) {
+	// packetization-mode == 0 or not present
+	// Only single NAL unit packets MAY be used in this mode. STAPs, MTAPs, and FUs
+	// MUST NOT be used.
+	nals := extractNals(payload)
+	makePacketList(&pl, nals, pts)
+	return
+}
+
+// PacketListFromH264Mode1 payload mtu, not includes ip,udp headers
+func PacketListFromH264Mode1(payload []byte, pts uint32, mtu int) (pl *utils.PacketList) {
+	// packetization-mode == 1
+	// Only single NAL unit packets, STAP-As, and FU-As MAY be used in this mode.
 	nals := extractNals(payload)
 	var bufferedNals [][]byte
 	var rtpPayloadArray [][]byte
@@ -112,14 +135,6 @@ func makePacketList(pl **utils.PacketList, rtpPayload [][]byte, pts uint32) {
 	if packet != nil {
 		// set last packet mark bit
 		packet.Marker = true
-	}
-}
-
-func splitH264ToNals(payload []byte) {
-	logger.Infof("payload len is %v", len(payload))
-	nals := extractNals(payload)
-	for _, n := range nals {
-		printNal(n)
 	}
 }
 

@@ -5,18 +5,14 @@
 #include <libavcodec/avcodec.h>
 #include <libavutil/avutil.h>
 #include <libswresample/swresample.h>
+#include <libswscale/swscale.h>
+#include <libavutil/imgutils.h>
 #include <libavfilter/avfilter.h>
 #include <libavfilter/buffersrc.h>
 #include <libavfilter/buffersink.h>
 #include <libavutil/audio_fifo.h>
 #include <libavutil/avstring.h>
 #include <libavutil/opt.h>
-
-#include <ft2build.h>
-#include FT_FREETYPE_H
-#include FT_GLYPH_H
-#include FT_STROKER_H
-
 
 struct DataBuffer
 {
@@ -157,24 +153,3 @@ void mix_free(struct MixContext *mix_ctx);
  */
 int init_transcode_filter_graph(struct TranscodeContext *trans_ctx,const char *graph_desc_str);
 int init_mix_filter_graph(struct MixContext *mix_ctx,AVDictionary *dict);
-
-
-/*
- * video functions
- */
-/* struct FT_Face; */
-/* struct FT_Glyph; */
-/* struct FT_Bitmap; */
-
-struct VideoContext
-{
-    AVCodecContext *encode_ctx;
-    FT_Face face;
-    FT_Glyph glyph;
-    FT_Bitmap bitmap;
-    int iteration;
-    AVPacket* packet_data[256];
-    int nb_packet;
-};
-struct VideoContext *video_init();
-void video_iterate(struct VideoContext *ctx);

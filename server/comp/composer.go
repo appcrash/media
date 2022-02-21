@@ -68,7 +68,7 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 		sn := MakeSessionNode(n.Type, c.sessionId, n.Props)
 		if sn == nil {
 			logger.Errorf("unknown node type: %v\n", n.Name)
-			err = errors.New("can not make unknown node")
+			err = fmt.Errorf("can not make unknown node: %v", n.Type)
 			return
 		}
 		if err = sn.Init(); err != nil {

@@ -70,7 +70,7 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, e
 	}
 	for _, ci := range codecInfos {
 		switch ci.PayloadType {
-		case rpc.CodecType_PCM_ALAW, rpc.CodecType_AMRNB, rpc.CodecType_AMRWB:
+		case rpc.CodecType_PCM_ALAW, rpc.CodecType_AMRNB, rpc.CodecType_AMRWB, rpc.CodecType_H264:
 			if s.avPayloadNumber != 0 {
 				return nil, fmt.Errorf("create session with more than one audio type:"+
 					" previous number:%v, this number:%v", s.avPayloadNumber, ci.PayloadNumber)

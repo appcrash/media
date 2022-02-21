@@ -33,9 +33,8 @@ func NewPacketListFromRtpPacket(packet *rtp.DataPacket) *PacketList {
 }
 
 func (pl *PacketList) Len() (length int) {
-	length = 1
 	ppl := pl
-	for ppl.Next != nil {
+	for ppl != nil {
 		length++
 		ppl = ppl.Next
 	}
