@@ -178,18 +178,22 @@ func (gm *GenericMessage) String() string {
 
 // Clone returns non-nil object only if internal object is also cloneable
 func (gm *GenericMessage) Clone() (obj CloneableMessage) {
-	if gm.Obj == nil {
+	if gm.Obj == nil || gm.Obj == gm {
+		// prevent recursive clone
 		return
 	}
-	if c, ok := gm.Obj.(Cloneable); ok {
-		cc := c.Clone()
-		if cc == nil {
-			return
-		}
-		obj = &GenericMessage{
-			Subtype: gm.Subtype,
-			Obj:     cc,
-		}
+	var cloned interface{}
+	switch gm.Obj.(type) {
+	case Cloneable:
+		cloned = gm.Obj.(Cloneable).Clone()
+	case CloneableMessage:
+		cloned = gm.Obj.(CloneableMessage).Clone()
+	default:
+		return
+	}
+	obj = &GenericMessage{
+		Subtype: gm.Subtype,
+		Obj:     cloned,
 	}
 	return
 }
