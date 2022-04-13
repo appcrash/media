@@ -55,6 +55,10 @@ func (srv *MediaServer) invokeSessionListener(session *MediaSession, status int)
 		for _, listener := range srv.sessionListener {
 			listener.OnSessionStopped(session)
 		}
+	case sessionStatusUpdated:
+		for _, listener := range srv.sessionListener {
+			listener.OnSessionUpdated(session)
+		}
 	}
 }
 
@@ -65,6 +69,7 @@ func (srv *MediaServer) createSession(param *rpc.CreateParam) (session *MediaSes
 		}
 	}()
 
+	logger.Infof("create session param: %v", param)
 	if session, err = newSession(srv, param); err != nil {
 		return
 	}
@@ -88,6 +93,37 @@ func (srv *MediaServer) createSession(param *rpc.CreateParam) (session *MediaSes
 	srv.addToSessionMap(session)
 	srv.invokeSessionListener(session, sessionStatusCreated)
 	return session, nil
+}
+
+func (srv *MediaServer) updateSession(param *rpc.UpdateParam) (err error) {
+	sessionId := param.GetSessionId()
+	var remoteIp *net.IPAddr
+	var err1 error
+	if remoteIp, err1 = net.ResolveIPAddr("ip", param.GetPeerIp()); err1 != nil {
+		return fmt.Errorf("update with invalid peer ip address: %v", param.GetPeerIp())
+	}
+	if param.GetPeerPort()&0xffff0000 != 0 {
+		// not a uint16 port number
+		return fmt.Errorf("invalid peer port: %v", param.GetPeerPort())
+	}
+
+	srv.sessionMutex.Lock()
+	session, exist := srv.sessionMap[sessionId]
+	srv.sessionMutex.Unlock()
+	if exist {
+		if session.status != sessionStatusCreated {
+			// if session already started or stopped, no updating is done
+			err = fmt.Errorf("try to update already started/stopped session(%v)", sessionId)
+			return
+		}
+		logger.Infof("update session(%v) with param:%v", sessionId, param)
+		session.remoteIp = remoteIp
+		session.remotePort = uint16(param.GetPeerPort())
+		srv.invokeSessionListener(session, sessionStatusUpdated)
+	} else {
+		err = errors.New("session not exist")
+	}
+	return
 }
 
 func (srv *MediaServer) startSession(param *rpc.StartParam) (err error) {

@@ -14,18 +14,18 @@ import (
 
 const (
 	sessionStatusCreated = iota
+	sessionStatusUpdated
 	sessionStatusStarted
 	sessionStatusStopped
 )
 
 type MediaSession struct {
-	server     *MediaServer
-	sessionId  string
-	localIp    *net.IPAddr
-	localPort  int
-	rtpPort    uint16
-	rtpSession *rtp.Session
-	instanceId string // which instance created this session
+	server                *MediaServer
+	sessionId             string
+	localIp, remoteIp     *net.IPAddr
+	localPort, remotePort uint16
+	rtpSession            *rtp.Session
+	instanceId            string // which instance created this session
 
 	avPayloadNumber uint8
 	avPayloadCodec  rpc.CodecType
@@ -54,7 +54,7 @@ func (s *MediaSession) GetStatus() int {
 	return s.status
 }
 
-func (s *MediaSession) GetAudioPayloadType() uint8 {
+func (s *MediaSession) GetAVPayloadType() uint8 {
 	return s.avPayloadNumber
 }
 
@@ -85,6 +85,25 @@ func (s *MediaSession) Start() (err error) {
 		logger.Errorf("try to start session(%v) when status is %v", s.sessionId, s.status)
 		return
 	}
+
+	defer func() {
+		// if start failed, stop using this session anymore
+		if err != nil {
+			logger.Errorf("session(%v) start failed with error(%v), finalize it", s.sessionId, err)
+			s.finalize()
+			s.status = sessionStatusStopped
+		}
+	}()
+
+	port := int(s.remotePort)
+	if _, err = s.rtpSession.AddRemote(&rtp.Address{
+		IPAddr:   s.remoteIp.IP,
+		DataPort: port,
+		CtrlPort: 1 + port,
+		Zone:     "",
+	}); err != nil {
+		return
+	}
 	if err = s.rtpSession.StartSession(); err != nil {
 		return
 	}
@@ -102,7 +121,7 @@ func (s *MediaSession) Start() (err error) {
 func (s *MediaSession) Stop() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	nbDone := 0
+	var nbDone int
 	if s.status == sessionStatusStopped {
 		logger.Errorf("try to stop already terminated session(%v)", s.sessionId)
 		return
@@ -136,19 +155,6 @@ cleanup:
 // AddNode add an event node to server-wide event graph
 func (s *MediaSession) AddNode(node event.Node) {
 	s.server.graph.AddNode(node)
-}
-
-// AddRemote add rtp peer to communicate
-func (s *MediaSession) AddRemote(ip string, port int) (err error) {
-	ipaddr := net.ParseIP(ip)
-
-	_, err = s.rtpSession.AddRemote(&rtp.Address{
-		IPAddr:   ipaddr,
-		DataPort: port,
-		CtrlPort: 1 + port,
-		Zone:     "",
-	})
-	return
 }
 
 // LinkChannel links *ch* to the channel registered as *name* in graph description

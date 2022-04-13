@@ -8,6 +8,7 @@ import (
 	"github.com/appcrash/media/server/prom"
 	"github.com/appcrash/media/server/rpc"
 	"github.com/google/uuid"
+	"net"
 	"strings"
 	"time"
 )
@@ -29,7 +30,9 @@ func profileOfCodec(c rpc.CodecType) (profile string) {
 }
 
 func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, error) {
-	var localPort uint16
+	var localPort, remotePort uint16
+	var remoteIp *net.IPAddr
+	var err error
 	if localPort = srv.getNextAvailableRtpPort(); localPort == 0 {
 		return nil, errors.New("server runs out of port resource")
 	}
@@ -37,21 +40,30 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, e
 	//if !channel.GetSystemChannel().HasInstance(instanceId) {
 	//	return nil, fmt.Errorf("the instance %v not registered, cannot create session", instanceId)
 	//}
+	if remoteIp, err = net.ResolveIPAddr("ip", mediaParam.GetPeerIp()); err != nil {
+		return nil, fmt.Errorf("invalid peer ip address: %v", mediaParam.GetPeerIp())
+	}
+	if mediaParam.GetPeerPort()&0xffff0000 != 0 {
+		// not a uint16 port number
+		return nil, fmt.Errorf("invalid peer port: %v", mediaParam.GetPeerPort())
+	}
+	remotePort = uint16(mediaParam.GetPeerPort())
 	sid := uuid.New().String()
 	sid = strings.Replace(sid, "-", "", -1) // ID in nmd language doesn't contains '-'
 	gd := mediaParam.GetGraphDesc()
 	composer := comp.NewSessionComposer(sid)
-	if err := composer.ParseGraphDescription(gd); err != nil {
+	if err = composer.ParseGraphDescription(gd); err != nil {
 		logger.Errorln(err)
 		return nil, errors.New("composer parse graph description failed")
 	}
 	now := time.Now()
 	s := MediaSession{
-		server:    srv,
-		sessionId: sid,
-		localIp:   srv.rtpServerIpAddr,
-		localPort: int(localPort),
-		rtpPort:   localPort,
+		server:     srv,
+		sessionId:  sid,
+		localIp:    srv.rtpServerIpAddr,
+		localPort:  localPort,
+		remoteIp:   remoteIp,
+		remotePort: remotePort,
 		//instanceId: instanceId,
 
 		createTimestamp:      now,
@@ -123,17 +135,18 @@ func (s *MediaSession) setupGraph() error {
 // add them to graph
 func (s *MediaSession) activate() (err error) {
 	var tpLocal *rtp.TransportUDP
+	var localPort = int(s.localPort)
 	if err = s.setupGraph(); err != nil {
 		return
 	}
-	if tpLocal, err = rtp.NewTransportUDP(s.localIp, s.localPort, ""); err != nil {
+	if tpLocal, err = rtp.NewTransportUDP(s.localIp, localPort, ""); err != nil {
 		return
 	}
 	s.rtpSession = rtp.NewSession(tpLocal, tpLocal)
 	strLocalIdx, errStr := s.rtpSession.NewSsrcStreamOut(&rtp.Address{
 		IPAddr:   s.localIp.IP,
-		DataPort: s.localPort,
-		CtrlPort: 1 + s.localPort,
+		DataPort: localPort,
+		CtrlPort: 1 + localPort,
 		Zone:     "",
 	}, 0, 0)
 	if errStr != "" {
@@ -155,8 +168,8 @@ func (s *MediaSession) finalize() {
 	if s.rtpSession != nil {
 		s.rtpSession.CloseSession()
 	}
-	if s.rtpPort != 0 {
-		s.server.reclaimRtpPort(s.rtpPort)
+	if s.localPort != 0 {
+		s.server.reclaimRtpPort(s.localPort)
 	}
 	prom.StartedSession.Dec()
 	s.server.removeFromSessionMap(s)

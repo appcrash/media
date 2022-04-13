@@ -20,20 +20,21 @@ func (srv *MediaServer) PrepareSession(_ context.Context, param *rpc.CreateParam
 		return nil, err
 	}
 
-	if err = session.AddRemote(param.GetPeerIp(), int(param.GetPeerPort())); err != nil {
-		session.finalize()
-		return nil, err
-	}
-
 	logger.Infof("rpc: prepared session %v", session.sessionId)
 	rpcSession := rpc.Session{}
 	rpcSession.SessionId = session.sessionId
 	rpcSession.PeerIp = param.GetPeerIp()
 	rpcSession.PeerRtpPort = param.GetPeerPort()
-	rpcSession.LocalRtpPort = uint32(session.rtpPort)
+	rpcSession.LocalRtpPort = uint32(session.localPort)
 	rpcSession.LocalIp = session.localIp.String()
 
 	return &rpcSession, nil
+}
+
+func (srv *MediaServer) UpdateSession(_ context.Context, param *rpc.UpdateParam) (*rpc.Status, error) {
+	// only remote (ip, port) can be updated
+	err := srv.updateSession(param)
+	return &rpc.Status{Status: "ok"}, err
 }
 
 func (srv *MediaServer) StartSession(_ context.Context, param *rpc.StartParam) (*rpc.Status, error) {

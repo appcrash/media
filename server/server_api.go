@@ -57,6 +57,7 @@ type RegisterMore func(s grpc.ServiceRegistrar)
 // SessionListener methods are called concurrently, so it must be goroutine safe
 type SessionListener interface {
 	OnSessionCreated(s *MediaSession)
+	OnSessionUpdated(s *MediaSession)
 	OnSessionStarted(s *MediaSession)
 	OnSessionStopped(s *MediaSession)
 }

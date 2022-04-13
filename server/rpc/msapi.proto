@@ -27,6 +27,12 @@ message CreateParam {
   string instance_id = 5;            // which instance creates this session
 }
 
+message UpdateParam {
+  string session_id = 1;
+  string peer_ip = 2;
+  uint32 peer_port = 3;
+}
+
 message StartParam {
   string session_id = 1;
 }
@@ -82,6 +88,7 @@ message SystemEvent {
 
 service MediaApi {
   rpc PrepareSession(CreateParam) returns (Session) {}
+  rpc UpdateSession(UpdateParam) returns (Status) {}
   rpc StartSession(StartParam) returns (Status) {}
   rpc StopSession(StopParam) returns (Status) {}
   rpc ExecuteAction(Action) returns (ActionResult) {}
