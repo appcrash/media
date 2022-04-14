@@ -14,23 +14,27 @@ func ExampleSendEvent() {
 	node1 := &testNode{scope: "scope1", name: "node1",
 		onEvent: func(t *testNode, evt *event.Event) {
 			if evt.GetCmd() == cmd_print_self {
-				fmt.Printf("scope:%v,name:%v\n", t.scope, t.name)
-				done <- 0
+				go func() {
+					fmt.Printf("scope:%v,name:%v\n", t.scope, t.name)
+					done <- 0
+				}()
 			}
 		}}
 	node2 := &testNode{scope: "scope2", name: "node2",
 		onEnter: func(tn *testNode) {
-			linkId := tn.delegate.RequestLinkUp("scope1", "node1")
-			if linkId >= 0 {
-				fmt.Println("got link scope1:node1")
-			}
-			evt := event.NewEvent(cmd_print_self, nil)
-			tn.delegate.Deliver(linkId, evt)
-			linkId = tn.delegate.RequestLinkUp("scope1", "node1")
-			if linkId < 0 {
-				fmt.Println("duplicated link scope1:node1")
-				done <- 0
-			}
+			go func() {
+				linkId := tn.delegate.RequestLinkUp("scope1", "node1")
+				if linkId >= 0 {
+					fmt.Println("got link scope1:node1")
+				}
+				evt := event.NewEvent(cmd_print_self, nil)
+				tn.delegate.Deliver(linkId, evt)
+				linkId = tn.delegate.RequestLinkUp("scope1", "node1")
+				if linkId < 0 {
+					fmt.Println("duplicated link scope1:node1")
+					done <- 0
+				}
+			}()
 		},
 	}
 	graph := event.NewEventGraph()

@@ -1,6 +1,7 @@
 package event
 
 import (
+	"context"
 	"errors"
 	"github.com/appcrash/media/server/prom"
 	"reflect"
@@ -17,9 +18,13 @@ type NodeDelegate struct {
 	id              string
 	ctrlC           chan *Event
 	dataC           chan *Event
+	userEventDoneC  chan int
 	graph           *Graph
 	inExit          atomic.Value
 	deliveryTimeout time.Duration // in milliseconds
+
+	// how many concurrent delivering on the way, it is important for safe exiting
+	deliveryCount int32
 
 	invokeMutex sync.Mutex
 	// lock-free dlink array with fixed size(maxLink)
@@ -40,15 +45,19 @@ type NodeDelegate struct {
 // cope with atomic(Store/Load) that doesn't permit nil value
 var nullLink = &dlink{}
 
-const defaultMaxLink = 4
-const defaultDataChannelSize = 100
-const defaultDeliveryTimeout = 100 * time.Millisecond
+const (
+	defaultMaxLink         = 4
+	defaultDataChannelSize = 128
+	defaultDeliveryTimeout = 100 * time.Millisecond
+	defaultExitDelay       = 50 * time.Millisecond
+)
 
 func newNodeDelegate(graph *Graph, node Node, maxLink int) *NodeDelegate {
 	delegate := &NodeDelegate{
-		nodeImpl: node,
-		ctrlC:    make(chan *Event),
-		graph:    graph,
+		nodeImpl:       node,
+		ctrlC:          make(chan *Event),
+		userEventDoneC: make(chan int),
+		graph:          graph,
 	}
 	delegate.id = node.GetNodeScope() + ":" + node.GetNodeName()
 	delegate.inExit.Store(false)
@@ -117,6 +126,15 @@ func (nd *NodeDelegate) receiveCtrl(evt *Event) {
 }
 
 func (nd *NodeDelegate) receiveData(evt *Event, timeoutMs time.Duration) (ok bool) {
+	if nd.isExiting() {
+		// stop receiving any event if we are exiting
+		return false
+	}
+	atomic.AddInt32(&nd.deliveryCount, 1)
+	defer func() {
+		atomic.AddInt32(&nd.deliveryCount, -1)
+	}()
+
 	// always try nonblock delivery first, take chance to avoid creating timer
 	select {
 	case nd.dataC <- evt:
@@ -135,30 +153,30 @@ func (nd *NodeDelegate) receiveData(evt *Event, timeoutMs time.Duration) (ok boo
 }
 
 func (nd *NodeDelegate) startEventLoop() {
-	// buffered channel prevents system loop from spinning after node exits
-	// 2 = 1(system event loop) + 1(finalize)
-	doneC := make(chan int, 2)
-	go func(n *NodeDelegate, done chan int) {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func(n *NodeDelegate, cancelUserLoop context.CancelFunc) {
 		err := nd.systemEventLoop()
 		if err != nil {
 			// come to here as graph has a bug
-			logger.Errorf("[graph]: fatal error: %v\n", err)
-			nd.finalize(err, done)
+			if logger != nil {
+				logger.Errorf("[graph]: fatal error: %v\n", err)
+			}
+			nd.finalize(err, cancelUserLoop)
 			return
 		}
-		// notify user event loop stop
-		done <- 0
-	}(nd, doneC)
-	go func(n *NodeDelegate, done chan int) {
-		err := n.userEventLoop(done)
+		// notify user event loop to drain events then stop
+		cancelUserLoop()
+	}(nd, cancel)
+	go func(n *NodeDelegate, ctx context.Context, cancelUserLoop context.CancelFunc) {
+		err := n.userEventLoop(ctx)
 		if err != nil {
 			// normal execution should not come here, we are out of loop
 			// because either normal exit(err == nil) or exception
 			// thrown(err != nil), it means this node is in abnormal state,
 			// report to graph and finalize me
-			n.finalize(err, done)
+			n.finalize(err, cancelUserLoop)
 		}
-	}(nd, doneC)
+	}(nd, ctx, cancel)
 }
 
 func (nd *NodeDelegate) systemEventLoop() (err error) {
@@ -166,7 +184,9 @@ func (nd *NodeDelegate) systemEventLoop() (err error) {
 		if r := recover(); r != nil {
 			var ok bool
 			prom.NodeSystemEventException.Inc()
-			logger.Errorf("[graph]: bug %v\n", r)
+			if logger != nil {
+				logger.Errorf("[graph]: bug %v\n", r)
+			}
 			if err, ok = r.(error); ok {
 				return
 			}
@@ -177,7 +197,7 @@ func (nd *NodeDelegate) systemEventLoop() (err error) {
 	for {
 		evt := <-nd.ctrlC
 		nd.handleSystemEvent(evt)
-		if evt.cmd == resp_node_exit {
+		if evt.cmd == respNodeExit {
 			// node-exit is the last ctrl message in node's lifecycle
 			// end this goroutine now
 			return
@@ -191,7 +211,7 @@ func (nd *NodeDelegate) preSystemInvoke() {
 func (nd *NodeDelegate) postSystemInvoke() {
 	if r := recover(); r != nil {
 		nd.invokeMutex.Unlock()
-		nd.RequestNodeExit()
+		_ = nd.RequestNodeExit()
 		return
 	}
 	nd.invokeMutex.Unlock()
@@ -199,7 +219,7 @@ func (nd *NodeDelegate) postSystemInvoke() {
 
 func (nd *NodeDelegate) handleSystemEvent(evt *Event) {
 	switch evt.cmd {
-	case resp_node_add:
+	case respNodeAdd:
 		if resp, ok := evt.obj.(*nodeAddResponse); !ok {
 			panic(errors.New("[graph]:node add response with wrong event object"))
 		} else {
@@ -212,17 +232,22 @@ func (nd *NodeDelegate) handleSystemEvent(evt *Event) {
 				}
 			}(resp.delegate, resp.cb)
 		}
-	case resp_node_exit:
+	case respNodeExit:
 		if _, ok := evt.obj.(*nodeExitResponse); !ok {
 			panic(errors.New("[graph]:node exit response with wrong event object"))
 		} else {
 			go func(n *NodeDelegate) {
 				n.preSystemInvoke()
 				defer n.postSystemInvoke()
+				// block here until all user events handled then call OnExit
+				<-nd.userEventDoneC
+				if len(nd.dataC) > 0 && logger != nil {
+					logger.Errorf("node(%v) exit with dataC size:%v\n", nd.getNodeName(), len(nd.dataC))
+				}
 				n.nodeImpl.OnExit()
 			}(nd)
 		}
-	case resp_link_up:
+	case respLinkUp:
 		if resp, ok := evt.obj.(*linkUpResponse); !ok {
 			panic(errors.New("[graph]:dlink up response with wrong event object"))
 		} else {
@@ -249,7 +274,7 @@ func (nd *NodeDelegate) handleSystemEvent(evt *Event) {
 
 			resp.c <- newLinkId
 		}
-	case resp_link_down:
+	case respLinkDown:
 		// we receive link_down either toNode exits the graph or we actively requested previously
 		if resp, ok := evt.obj.(*linkDownResponse); !ok {
 			panic(errors.New("[graph]:dlink down response with wrong event object"))
@@ -265,7 +290,9 @@ func (nd *NodeDelegate) handleSystemEvent(evt *Event) {
 			}
 			if linkId < 0 {
 				// wrong link passed to node
-				logger.Errorf("[node]: request link down with wrong linkId:%v\n", linkId)
+				if logger != nil {
+					logger.Errorf("[node]: request link down with wrong linkId:%v\n", linkId)
+				}
 				return
 			}
 			// put index to free list, set the slot to null link so Deliver would fail
@@ -284,8 +311,10 @@ func (nd *NodeDelegate) handleSystemEvent(evt *Event) {
 	}
 }
 
-func (nd *NodeDelegate) userEventLoop(done chan int) (err error) {
+func (nd *NodeDelegate) userEventLoop(ctx context.Context) (err error) {
 	defer func() {
+		// sync with node exit, notify that loop is done
+		close(nd.userEventDoneC)
 		if r := recover(); r != nil {
 			var ok bool
 			prom.NodeUserEventException.Inc()
@@ -296,18 +325,44 @@ func (nd *NodeDelegate) userEventLoop(done chan int) (err error) {
 		}
 	}()
 
+	doneC := ctx.Done()
+	dataC := nd.dataC
+outerLoop:
 	for {
 		select {
-		case evt := <-nd.dataC:
+		case evt := <-dataC:
 			nd.handleUserEvent(evt)
-		case <-done:
-			// if uncomment this, golang race detector would complain...
-			//nd.dataC = nil
-
-			// breakout leaving dataC no receiver, so events can not be delivered now
-			// as the delivery method would return false and senders should stop sending
-			// more events. however, events buffered in dataC are lost
-			return
+		case <-doneC:
+			// close instead of return immediately to let events buffered in dataC being drained by
+			// OnEvent before OnExit invoked
+			doneC = nil
+			break outerLoop
+		}
+	}
+	// we need to consume all user events before exit
+	// simply set nd.dataC to nil is not a good way to stop receiving more events as:
+	// 1. the new value of dataC may be not seen by other goroutines due to caches
+	// 2. race detector would complain when running test
+	// 3. this operation is not atomic and some goroutines may have already passed inExiting() check to
+	// start writing to dataC even after dataC set to nil
+	// we introduce extra overhead to record delivery count that is still on its way, once it reaches to
+	// zero, node can assert no more event would come in as inExiting() is false right now, i.e. delivery
+	// count can only be decreased to 0 or not changed(keep 0) at this moment
+	ticker := time.NewTicker(defaultExitDelay)
+	for {
+		select {
+		case evt, more := <-dataC:
+			if !more {
+				return
+			}
+			nd.handleUserEvent(evt)
+		case <-ticker.C:
+			if atomic.LoadInt32(&nd.deliveryCount) == 0 {
+				// no more delivery can succeed now, it is safe to close dataC now
+				ticker.Stop()
+				close(nd.dataC)
+				nd.dataC = nil
+			}
 		}
 	}
 }
@@ -320,7 +375,7 @@ func (nd *NodeDelegate) handleUserEvent(evt *Event) {
 	}
 }
 
-func (nd *NodeDelegate) finalize(err error, done chan int) {
+func (nd *NodeDelegate) finalize(err error, cancel context.CancelFunc) {
 	// exception handling
 	// user code error happened and caught by node delegate, we will
 	// 1. notify user event loop to exit, all senders' delivery would fail;
@@ -328,9 +383,11 @@ func (nd *NodeDelegate) finalize(err error, done chan int) {
 	// output links are down and moved out of the graph, the node's
 	// system event loop would terminate when node-exit response received
 
-	//fmt.Errorf("finalizing node with error:%v\n",err)
-	done <- 0
-	nd.RequestNodeExit()
+	if err != nil && logger != nil {
+		logger.Errorf("finalizing node with error:%v", err)
+	}
+	cancel()
+	_ = nd.RequestNodeExit()
 }
 
 /*****************************************************
@@ -412,5 +469,5 @@ func (nd *NodeDelegate) Deliver(linkId int, evt *Event) bool {
 // caller who has a reference to this node directly sending message to node
 // from the node's perspective, it doesn't care about the source of every event
 func (nd *NodeDelegate) DeliverSelf(evt *Event) bool {
-	return nd.receiveData(evt, defaultDeliveryTimeout)
+	return nd.receiveData(evt, nd.deliveryTimeout)
 }

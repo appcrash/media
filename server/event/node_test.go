@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 	"unsafe"
@@ -244,5 +245,77 @@ func TestSyncEvent(t *testing.T) {
 	case <-ready:
 	case <-time.After(2 * time.Second):
 		t.Error("event callback not working")
+	}
+}
+
+func TestOnExit(t *testing.T) {
+	rand.Seed(time.Now().UTC().UnixNano())
+	n := 50000 + rand.Intn(50000)
+	var count int
+	done := make(chan int)
+	tn := &testNode{scope: "exit", name: "exit",
+		onEvent: func(t *testNode, evt *event.Event) {
+			count++
+		},
+		onExit: func(n *testNode) {
+			done <- 0
+		},
+	}
+	tn.SetDataChannelSize(n)
+	graph := event.NewEventGraph()
+	graph.AddNode(tn)
+	go func() {
+		for i := 0; i < n; i++ {
+			ok := tn.delegate.DeliverSelf(event.NewEvent(cmd_nothing, 0))
+			if !ok {
+				t.Errorf("delivered failed")
+			}
+		}
+		tn.delegate.RequestNodeExit()
+	}()
+	<-done
+	if n != count {
+		t.Fatal("count must equal to n, onExit must be called after all events handled")
+	}
+}
+
+func TestOnExitUnderConcurrentDeliver(t *testing.T) {
+	rand.Seed(time.Now().UTC().UnixNano())
+	concurrent := 500
+	done := make(chan int)
+	var deliveredEvents, handledEvents int32
+
+	graph := event.NewEventGraph()
+	tn := &testNode{scope: "exitConcurrent", name: "exitConcurrent",
+		onEvent: func(t *testNode, evt *event.Event) {
+			atomic.AddInt32(&handledEvents, 1)
+		},
+		onExit: func(n *testNode) {
+			done <- 0
+		},
+	}
+	tn.SetDeliveryTimeout(time.Duration(5) * time.Second)
+	graph.AddNode(tn)
+	for i := 0; i < concurrent; i++ {
+		go func() {
+			for {
+				ok := tn.delegate.DeliverSelf(event.NewEvent(cmd_nothing, 0))
+				if !ok {
+					return
+				} else {
+					atomic.AddInt32(&deliveredEvents, 1)
+				}
+			}
+		}()
+	}
+	go func() {
+		delay := 5 + rand.Intn(5)
+		<-time.After(time.Duration(delay) * time.Second)
+		tn.delegate.RequestNodeExit()
+	}()
+
+	<-done
+	if handledEvents != deliveredEvents {
+		t.Fatal("deliveredEvents must equal to handledEvents, onExit must be called after all events handled")
 	}
 }

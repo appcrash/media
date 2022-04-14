@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+const (
+	graphAddNodeTimeout = 5 * time.Second
+)
+
 type scopeMapType map[string][]*NodeDelegate
 type linkSetType map[string]bool
 type nodeMapType map[string]*nodeInfo
@@ -165,25 +169,25 @@ func (eg *Graph) startEventLoop(c chan int) {
 func (eg *Graph) onEvent(evt *Event) {
 	var ok bool
 	switch evt.cmd {
-	case req_node_add:
+	case reqNodeAdd:
 		var req *nodeAddRequest
 		if req, ok = evt.obj.(*nodeAddRequest); !ok {
 			return
 		}
 		eg.onAddNode(req)
-	case req_node_exit:
+	case reqNodeExit:
 		var req *nodeExitRequest
 		if req, ok = evt.obj.(*nodeExitRequest); !ok {
 			return
 		}
 		eg.onExitNode(req)
-	case req_link_up:
+	case reqLinkUp:
 		var req *linkUpRequest
 		if req, ok = evt.obj.(*linkUpRequest); !ok {
 			return
 		}
 		eg.onLinkUp(req)
-	case req_link_down:
+	case reqLinkDown:
 		var req *linkDownRequest
 		if req, ok = evt.obj.(*linkDownRequest); !ok {
 			return
@@ -221,8 +225,7 @@ func (eg *Graph) onAddNode(req *nodeAddRequest) {
 
 }
 
-// node requests exiting the graph, notify all senders linking
-// to this node
+// node requests exiting the graph, notify all senders linking to this node
 func (eg *Graph) onExitNode(req *nodeExitRequest) {
 	nd := req.delegate
 	nodeInfo := eg.getNodeInfo(nd.getId())
@@ -238,7 +241,7 @@ func (eg *Graph) onExitNode(req *nodeExitRequest) {
 	// from their nodeInfo without any notification
 	for _, link := range nodeInfo.inputLinks {
 		if _, exist := eg.linkSet[link.name]; exist {
-			link.fromNode.receiveCtrl(newLinkDownResponse(state_success, link))
+			link.fromNode.receiveCtrl(newLinkDownResponse(stateSuccess, link))
 			eg.delLink(link.fromNode, link)
 			eg.delLink(link.toNode, link)
 			delete(eg.linkSet, link.name)
@@ -270,30 +273,30 @@ func (eg *Graph) onLinkUp(req *linkUpRequest) {
 
 	ni := eg.nodeMap[fromNode.getId()]
 	if ni.maxLink == len(ni.outputLinks) {
-		req.fromNode.receiveCtrl(newLinkUpResponse(nil, state_node_exceed_max_link, scope, nodeName, req.c))
+		req.fromNode.receiveCtrl(newLinkUpResponse(nil, stateNodeExceedMaxLink, scope, nodeName, req.c))
 		return
 	}
 	toNode := eg.findNode(scope, nodeName)
 	if toNode == nil {
-		req.fromNode.receiveCtrl(newLinkUpResponse(nil, state_node_not_exist, scope, nodeName, req.c))
+		req.fromNode.receiveCtrl(newLinkUpResponse(nil, stateNodeNotExist, scope, nodeName, req.c))
 		return
 	}
 
 	link := newLink(eg, fromNode, toNode)
 	if _, exist := eg.linkSet[link.name]; exist {
 		// duplicated dlink, notify sender
-		fromNode.receiveCtrl(newLinkUpResponse(nil, state_link_duplicated, scope, nodeName, req.c))
+		fromNode.receiveCtrl(newLinkUpResponse(nil, stateLinkDuplicated, scope, nodeName, req.c))
 		return
 	}
 	if toNode.isExiting() {
 		// the requested node wouldn't accept this dlink-up request
-		fromNode.receiveCtrl(newLinkUpResponse(nil, state_link_refuse, scope, nodeName, req.c))
+		fromNode.receiveCtrl(newLinkUpResponse(nil, stateLinkRefuse, scope, nodeName, req.c))
 		return
 	}
 	eg.addLink(fromNode, link)
 	eg.addLink(toNode, link)
 	eg.linkSet[link.name] = true
-	fromNode.receiveCtrl(newLinkUpResponse(link, state_success, scope, nodeName, req.c))
+	fromNode.receiveCtrl(newLinkUpResponse(link, stateSuccess, scope, nodeName, req.c))
 }
 
 // request breaking a dlink, such as A ----> B
@@ -307,13 +310,13 @@ func (eg *Graph) onLinkDown(req *linkDownRequest) {
 	toNode := link.toNode
 	// ensure every dlink can be torn down only once
 	if _, exist := eg.linkSet[link.name]; !exist {
-		fromNode.receiveCtrl(newLinkDownResponse(state_link_not_exist, link))
+		fromNode.receiveCtrl(newLinkDownResponse(stateLinkNotExist, link))
 		return
 	}
 	delete(eg.linkSet, link.name)
 	eg.delLink(fromNode, link)
 	eg.delLink(toNode, link)
-	fromNode.receiveCtrl(newLinkDownResponse(state_success, link))
+	fromNode.receiveCtrl(newLinkDownResponse(stateSuccess, link))
 }
 
 // public APIs for end user
@@ -339,7 +342,7 @@ func (eg *Graph) AddNode(node Node) (success bool) {
 	cb := func() { c <- true }
 	evt := newNodeAddRequest(nodeAddRequest{node, cb})
 	eg.deliveryEvent(evt)
-	if err := utils.WaitChannelWithTimeout(c, 1, 5*time.Second); err == nil {
+	if err := utils.WaitChannelWithTimeout(c, 1, graphAddNodeTimeout); err == nil {
 		success = true
 	}
 	return
