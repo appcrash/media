@@ -346,7 +346,7 @@ outerLoop:
 	// 3. this operation is not atomic and some goroutines may have already passed inExiting() check to
 	// start writing to dataC even after dataC set to nil
 	// we introduce extra overhead to record delivery count that is still on its way, once it reaches to
-	// zero, node can assert no more event would come in as inExiting() is false right now, i.e. delivery
+	// zero, node can assert no more event would come in as inExiting() is true right now, i.e. delivery
 	// count can only be decreased to 0 or not changed(keep 0) at this moment
 	ticker := time.NewTicker(defaultExitDelay)
 	for {
