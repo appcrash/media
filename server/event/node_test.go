@@ -283,6 +283,8 @@ func TestOnExitUnderConcurrentDeliver(t *testing.T) {
 	rand.Seed(time.Now().UTC().UnixNano())
 	concurrent := 500
 	done := make(chan int)
+	wg := &sync.WaitGroup{}
+	wg.Add(500)
 	var deliveredEvents, handledEvents int32
 
 	graph := event.NewEventGraph()
@@ -301,6 +303,7 @@ func TestOnExitUnderConcurrentDeliver(t *testing.T) {
 			for {
 				ok := tn.delegate.DeliverSelf(event.NewEvent(cmd_nothing, 0))
 				if !ok {
+					wg.Done()
 					return
 				} else {
 					atomic.AddInt32(&deliveredEvents, 1)
@@ -315,6 +318,7 @@ func TestOnExitUnderConcurrentDeliver(t *testing.T) {
 	}()
 
 	<-done
+	wg.Wait()
 	if handledEvents != deliveredEvents {
 		t.Fatal("deliveredEvents must equal to handledEvents, onExit must be called after all events handled")
 	}
