@@ -28,7 +28,6 @@ func NewPacketListFromRtpPacket(packet *rtp.DataPacket) *PacketList {
 		Marker:      packet.Marker(),
 		Ssrc:        packet.Ssrc(),
 		Csrc:        packet.CsrcList(),
-		Next:        nil,
 	}
 }
 

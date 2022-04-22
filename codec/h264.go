@@ -42,17 +42,17 @@ func (pkt *H264Packet) Clone() comp.Cloneable {
 
 // Only packetization-modes of 0 and 1 are supported
 
-func PacketListFromH264Mode0(payload []byte, pts uint32) (pl *utils.PacketList) {
+func PacketListFromH264Mode0(payload []byte, pts uint32, payloadType uint8) (pl *utils.PacketList) {
 	// packetization-mode == 0 or not present
 	// Only single NAL unit packets MAY be used in this mode. STAPs, MTAPs, and FUs
 	// MUST NOT be used.
 	nals := extractNals(payload)
-	makePacketList(&pl, nals, pts)
+	makePacketList(&pl, nals, pts, payloadType)
 	return
 }
 
 // PacketListFromH264Mode1 payload mtu, not includes ip,udp headers
-func PacketListFromH264Mode1(payload []byte, pts uint32, mtu int) (pl *utils.PacketList) {
+func PacketListFromH264Mode1(payload []byte, pts uint32, payloadType uint8, mtu int) (pl *utils.PacketList) {
 	// packetization-mode == 1
 	// Only single NAL unit packets, STAP-As, and FU-As MAY be used in this mode.
 	nals := extractNals(payload)
@@ -113,17 +113,18 @@ func PacketListFromH264Mode1(payload []byte, pts uint32, mtu int) (pl *utils.Pac
 	}
 
 	// all payloads are in order, make the packet list
-	makePacketList(&pl, rtpPayloadArray, pts)
+	makePacketList(&pl, rtpPayloadArray, pts, payloadType)
 	return
 }
 
-func makePacketList(pl **utils.PacketList, rtpPayload [][]byte, pts uint32) {
+func makePacketList(pl **utils.PacketList, rtpPayload [][]byte, pts uint32, payloadType uint8) {
 	var packet *utils.PacketList
 	prev := *pl
 	for _, payload := range rtpPayload {
 		packet = &utils.PacketList{
-			Payload: payload,
-			Pts:     pts,
+			Payload:     payload,
+			Pts:         pts,
+			PayloadType: payloadType,
 		}
 		if prev == nil {
 			*pl = packet
