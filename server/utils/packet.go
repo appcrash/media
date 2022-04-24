@@ -13,7 +13,8 @@ type PacketList struct {
 	Marker      bool   // should mark-bit in rtp header be set?
 	Ssrc        uint32
 	Csrc        []uint32
-	Next        *PacketList // more PacketList, if any
+
+	next *PacketList // more PacketList, if any
 }
 
 func NewPacketListFromRtpPacket(packet *rtp.DataPacket) *PacketList {
@@ -31,11 +32,29 @@ func NewPacketListFromRtpPacket(packet *rtp.DataPacket) *PacketList {
 	}
 }
 
-func (pl *PacketList) Len() (length int) {
+func (pl *PacketList) HasMore() bool {
+	return pl.next != nil
+}
+
+func (pl *PacketList) Iterate(f func(p *PacketList)) {
 	ppl := pl
 	for ppl != nil {
-		length++
-		ppl = ppl.Next
+		f(ppl)
+		ppl = ppl.next
 	}
+}
+
+func (pl *PacketList) Next() *PacketList {
+	return pl.next
+}
+
+func (pl *PacketList) SetNext(npl *PacketList) {
+	pl.next = npl
+}
+
+func (pl *PacketList) Len() (length int) {
+	pl.Iterate(func(ppl *PacketList) {
+		length++
+	})
 	return
 }

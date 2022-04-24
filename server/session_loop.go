@@ -115,7 +115,7 @@ outLoop:
 
 			// send all packets based on PacketList
 			// for video, a frame can have more than one packet with same timestamp
-			for pl != nil {
+			for pl.HasMore() {
 				payload, ptype, pts, mark := pl.Payload, pl.PayloadType, pl.Pts, pl.Marker
 				if payload != nil {
 					if s.rtpSession == nil {
@@ -129,7 +129,7 @@ outLoop:
 					_, _ = s.rtpSession.WriteData(packet)
 					packet.FreePacket()
 				}
-				pl = pl.Next
+				pl = pl.Next()
 			}
 		case <-cancelC:
 			break outLoop

@@ -129,7 +129,7 @@ func makePacketList(pl **utils.PacketList, rtpPayload [][]byte, pts uint32, payl
 		if prev == nil {
 			*pl = packet
 		} else {
-			prev.Next = packet
+			prev.SetNext(packet)
 		}
 		prev = packet
 	}

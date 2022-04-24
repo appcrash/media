@@ -6,11 +6,12 @@ option go_package = "github.com/appcrash/media/server/rpc";
 
 enum CodecType {
   RAW = 0;     // raw packet data
-  TELEPHONE_EVENT = 1;
-  PCM_ALAW = 2;
-  AMRNB = 3;
-  AMRWB = 4;
-  H264 = 5;
+  TELEPHONE_EVENT_8K = 1;
+  TELEPHONE_EVENT_16K = 2;
+  PCM_ALAW = 3;
+  AMRNB = 4;
+  AMRWB = 5;
+  H264 = 6;
 }
 
 message CodecInfo {

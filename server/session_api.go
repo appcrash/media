@@ -32,6 +32,7 @@ type MediaSession struct {
 	avCodecParam    string
 
 	telephoneEventPayloadNumber uint8
+	telephoneEventCodecParam    string
 
 	mutex                sync.Mutex
 	createTimestamp      time.Time

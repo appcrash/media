@@ -23,7 +23,7 @@ func profileOfCodec(c rpc.CodecType) (profile string) {
 		profile = "AMR-WB"
 	case rpc.CodecType_H264:
 		profile = "H264"
-	case rpc.CodecType_TELEPHONE_EVENT:
+	case rpc.CodecType_TELEPHONE_EVENT_8K, rpc.CodecType_TELEPHONE_EVENT_16K:
 		profile = "TELEPHONE-EVENT"
 	}
 	return
@@ -90,8 +90,9 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, e
 			s.avPayloadNumber = uint8(ci.PayloadNumber)
 			s.avPayloadCodec = ci.PayloadType
 			s.avCodecParam = ci.CodecParam
-		case rpc.CodecType_TELEPHONE_EVENT:
+		case rpc.CodecType_TELEPHONE_EVENT_8K, rpc.CodecType_TELEPHONE_EVENT_16K:
 			s.telephoneEventPayloadNumber = uint8(ci.PayloadNumber)
+			s.telephoneEventCodecParam = ci.CodecParam
 		}
 	}
 	if s.avPayloadNumber == 0 {
