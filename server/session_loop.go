@@ -115,25 +115,22 @@ outLoop:
 				source.PullData(s, &pl)
 			}
 
+			if s.rtpSession == nil {
+				break outLoop
+			}
+
 			// send all packets based on PacketList
 			// for video, a frame can have more than one packet with same timestamp
-			for pl.HasMore() {
+			pl.Iterate(func(p *utils.PacketList) {
 				payload, ptype, pts, mark := pl.Payload, pl.PayloadType, pl.Pts, pl.Marker
 				if payload != nil {
-					if s.rtpSession == nil {
-						break outLoop
-					}
-
 					packet := s.rtpSession.NewDataPacket(pts)
 					packet.SetMarker(mark)
 					packet.SetPayload(payload)
 					packet.SetPayloadType(ptype)
 					_, _ = s.rtpSession.WriteData(packet)
-
-					//packet.FreePacket()
 				}
-				pl = pl.Next()
-			}
+			})
 		case <-cancelC:
 			break outLoop
 		}

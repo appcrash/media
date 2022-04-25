@@ -32,10 +32,6 @@ func NewPacketListFromRtpPacket(packet *rtp.DataPacket) *PacketList {
 	}
 }
 
-func (pl *PacketList) HasMore() bool {
-	return pl.next != nil
-}
-
 func (pl *PacketList) Iterate(f func(p *PacketList)) {
 	ppl := pl
 	for ppl != nil {
