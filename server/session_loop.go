@@ -77,7 +77,9 @@ func (s *MediaSession) receivePacketLoop(ctx context.Context) {
 			for _, sk := range s.sink {
 				sk.HandleData(s, pl)
 			}
-			rp.FreePacket()
+			// don't free packet, let it be GCed, as GoRTP will reuse this packet along with its buffer
+			// which may be hold by other packet-list objects
+			// rp.FreePacket()
 		case <-cancelC:
 			return
 		}
@@ -127,7 +129,8 @@ outLoop:
 					packet.SetPayload(payload)
 					packet.SetPayloadType(ptype)
 					_, _ = s.rtpSession.WriteData(packet)
-					packet.FreePacket()
+
+					//packet.FreePacket()
 				}
 				pl = pl.Next()
 			}
