@@ -45,7 +45,7 @@ func (p *printNode) OnEvent(e *event.Event) {
 }
 
 func TestComposerBasic(t *testing.T) {
-	gd := `[entry] -> [pubsub channel='src1,src2'];`
+	gd := `[entry payload_type='1'] -> [pubsub channel='src1,src2'];`
 	c := comp.NewSessionComposer("test_session")
 	graph := event.NewEventGraph()
 	if err := c.ParseGraphDescription(gd); err != nil {
@@ -87,7 +87,7 @@ func TestComposerWrongNodeType(t *testing.T) {
 }
 
 func ExampleComposerPubSub() {
-	gd := `[entry] -> [pubsub channel='src'] -> {[p1:print], [ps:pubsub]};
+	gd := `[entry payload_type='1'] -> [pubsub channel='src'] -> {[p1:print], [ps:pubsub]};
            [ps] -> {[p2:print], [p3:print]}`
 	comp.RegisterNodeFactory("print", newPrintNode)
 	c := comp.NewSessionComposer("test_session")
@@ -117,7 +117,7 @@ func ExampleComposerPubSub() {
 }
 
 func ExampleComposerGenericMessage() {
-	gd := `[entry] -> [pubsub channel='out'] -> [p1:print];`
+	gd := `[entry payload_type='1'] -> [pubsub channel='out'] -> [p1:print];`
 
 	comp.RegisterNodeFactory("print", newPrintNode)
 	c := comp.NewSessionComposer("test_session")
@@ -149,8 +149,8 @@ func ExampleComposerGenericMessage() {
 }
 
 func ExampleComposerMultipleEntry() {
-	gd := `[e1:entry] -> [pubsub] -> {[p1:print],[p2:print]};
-           [e2:entry] -> [ps:pubsub] -> {[p2:print],[p3:print]}`
+	gd := `[e1:entry payload_type='1'] -> [pubsub] -> {[p1:print],[p2:print]};
+           [e2:entry payload_type='1'] -> [ps:pubsub] -> {[p2:print],[p3:print]}`
 	comp.RegisterNodeFactory("print", newPrintNode)
 	c := comp.NewSessionComposer("test_session")
 	graph := event.NewEventGraph()
@@ -176,7 +176,7 @@ func ExampleComposerMultipleEntry() {
 }
 
 func ExampleComposerController() {
-	gd := `[entry] -> [p1:print] -> [p2:print]`
+	gd := `[entry payload_type='1'] -> [p1:print] -> [p2:print]`
 	comp.RegisterNodeFactory("print", newPrintNode)
 	c := comp.NewSessionComposer("test_session")
 	graph := event.NewEventGraph()
@@ -200,7 +200,7 @@ func ExampleComposerController() {
 }
 
 func ExampleComposerInterSession() {
-	gd := `[entry] -> [ps:pubsub] -> {[p1:print],[p2:print]}`
+	gd := `[entry payload_type='1'] -> [ps:pubsub] -> {[p1:print],[p2:print]}`
 	comp.RegisterNodeFactory("print", newPrintNode)
 	graph := event.NewEventGraph()
 	c1 := comp.NewSessionComposer("test1")
@@ -234,7 +234,7 @@ func ExampleComposerInterSession() {
 }
 
 func ExamplePubSubEnableDisable() {
-	gd := `[e1:entry] -> [pubsub] -> {[p1:print],[p2:print]}`
+	gd := `[e1:entry payload_type='1'] -> [pubsub] -> {[p1:print],[p2:print]}`
 	comp.RegisterNodeFactory("print", newPrintNode)
 	c := comp.NewSessionComposer("test_session")
 	graph := event.NewEventGraph()

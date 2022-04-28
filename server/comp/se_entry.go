@@ -1,14 +1,18 @@
 package comp
 
-import "fmt"
-
-const entryNodeDefaultPayloadType = 255
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
 
 // EntryNode is a basic message provider that simply forward data message to event graph
 type EntryNode struct {
 	SessionNode
 
-	payloadType uint8
+	priority       uint32
+	payloadType    string  // if multiple payload types be set, separated them by "," , e.g "payload_type=96,97"
+	allowedPayload []uint8 // don't set it directly in nmd
 }
 
 //---------------------------------- api & implementation -------------------------------------------
@@ -16,8 +20,28 @@ type EntryNode struct {
 func newEntryNode() SessionAware {
 	node := &EntryNode{}
 	node.Name = TypeENTRY
-	node.payloadType = entryNodeDefaultPayloadType
+
 	return node
+}
+
+func (e *EntryNode) Init() error {
+	if len(e.payloadType) == 0 {
+		return fmt.Errorf("entry node without payload type")
+	}
+
+	payloads := strings.Split(e.payloadType, ",")
+	for _, p := range payloads {
+		if pt, err := strconv.Atoi(p); err != nil {
+			return fmt.Errorf("entry node with invalid payload type:%v", e.payloadType)
+		} else {
+			if pt < 0 || pt > 255 {
+				return fmt.Errorf("entry node: payload type must in range (0,255) but got %v", pt)
+			}
+			e.allowedPayload = append(e.allowedPayload, uint8(pt))
+		}
+	}
+	logger.Infof("entry node(%v:%v) allow payload types: %v", e.GetNodeScope(), e.GetNodeName(), e.allowedPayload)
+	return nil
 }
 
 func (e *EntryNode) PushMessage(msg Message) error {
@@ -28,7 +52,7 @@ func (e *EntryNode) PushMessage(msg Message) error {
 }
 
 func (e *EntryNode) Priority() uint32 {
-	return uint32(e.payloadType)
+	return e.priority
 }
 
 func (e *EntryNode) GetName() string {
@@ -36,11 +60,10 @@ func (e *EntryNode) GetName() string {
 }
 
 func (e *EntryNode) CanHandlePayloadType(pt uint8) bool {
-	if e.payloadType == pt {
-		return true
-	}
-	if e.payloadType == entryNodeDefaultPayloadType {
-		return true
+	for _, p := range e.allowedPayload {
+		if p == pt {
+			return true
+		}
 	}
 	return false
 }

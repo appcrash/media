@@ -92,7 +92,7 @@ func (s *MediaSession) sendPacketLoop(ctx context.Context) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Errorln("sendPacketLoop panic %v", r)
+			logger.Errorf("sendPacketLoop panic %v", r)
 			debug.PrintStack()
 		}
 	}()
