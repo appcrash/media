@@ -103,7 +103,7 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, e
 }
 
 func (s *MediaSession) setupGraph() error {
-	// search any source or sink is interested in composer
+	// search any source or sink that is interested in composer
 	var ca []comp.ComposerAware
 	for _, src := range s.source {
 		if cs, ok := src.(comp.ComposerAware); ok {

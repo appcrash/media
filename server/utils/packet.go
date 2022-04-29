@@ -10,6 +10,7 @@ type PacketList struct {
 	RawBuffer   []byte // rtp payload + rtp header
 	PayloadType uint8
 	Pts         uint32 // presentation timestamp
+	PrevPts     uint32 // previous packet's pts
 	Marker      bool   // should mark-bit in rtp header be set?
 	Ssrc        uint32
 	Csrc        []uint32
@@ -46,6 +47,14 @@ func (pl *PacketList) Next() *PacketList {
 
 func (pl *PacketList) SetNext(npl *PacketList) {
 	pl.next = npl
+}
+
+func (pl *PacketList) GetLast() *PacketList {
+	ppl := pl
+	for ppl.next != nil {
+		ppl = ppl.next
+	}
+	return ppl
 }
 
 func (pl *PacketList) Len() (length int) {

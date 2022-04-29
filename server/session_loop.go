@@ -34,7 +34,7 @@ func (s *MediaSession) receiveCtrlLoop(ctx context.Context) {
 				if evt.EventType == rtp.RtcpBye {
 					// peer send bye, notify data send/receive loop to stop
 					logger.Debugln("rtp peer says bye")
-					go s.Stop() // CAVEAT: don't call Stop() in this goroutine
+					go s.Stop() // CAVEAT: don't call Stop() in this goroutine directly
 					return
 				}
 			}
@@ -72,7 +72,7 @@ func (s *MediaSession) receivePacketLoop(ctx context.Context) {
 				return
 			}
 
-			// push received data to all sinks, then free the packet
+			// push received data to all sinks
 			pl := utils.NewPacketListFromRtpPacket(rp)
 			for _, sk := range s.sink {
 				sk.HandleData(s, pl)

@@ -62,6 +62,14 @@ type SessionListener interface {
 	OnSessionStopped(s *MediaSession)
 }
 
+// BaseSessionListener facilitates building listener if not interested in all events
+type BaseSessionListener struct{}
+
+func (b *BaseSessionListener) OnSessionCreated(s *MediaSession) {}
+func (b *BaseSessionListener) OnSessionUpdated(s *MediaSession) {}
+func (b *BaseSessionListener) OnSessionStarted(s *MediaSession) {}
+func (b *BaseSessionListener) OnSessionStopped(s *MediaSession) {}
+
 func StartServer(c *Config) (err error) {
 	var lis net.Listener
 	var ip *net.IPAddr
