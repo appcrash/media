@@ -4,6 +4,11 @@ package rpc;
 
 option go_package = "github.com/appcrash/media/server/rpc";
 
+enum Version {
+  DUMMY = 0;  // first must be zero in proto3
+  DEFAULT = 1; // increase it every time this file being changed
+}
+
 enum CodecType {
   RAW = 0;     // raw packet data
   TELEPHONE_EVENT_8K = 1;
@@ -13,6 +18,12 @@ enum CodecType {
   AMRWB = 5;
   H264 = 6;
 }
+
+message VersionNumber {
+  Version ver = 1;
+}
+
+message Empty {}
 
 message CodecInfo {
   uint32 payload_number = 1;  // negotiated payload type, dynamic(96 ~ 127) or fixed type
@@ -88,6 +99,7 @@ message SystemEvent {
 
 
 service MediaApi {
+  rpc GetVersion(Empty) returns (VersionNumber) {}
   rpc PrepareSession(CreateParam) returns (Session) {}
   rpc UpdateSession(UpdateParam) returns (Status) {}
   rpc StartSession(StartParam) returns (Status) {}

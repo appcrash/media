@@ -18,6 +18,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MediaApiClient interface {
+	GetVersion(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*VersionNumber, error)
 	PrepareSession(ctx context.Context, in *CreateParam, opts ...grpc.CallOption) (*Session, error)
 	UpdateSession(ctx context.Context, in *UpdateParam, opts ...grpc.CallOption) (*Status, error)
 	StartSession(ctx context.Context, in *StartParam, opts ...grpc.CallOption) (*Status, error)
@@ -33,6 +34,15 @@ type mediaApiClient struct {
 
 func NewMediaApiClient(cc grpc.ClientConnInterface) MediaApiClient {
 	return &mediaApiClient{cc}
+}
+
+func (c *mediaApiClient) GetVersion(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*VersionNumber, error) {
+	out := new(VersionNumber)
+	err := c.cc.Invoke(ctx, "/rpc.MediaApi/GetVersion", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *mediaApiClient) PrepareSession(ctx context.Context, in *CreateParam, opts ...grpc.CallOption) (*Session, error) {
@@ -147,6 +157,7 @@ func (x *mediaApiSystemChannelClient) Recv() (*SystemEvent, error) {
 // All implementations must embed UnimplementedMediaApiServer
 // for forward compatibility
 type MediaApiServer interface {
+	GetVersion(context.Context, *Empty) (*VersionNumber, error)
 	PrepareSession(context.Context, *CreateParam) (*Session, error)
 	UpdateSession(context.Context, *UpdateParam) (*Status, error)
 	StartSession(context.Context, *StartParam) (*Status, error)
@@ -161,6 +172,9 @@ type MediaApiServer interface {
 type UnimplementedMediaApiServer struct {
 }
 
+func (UnimplementedMediaApiServer) GetVersion(context.Context, *Empty) (*VersionNumber, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetVersion not implemented")
+}
 func (UnimplementedMediaApiServer) PrepareSession(context.Context, *CreateParam) (*Session, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PrepareSession not implemented")
 }
@@ -193,6 +207,24 @@ type UnsafeMediaApiServer interface {
 
 func RegisterMediaApiServer(s grpc.ServiceRegistrar, srv MediaApiServer) {
 	s.RegisterService(&MediaApi_ServiceDesc, srv)
+}
+
+func _MediaApi_GetVersion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MediaApiServer).GetVersion(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpc.MediaApi/GetVersion",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MediaApiServer).GetVersion(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _MediaApi_PrepareSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -339,6 +371,10 @@ var MediaApi_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "rpc.MediaApi",
 	HandlerType: (*MediaApiServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetVersion",
+			Handler:    _MediaApi_GetVersion_Handler,
+		},
 		{
 			MethodName: "PrepareSession",
 			Handler:    _MediaApi_PrepareSession_Handler,

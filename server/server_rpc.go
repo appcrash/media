@@ -12,6 +12,10 @@ import (
 	"sync"
 )
 
+func (srv *MediaServer) GetVersion(_ context.Context, _ *rpc.Empty) (*rpc.VersionNumber, error) {
+	return &rpc.VersionNumber{Ver: rpc.Version_DEFAULT}, nil
+}
+
 func (srv *MediaServer) PrepareSession(_ context.Context, param *rpc.CreateParam) (*rpc.Session, error) {
 	var session *MediaSession
 	var err error
