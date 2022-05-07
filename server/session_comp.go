@@ -92,6 +92,7 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, e
 			s.avCodecParam = ci.CodecParam
 		case rpc.CodecType_TELEPHONE_EVENT_8K, rpc.CodecType_TELEPHONE_EVENT_16K:
 			s.telephoneEventPayloadNumber = uint8(ci.PayloadNumber)
+			s.telephoneEventPayloadCodec = ci.PayloadType
 			s.telephoneEventCodecParam = ci.CodecParam
 		}
 	}

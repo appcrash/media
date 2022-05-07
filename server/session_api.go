@@ -32,6 +32,7 @@ type MediaSession struct {
 	avCodecParam    string
 
 	telephoneEventPayloadNumber uint8
+	telephoneEventPayloadCodec  rpc.CodecType
 	telephoneEventCodecParam    string
 
 	mutex                sync.Mutex
@@ -69,6 +70,10 @@ func (s *MediaSession) GetAVCodecParam() string {
 
 func (s *MediaSession) GetTelephoneEventPayloadType() uint8 {
 	return s.telephoneEventPayloadNumber
+}
+
+func (s *MediaSession) GetTelephoneEventCodecType() rpc.CodecType {
+	return s.telephoneEventPayloadCodec
 }
 
 func (s *MediaSession) GetEventGraph() *event.Graph {
