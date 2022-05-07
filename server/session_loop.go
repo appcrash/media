@@ -118,6 +118,9 @@ outLoop:
 			if s.rtpSession == nil {
 				break outLoop
 			}
+			if pl == nil {
+				continue
+			}
 
 			// send all packets based on PacketList
 			// for video, a frame can have more than one packet with same timestamp
