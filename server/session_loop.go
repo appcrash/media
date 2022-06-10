@@ -125,7 +125,7 @@ outLoop:
 			// send all packets based on PacketList
 			// for video, a frame can have more than one packet with same timestamp
 			pl.Iterate(func(p *utils.PacketList) {
-				payload, ptype, pts, mark := pl.Payload, pl.PayloadType, pl.Pts, pl.Marker
+				payload, ptype, pts, mark := p.Payload, p.PayloadType, p.Pts, p.Marker
 				if payload != nil {
 					packet := s.rtpSession.NewDataPacket(pts)
 					packet.SetMarker(mark)
