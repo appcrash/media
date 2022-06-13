@@ -114,7 +114,12 @@ func (l *Listener) EnterPropId(ctx *PropIdContext) {
 
 func (l *Listener) EnterPropInt(ctx *PropIntContext) {
 	l.currentNodeProp.Type = "int"
-	l.currentNodeProp.Value, _ = strconv.Atoi(ctx.GetText())
+	text := ctx.GetText()
+	if strings.HasPrefix(text, "0x") || strings.HasPrefix(text, "0X") {
+		l.currentNodeProp.Value, _ = strconv.ParseInt(text[2:], 16, 64)
+	} else {
+		l.currentNodeProp.Value, _ = strconv.Atoi(text)
+	}
 }
 
 func (l *Listener) EnterPropFloat(ctx *PropFloatContext) {

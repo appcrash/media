@@ -34,7 +34,10 @@ QUOTED_STRING : '\'' ( ESC | . )*? '\'' ;
 fragment
 ESC : '\\\''  ;
 
-INT : DIGIT+ ;
+INT : DIGIT+
+    | '0x' DIGIT+
+    | '0X' DIGIT+
+    ;
 FLOAT : DIGIT+ '.' DIGIT*
       | '.' DIGIT+
       ;
