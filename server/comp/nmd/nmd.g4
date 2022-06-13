@@ -35,8 +35,8 @@ fragment
 ESC : '\\\''  ;
 
 INT : DIGIT+
-    | '0x' DIGIT+
-    | '0X' DIGIT+
+    | '0x' HEXDIGIT+
+    | '0X' HEXDIGIT+
     ;
 FLOAT : DIGIT+ '.' DIGIT*
       | '.' DIGIT+
@@ -45,6 +45,8 @@ FLOAT : DIGIT+ '.' DIGIT*
 WS : [ \t\r\n]+ -> skip ;
 fragment
 DIGIT : [0-9] ;
+fragment
+HEXDIGIT : [0-9a-f] ;
 fragment
 LETTER : [a-zA-Z_] ;
 
