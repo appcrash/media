@@ -97,19 +97,40 @@ func deepClone(obj interface{}) interface{} {
 
 	// if it is a list(array/slice) of cloneable, try to clone the whole list
 	rt := reflect.TypeOf(obj)
+	var isSlice bool
 	switch rt.Kind() {
-	case reflect.Array, reflect.Slice:
-		var cloned []interface{}
+	case reflect.Slice:
+		isSlice = true
+		fallthrough
+	case reflect.Array:
+		var typ, arrayType reflect.Type
+		var arr reflect.Value
 		value := reflect.ValueOf(obj)
+
 		for i := 0; i < value.Len(); i++ {
 			if c := cloneElement(value.Index(i)); c == nil {
 				// if any element in list cannot be cloned, the whole list is failed
 				return nil
 			} else {
-				cloned = append(cloned, c)
+				if typ == nil {
+					// create array type once element's type is known
+					typ = reflect.TypeOf(c)
+					if isSlice {
+						arrayType = reflect.SliceOf(typ)
+					} else {
+						arrayType = reflect.ArrayOf(value.Len(), typ)
+					}
+					arr = reflect.New(arrayType).Elem()
+				}
+
+				if isSlice {
+					arr = reflect.Append(arr, reflect.ValueOf(c))
+				} else {
+					arr.Index(i).Set(reflect.ValueOf(c))
+				}
 			}
 		}
-		return cloned
+		return arr.Interface()
 	default:
 		return cloneElement(obj)
 	}
@@ -137,6 +158,7 @@ func cloneElement(obj interface{}) interface{} {
 
 	var isPtr bool
 	var clonedObj interface{}
+	typ := value.Type()
 	switch value.Kind() {
 	case reflect.Ptr:
 		isPtr = true
@@ -152,6 +174,11 @@ func cloneElement(obj interface{}) interface{} {
 	case reflect.Struct:
 		inf := value.Interface()
 		clonedObj = tryCloneable(inf)
+		if clonedObj != nil {
+			newValue := reflect.ValueOf(clonedObj).Convert(typ)
+			return newValue.Interface()
+		}
+
 	}
 
 	return clonedObj

@@ -25,11 +25,11 @@ type testCloneableObjStruct struct {
 type testNonCloneableObj struct{}
 
 func (t *testCloneableObjPtr) Clone() comp.Cloneable {
-	return &testCloneableObjPtr{}
+	return &testCloneableObjPtr{t.a}
 }
 
 func (t testCloneableObjStruct) Clone() comp.Cloneable {
-	return testCloneableObjStruct{}
+	return testCloneableObjStruct{t.a}
 }
 
 func TestGenericMessage_Cloneable(t *testing.T) {
@@ -74,71 +74,64 @@ func TestGenericMessage_NonCloneable(t *testing.T) {
 }
 
 func TestGenericMessage_ArraySlice(t *testing.T) {
-	testPtrList := []*testCloneableObjPtr{
+	testPtrArray := [3]*testCloneableObjPtr{
 		&testCloneableObjPtr{1},
 		&testCloneableObjPtr{2},
 		&testCloneableObjPtr{3},
 	}
 
-	testStructList := []testCloneableObjStruct{
+	testStructArray := [3]testCloneableObjStruct{
 		{1},
 		{2},
 		{3},
 	}
 
-	// ############# test array #############
+	// ############# test slice #############
 	gmList := &comp.GenericMessage{
-		Subtype: "test_clone_array_ptr",
-		Obj:     testPtrList,
+		Subtype: "test_clone_slice_ptr",
+		Obj:     testPtrArray[:],
 	}
 	cgm := gmList.Clone()
 	if cgm == nil {
-		t.Fatal("clone generic message with list failed")
+		t.Fatal("clone generic message with slice failed")
 	}
 	listObj := cgm.(*comp.GenericMessage).Obj
 	if listObj == nil {
-		t.Fatal("clone generic message with list failed, element not cloned")
+		t.Fatal("clone generic message with slice failed, object not cloned")
 	}
-	ctl, ok := listObj.([]interface{})
+	ctl, ok := listObj.([]*testCloneableObjPtr)
 	if !ok {
-		t.Fatal("clone generic message with list failed, must be array type")
+		t.Fatalf("clone generic message with slice failed, must be slice type, which is %v", reflect.TypeOf(listObj))
 	}
 	if len(ctl) != 3 {
-		t.Fatal("clone generic message with list failed, element length not correct")
-	}
-	if _, ok = ctl[0].(*testCloneableObjPtr); !ok {
-		t.Fatalf("clone generic message with list failed, element type not correct, which actually is %v",
-			reflect.TypeOf(ctl[0]))
+		t.Fatalf("clone generic message with slice failed, object length not correct, which is %v,type is %v",
+			len(ctl), reflect.TypeOf(ctl))
 	}
 
 	gmList = &comp.GenericMessage{
-		Subtype: "test_clone_array_struct",
-		Obj:     testStructList,
+		Subtype: "test_clone_slice_struct",
+		Obj:     testStructArray[:],
 	}
 	cgm = gmList.Clone()
 	if cgm == nil {
-		t.Fatal("clone generic message(struct) with list failed")
+		t.Fatal("clone generic message(struct) with slice failed")
 	}
 	listObj = cgm.(*comp.GenericMessage).Obj
 	if listObj == nil {
-		t.Fatal("clone generic message(struct) with list failed, element not cloned")
+		t.Fatal("clone generic message(struct) with slice failed, object not cloned")
 	}
-	ctl, ok = listObj.([]interface{})
-	if !ok {
-		t.Fatal("clone generic message(struct) with list failed, must be array type")
+	ctlObj, ok1 := listObj.([]testCloneableObjStruct)
+	if !ok1 {
+		t.Fatal("clone generic message(struct) with slice failed, must be slice type")
 	}
-	if len(ctl) != 3 {
-		t.Fatal("clone generic message(struct) with list failed, element length not correct")
-	}
-	if _, ok = ctl[0].(testCloneableObjStruct); !ok {
-		t.Fatalf("clone generic message(struct) with list failed, element type not correct, which actually is %v",
-			reflect.TypeOf(ctl[0]))
+	if len(ctlObj) != 3 {
+		t.Fatal("clone generic message(struct) with slice failed, object length not correct")
 	}
 
-	// ############# test slice #############
+	// ############# test array #############
 	gmList = &comp.GenericMessage{
 		Subtype: "test_clone_array",
-		Obj:     testPtrList[:2],
+		Obj:     testPtrArray,
 	}
 	cgm = gmList.Clone()
 	if cgm == nil {
@@ -148,16 +141,14 @@ func TestGenericMessage_ArraySlice(t *testing.T) {
 	if listObj == nil {
 		t.Fatal("clone generic message with slice failed, element not cloned")
 	}
-	ctl, ok = listObj.([]interface{})
+	ctlSlice, ok := listObj.([3]*testCloneableObjPtr)
 	if !ok {
 		t.Fatal("clone generic message with slice failed, must be array type")
 	}
-	if len(ctl) != 2 {
+	if len(ctlSlice) != 3 {
 		t.Fatal("clone generic message with slice failed, element length not correct")
 	}
-	if _, ok = ctl[0].(*testCloneableObjPtr); !ok {
-		t.Fatal("clone generic message with slice failed, element type not correct")
-	}
+
 }
 
 func TestGenericMessage_Primitives(t *testing.T) {
@@ -192,5 +183,57 @@ func TestGenericMessage_Primitives(t *testing.T) {
 		//t.Logf("type: %v ---> %v\n", reflect.ValueOf(&p).Elem().Elem().Type(),
 		//	reflect.ValueOf(newObj).Elem().Elem().Type())
 
+	}
+}
+
+func TestGenericMessage_ConvertibleObject(t *testing.T) {
+	obj := &testCloneableObjPtr{1}
+	gm := &comp.GenericMessage{
+		Subtype: "test_generic",
+		Obj:     obj,
+	}
+	cgm := gm.Clone()
+	if cgm == nil {
+		t.Fatal("generic message does not clone its internal object")
+	}
+	newObj := cgm.(*comp.GenericMessage).Obj
+	if _, ok := newObj.(*testCloneableObjPtr); !ok {
+		t.Fatalf("failed to convert to original type, %v", newObj)
+	}
+
+	// test slice type
+	objSlice := []*testCloneableObjPtr{
+		&testCloneableObjPtr{1},
+		&testCloneableObjPtr{2},
+	}
+	gm = &comp.GenericMessage{
+		Subtype: "test_generic",
+		Obj:     objSlice,
+	}
+	cgm = gm.Clone()
+	if cgm == nil {
+		t.Fatal("generic message does not clone its internal object (array)")
+	}
+	newSliceObj := cgm.(*comp.GenericMessage).Obj
+	if _, ok := newSliceObj.([]*testCloneableObjPtr); !ok {
+		t.Fatalf("failed to convert to original slice of type, %v", newSliceObj)
+	}
+
+	// test array type
+	objArray := [2]*testCloneableObjPtr{
+		&testCloneableObjPtr{1},
+		&testCloneableObjPtr{2},
+	}
+	gm = &comp.GenericMessage{
+		Subtype: "test_generic",
+		Obj:     objArray,
+	}
+	cgm = gm.Clone()
+	if cgm == nil {
+		t.Fatal("generic message does not clone its internal object (array)")
+	}
+	newArrayObj := cgm.(*comp.GenericMessage).Obj
+	if _, ok := newArrayObj.([2]*testCloneableObjPtr); !ok {
+		t.Fatalf("failed to convert to original array of type, %v", newSliceObj)
 	}
 }
