@@ -6,6 +6,8 @@ import (
 	"reflect"
 )
 
+//cloneableType := reflect.TypeOf((*Cloneable)(nil)).Elem()
+
 // RawByteMessage is used to pass byte streaming data between nodes intra/inter session, for efficiency
 type RawByteMessage []byte
 
@@ -88,9 +90,8 @@ func (gm *GenericMessage) Clone() (obj CloneableMessage) {
 	return
 }
 
-// one-level deep clone
 func deepClone(obj interface{}) interface{} {
-	if ec := cloneElement(obj); ec != nil {
+	if ec, ok := cloneElement(obj); ok {
 		// try clone element first
 		return ec
 	}
@@ -108,7 +109,7 @@ func deepClone(obj interface{}) interface{} {
 		value := reflect.ValueOf(obj)
 
 		for i := 0; i < value.Len(); i++ {
-			if c := cloneElement(value.Index(i)); c == nil {
+			if c, ok := cloneElement(value.Index(i)); !ok {
 				// if any element in list cannot be cloned, the whole list is failed
 				return nil
 			} else {
@@ -123,27 +124,40 @@ func deepClone(obj interface{}) interface{} {
 					arr = reflect.New(arrayType).Elem()
 				}
 
+				vc := reflect.ValueOf(c)
 				if isSlice {
-					arr = reflect.Append(arr, reflect.ValueOf(c))
+					if c == nil {
+						nilValue := reflect.Zero(typ)
+						arr = reflect.Append(arr, nilValue)
+					} else {
+						arr = reflect.Append(arr, vc)
+					}
+
 				} else {
-					arr.Index(i).Set(reflect.ValueOf(c))
+					if c != nil {
+						arr.Index(i).Set(vc)
+					}
 				}
 			}
 		}
 		return arr.Interface()
 	default:
-		return cloneElement(obj)
+		cloned, _ := cloneElement(obj)
+		return cloned
 	}
 }
 
-func cloneElement(obj interface{}) interface{} {
+// cloneElement is not an omni-deep-clone method, it only handles primitives or cloneable types,
+// and array/slice of such kind of types (element type can be ptr,struct,interface). it should suffice
+// in most cases
+func cloneElement(obj interface{}) (cloned interface{}, ok bool) {
 	if obj == nil {
-		return nil
+		return nil, true
 	}
 
 	// normal case (most possible), test cloneable interfaces...
 	if cloneObj := tryCloneable(obj); cloneObj != nil {
-		return cloneObj
+		return cloneObj, true
 	}
 
 	// try to use reflect ...
@@ -153,39 +167,45 @@ func cloneElement(obj interface{}) interface{} {
 	}
 	if isPrimitiveType(value) && !isValue {
 		// primitive types, just return the constant as it was
-		return obj
+		return obj, true
 	}
 
 	var isPtr bool
-	var clonedObj interface{}
 	typ := value.Type()
 	switch value.Kind() {
 	case reflect.Ptr:
 		isPtr = true
 		fallthrough
 	case reflect.Interface:
+		if value.IsNil() {
+			return nil, true
+		}
 		if isPrimitiveType(value) {
-			clonedObj = cloneElement(value.Elem().Interface())
-			if isPtr {
-				clonedObj = &clonedObj
+			cloned, ok = cloneElement(value.Elem().Interface())
+			if ok && isPtr {
+				cloned = &cloned
+				return
 			}
 		}
 		fallthrough
 	case reflect.Struct:
 		inf := value.Interface()
-		clonedObj = tryCloneable(inf)
-		if clonedObj != nil {
-			newValue := reflect.ValueOf(clonedObj).Convert(typ)
-			return newValue.Interface()
+		cloned = tryCloneable(inf)
+		if cloned != nil {
+			clonedValue := reflect.ValueOf(cloned)
+			if clonedValue.Type().ConvertibleTo(typ) {
+				return clonedValue.Convert(typ).Interface(), true
+			}
 		}
-
+		// struct that can't be cloned(not implemented) or Clone() is called but returned value can not be
+		// converted to its original type
+		return nil, false
 	}
 
-	return clonedObj
+	return
 }
 
 func tryCloneable(obj interface{}) interface{} {
-	// normal case (most possible), test cloneable interfaces...
 	switch obj.(type) {
 	case Cloneable:
 		return obj.(Cloneable).Clone()
@@ -207,5 +227,3 @@ func isPrimitiveType(value reflect.Value) bool {
 	}
 	return false
 }
-
-//cloneableType := reflect.TypeOf((*Cloneable)(nil)).Elem()

@@ -201,9 +201,10 @@ func TestGenericMessage_ConvertibleObject(t *testing.T) {
 		t.Fatalf("failed to convert to original type, %v", newObj)
 	}
 
-	// test slice type
+	// test slice type with nil pointer
 	objSlice := []*testCloneableObjPtr{
 		&testCloneableObjPtr{1},
+		nil,
 		&testCloneableObjPtr{2},
 	}
 	gm = &comp.GenericMessage{
@@ -219,9 +220,11 @@ func TestGenericMessage_ConvertibleObject(t *testing.T) {
 		t.Fatalf("failed to convert to original slice of type, %v", newSliceObj)
 	}
 
-	// test array type
-	objArray := [2]*testCloneableObjPtr{
+	// test array type with some nil pointers
+	objArray := [4]*testCloneableObjPtr{
 		&testCloneableObjPtr{1},
+		nil,
+		nil,
 		&testCloneableObjPtr{2},
 	}
 	gm = &comp.GenericMessage{
@@ -233,7 +236,7 @@ func TestGenericMessage_ConvertibleObject(t *testing.T) {
 		t.Fatal("generic message does not clone its internal object (array)")
 	}
 	newArrayObj := cgm.(*comp.GenericMessage).Obj
-	if _, ok := newArrayObj.([2]*testCloneableObjPtr); !ok {
+	if _, ok := newArrayObj.([4]*testCloneableObjPtr); !ok {
 		t.Fatalf("failed to convert to original array of type, %v", newSliceObj)
 	}
 }
