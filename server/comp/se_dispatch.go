@@ -19,6 +19,9 @@ type Dispatch struct {
 
 	mutex   sync.Mutex
 	linkMap map[string]int
+
+	cachedDataNodeName string
+	cachedDataLink     int
 }
 
 //----------------------------------------- api & implementation ---------------------------------------------
@@ -81,11 +84,11 @@ func (d *Dispatch) getLinkId(sessionId, name string) (linkId int, err error) {
 
 // Call send control message to a node in the graph and wait for its reply
 // if session is "", it means sending to local session nodes
-func (d *Dispatch) Call(session, name string, args []string) (resp []string) {
+func (d *Dispatch) Call(session, nodeName string, args []string) (resp []string) {
 	if session == "" {
 		session = d.SessionId
 	}
-	linkId, err := d.getLinkId(session, name)
+	linkId, err := d.getLinkId(session, nodeName)
 	if err != nil {
 		resp = WithError("can not connect to requested node")
 		return
@@ -105,11 +108,11 @@ func (d *Dispatch) Call(session, name string, args []string) (resp []string) {
 
 // Cast send control message to a node in the graph
 // if session is "", it means send to local session nodes
-func (d *Dispatch) Cast(session, name string, args []string) {
+func (d *Dispatch) Cast(session, nodeName string, args []string) {
 	if session == "" {
 		session = d.SessionId
 	}
-	linkId, err := d.getLinkId(session, name)
+	linkId, err := d.getLinkId(session, nodeName)
 	if err != nil {
 		return
 	}
@@ -117,10 +120,35 @@ func (d *Dispatch) Cast(session, name string, args []string) {
 		M: args,
 	}
 	evt := msg.AsEvent()
-	if !d.delegate.Deliver(linkId, evt) {
-		return
+	d.delegate.Deliver(linkId, evt)
+}
+
+func (d *Dispatch) PushData(nodeName string, msgType string, data []byte) {
+	var linkId int
+	var err error
+	var msg Message
+	if d.cachedDataNodeName == nodeName {
+		linkId = d.cachedDataLink
+	} else {
+		if linkId, err = d.getLinkId(d.SessionId, nodeName); err != nil {
+			d.cachedDataNodeName = ""
+			d.cachedDataLink = 0
+			logger.Errorf("session (%v) push data with wrong node name(%v)", d.SessionId, nodeName)
+			return
+		}
+		d.cachedDataNodeName = nodeName
+		d.cachedDataLink = linkId
 	}
-	return
+	if msgType != "" {
+		msg = &GenericMessage{
+			Subtype: msgType,
+			Obj:     data,
+		}
+	} else {
+		msg = RawByteMessage(data)
+	}
+	evt := msg.AsEvent()
+	d.delegate.Deliver(linkId, evt)
 }
 
 func newDispatch() SessionAware {

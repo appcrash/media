@@ -262,3 +262,27 @@ func ExamplePubSubEnableDisable() {
 	// p1 print foobar
 	// p2 print foobar
 }
+
+func ExampleComposerPushDataMessage() {
+	gd := `[p1:print]; [p2:print];`
+
+	comp.RegisterNodeFactory("print", newPrintNode)
+	c := comp.NewSessionComposer("test_session")
+	graph := event.NewEventGraph()
+	if err := c.ParseGraphDescription(gd); err != nil {
+		fmt.Println("parse graph failed")
+		return
+	}
+	if err := c.ComposeNodes(graph); err != nil {
+		fmt.Println("prepare node failed")
+		return
+	}
+	ctrl := c.GetController()
+	ctrl.PushData("p1", "", []byte("abc"))
+	ctrl.PushData("p2", "", []byte("cba"))
+	time.Sleep(50 * time.Millisecond)
+
+	// Unordered OUTPUT:
+	// p1 print abc
+	// p2 print cba
+}

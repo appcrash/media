@@ -91,15 +91,38 @@ func (sc *ScriptCommandHandler) ExecuteWithNotify(s *MediaSession, cmd string, a
 	}
 }
 
+func (sc *ScriptCommandHandler) ExecuteWithPush(s *MediaSession, dataIn ExecuteDataChan) {
+	controller := s.GetController()
+	for {
+		select {
+		case pushData, more := <-dataIn:
+			if !more {
+				return
+			}
+			// sanity check before pushing
+			nodeName := pushData.GetNodeName()
+			data := pushData.GetData()
+			if len(nodeName) == 0 || len(data) == 0 {
+				continue
+			}
+			controller.PushData(nodeName, pushData.GetMsgType(), data)
+		}
+	}
+}
+
 func (sc *ScriptCommandHandler) GetCommandTrait() []CommandTrait {
 	return []CommandTrait{
 		{
 			"exec",
-			CMD_TRAIT_SIMPLE,
+			CmdTraitSimple,
 		},
 		{
-			"exec_stream",
-			CMD_TRAIT_STREAM,
+			"pull_stream",
+			CmdTraitPullStream,
+		},
+		{
+			"push_stream",
+			CmdTraitPushStream,
 		},
 	}
 }

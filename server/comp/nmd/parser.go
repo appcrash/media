@@ -33,6 +33,7 @@ func (gt *GraphTopology) ParseGraph(sessionId, desc string) error {
 	gt.callDefs = listener.CallDefs
 	gt.castDefs = listener.CastDefs
 	gt.sinkDefs = listener.SinkDefs
+
 	return gt.topographicalSort()
 }
 

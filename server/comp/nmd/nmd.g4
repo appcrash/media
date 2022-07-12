@@ -13,7 +13,7 @@ stmt : node_def
 link_stmt : endpoint '->' endpoint ('->' endpoint)* ;
 call_stmt : node_def '<->' cmd=QUOTED_STRING ;
 cast_stmt : node_def '<--' cmd=QUOTED_STRING ;
-sink_stmt : '<-chan' channel=ID ;
+sink_stmt : '<-chan' channel=ID ; /* pull data from channel in graph */
 
 endpoint : node_def
          | '{' node_def (',' node_def)* '}'

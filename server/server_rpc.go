@@ -8,6 +8,8 @@ import (
 	"github.com/appcrash/media/server/prom"
 	"github.com/appcrash/media/server/rpc"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/log"
+	"io"
 	"runtime/debug"
 	"sync"
 )
@@ -73,9 +75,7 @@ func (srv *MediaServer) ExecuteAction(_ context.Context, action *rpc.Action) (*r
 	if ok {
 		cmd := action.GetCmd()
 		arg := action.GetCmdArg()
-		srv.executorMutex.Lock()
 		exec, exist := srv.simpleExecutorMap[cmd]
-		srv.executorMutex.Unlock()
 		if exist {
 			exec.Execute(session, cmd, arg)
 			prom.SessionAction.With(prometheus.Labels{"cmd": cmd, "type": "simple"}).Inc()
@@ -102,12 +102,15 @@ func (srv *MediaServer) ExecuteActionWithNotify(action *rpc.Action, stream rpc.M
 	if ok {
 		cmd := action.GetCmd()
 		arg := action.GetCmdArg()
-		srv.executorMutex.Lock()
 		exec, exist := srv.streamExecutorMap[cmd]
-		srv.executorMutex.Unlock()
 		if exist {
-			ctrlIn := make(ExecuteCtrlChan, 10)
-			ctrlOut := make(ExecuteCtrlChan, 10)
+			ctrlIn := make(ExecuteCtrlChan)
+			ctrlOut := make(ExecuteCtrlChan, 32)
+			defer func() {
+				prom.SessionAction.With(prometheus.Labels{"cmd": cmd, "type": "pull_stream"}).Inc()
+				// notify executor loop to exit
+				close(ctrlIn)
+			}()
 			go exec.ExecuteWithNotify(session, cmd, arg, ctrlIn, ctrlOut)
 
 		outLoop:
@@ -124,19 +127,72 @@ func (srv *MediaServer) ExecuteActionWithNotify(action *rpc.Action, stream rpc.M
 					}
 					if err := stream.Send(&event); err != nil {
 						logger.Errorf("send action event of stream(%v) with event %v error", session, event.String())
-						// notify executor loop to exit
-						close(ctrlIn)
 						break outLoop
 					}
 				}
 			}
-			prom.SessionAction.With(prometheus.Labels{"cmd": cmd, "type": "stream"}).Inc()
 		}
 
 		return nil
 	}
 
 	return errors.New("cmd not exist")
+}
+
+func (srv *MediaServer) ExecuteActionWithPush(stream rpc.MediaApi_ExecuteActionWithPushServer) error {
+	var sessionId string
+	var dataIn chan *rpc.PushData
+
+	// receive the first data to retrieve the session id
+	if data, err := stream.Recv(); err != nil {
+		return err
+	} else {
+		sessionId = data.GetSessionId()
+		if sessionId == "" {
+			return errors.New("push action with empty session id")
+		}
+		srv.sessionMutex.Lock()
+		session, ok := srv.sessionMap[sessionId]
+		srv.sessionMutex.Unlock()
+		if !ok {
+			return fmt.Errorf("push action with session(%v) that is not exist", sessionId)
+		}
+		// hardcode :(
+		exec := srv.streamExecutorMap["push_stream"]
+		if exec == nil {
+			log.Error("no push executor registered")
+			return fmt.Errorf("doesn't support push now")
+		}
+		dataIn = make(chan *rpc.PushData, 32)
+		go exec.ExecuteWithPush(session, dataIn)
+		// don't forget to send first packet
+		dataIn <- data
+	}
+
+	defer func() {
+		prom.SessionAction.With(prometheus.Labels{"type": "push_stream"}).Inc()
+		// let push loop stop
+		if dataIn != nil {
+			close(dataIn)
+		}
+	}()
+
+	for {
+		data, err := stream.Recv()
+		if err == io.EOF {
+			return stream.SendAndClose(&rpc.ActionResult{
+				SessionId: sessionId,
+				State:     "ok",
+			})
+		}
+		if err != nil {
+			return err
+		}
+		select {
+		case dataIn <- data:
+		default:
+		}
+	}
 }
 
 func (srv *MediaServer) SystemChannel(stream rpc.MediaApi_SystemChannelServer) error {

@@ -25,6 +25,7 @@ type MediaApiClient interface {
 	StopSession(ctx context.Context, in *StopParam, opts ...grpc.CallOption) (*Status, error)
 	ExecuteAction(ctx context.Context, in *Action, opts ...grpc.CallOption) (*ActionResult, error)
 	ExecuteActionWithNotify(ctx context.Context, in *Action, opts ...grpc.CallOption) (MediaApi_ExecuteActionWithNotifyClient, error)
+	ExecuteActionWithPush(ctx context.Context, opts ...grpc.CallOption) (MediaApi_ExecuteActionWithPushClient, error)
 	SystemChannel(ctx context.Context, opts ...grpc.CallOption) (MediaApi_SystemChannelClient, error)
 }
 
@@ -122,8 +123,42 @@ func (x *mediaApiExecuteActionWithNotifyClient) Recv() (*ActionEvent, error) {
 	return m, nil
 }
 
+func (c *mediaApiClient) ExecuteActionWithPush(ctx context.Context, opts ...grpc.CallOption) (MediaApi_ExecuteActionWithPushClient, error) {
+	stream, err := c.cc.NewStream(ctx, &MediaApi_ServiceDesc.Streams[1], "/rpc.MediaApi/ExecuteActionWithPush", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &mediaApiExecuteActionWithPushClient{stream}
+	return x, nil
+}
+
+type MediaApi_ExecuteActionWithPushClient interface {
+	Send(*PushData) error
+	CloseAndRecv() (*ActionResult, error)
+	grpc.ClientStream
+}
+
+type mediaApiExecuteActionWithPushClient struct {
+	grpc.ClientStream
+}
+
+func (x *mediaApiExecuteActionWithPushClient) Send(m *PushData) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *mediaApiExecuteActionWithPushClient) CloseAndRecv() (*ActionResult, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(ActionResult)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *mediaApiClient) SystemChannel(ctx context.Context, opts ...grpc.CallOption) (MediaApi_SystemChannelClient, error) {
-	stream, err := c.cc.NewStream(ctx, &MediaApi_ServiceDesc.Streams[1], "/rpc.MediaApi/SystemChannel", opts...)
+	stream, err := c.cc.NewStream(ctx, &MediaApi_ServiceDesc.Streams[2], "/rpc.MediaApi/SystemChannel", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -164,6 +199,7 @@ type MediaApiServer interface {
 	StopSession(context.Context, *StopParam) (*Status, error)
 	ExecuteAction(context.Context, *Action) (*ActionResult, error)
 	ExecuteActionWithNotify(*Action, MediaApi_ExecuteActionWithNotifyServer) error
+	ExecuteActionWithPush(MediaApi_ExecuteActionWithPushServer) error
 	SystemChannel(MediaApi_SystemChannelServer) error
 	mustEmbedUnimplementedMediaApiServer()
 }
@@ -192,6 +228,9 @@ func (UnimplementedMediaApiServer) ExecuteAction(context.Context, *Action) (*Act
 }
 func (UnimplementedMediaApiServer) ExecuteActionWithNotify(*Action, MediaApi_ExecuteActionWithNotifyServer) error {
 	return status.Errorf(codes.Unimplemented, "method ExecuteActionWithNotify not implemented")
+}
+func (UnimplementedMediaApiServer) ExecuteActionWithPush(MediaApi_ExecuteActionWithPushServer) error {
+	return status.Errorf(codes.Unimplemented, "method ExecuteActionWithPush not implemented")
 }
 func (UnimplementedMediaApiServer) SystemChannel(MediaApi_SystemChannelServer) error {
 	return status.Errorf(codes.Unimplemented, "method SystemChannel not implemented")
@@ -338,6 +377,32 @@ func (x *mediaApiExecuteActionWithNotifyServer) Send(m *ActionEvent) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _MediaApi_ExecuteActionWithPush_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(MediaApiServer).ExecuteActionWithPush(&mediaApiExecuteActionWithPushServer{stream})
+}
+
+type MediaApi_ExecuteActionWithPushServer interface {
+	SendAndClose(*ActionResult) error
+	Recv() (*PushData, error)
+	grpc.ServerStream
+}
+
+type mediaApiExecuteActionWithPushServer struct {
+	grpc.ServerStream
+}
+
+func (x *mediaApiExecuteActionWithPushServer) SendAndClose(m *ActionResult) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *mediaApiExecuteActionWithPushServer) Recv() (*PushData, error) {
+	m := new(PushData)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func _MediaApi_SystemChannel_Handler(srv interface{}, stream grpc.ServerStream) error {
 	return srv.(MediaApiServer).SystemChannel(&mediaApiSystemChannelServer{stream})
 }
@@ -401,6 +466,11 @@ var MediaApi_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "ExecuteActionWithNotify",
 			Handler:       _MediaApi_ExecuteActionWithNotify_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "ExecuteActionWithPush",
+			Handler:       _MediaApi_ExecuteActionWithPush_Handler,
+			ClientStreams: true,
 		},
 		{
 			StreamName:    "SystemChannel",

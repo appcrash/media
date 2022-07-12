@@ -69,10 +69,13 @@ type ComposerAware interface {
 // establish links to all nodes to communicate beforehand), so simplify the programming pattern
 type Controller interface {
 	// Call send message and wait for the response (block)
-	Call(session, name string, args []string) (resp []string)
+	Call(session, nodeName string, args []string) (resp []string)
 
 	// Cast send message and don't wait (nonblock)
-	Cast(session, name string, args []string)
+	Cast(session, nodeName string, args []string)
+
+	// PushData only send bytes to node of the same session
+	PushData(nodeName string, msgType string, data []byte)
 }
 
 // MessageProvider can push data message to event-graph

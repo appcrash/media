@@ -160,19 +160,17 @@ func (srv *MediaServer) stopSession(param *rpc.StopParam) (err error) {
 
 // APIs that allow plugging in method to:
 // 1. handle command(take new actions), listen to state change
-// 2. handle incoming data(audio,video), which is a sink
-// 3. generate outgoing data, which is a source
+// 2. pull data from media server
+// 3. push data to media server
 func (srv *MediaServer) registerCommandExecutor(e CommandExecute) (err error) {
 	cmdTrait := e.GetCommandTrait()
 	var cm map[string]CommandExecute
 
-	srv.executorMutex.Lock()
-	defer srv.executorMutex.Unlock()
 	for _, trait := range cmdTrait {
 		switch trait.CmdTrait {
-		case CMD_TRAIT_SIMPLE:
+		case CmdTraitSimple:
 			cm = srv.simpleExecutorMap
-		case CMD_TRAIT_STREAM:
+		case CmdTraitPullStream, CmdTraitPushStream:
 			cm = srv.streamExecutorMap
 		default:
 			err = fmt.Errorf("register command executor with wrong trait: %v", trait.CmdTrait)
@@ -190,8 +188,6 @@ func (srv *MediaServer) registerCommandExecutor(e CommandExecute) (err error) {
 }
 
 func (srv *MediaServer) getExecutorFor(cmd string) (needNotify bool, ce CommandExecute) {
-	srv.executorMutex.Lock()
-	defer srv.executorMutex.Unlock()
 	if e, ok := srv.simpleExecutorMap[cmd]; ok {
 		needNotify = false
 		ce = e.(CommandExecute)

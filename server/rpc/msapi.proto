@@ -20,7 +20,7 @@ enum CodecType {
 }
 
 message VersionNumber {
-  Version ver = 1;
+  Version ver = 2;
 }
 
 message Empty {}
@@ -82,6 +82,13 @@ message ActionEvent {
   string event = 2;
 }
 
+message PushData {
+  string session_id = 1; // only used in first packet, following packets use the same session id
+  string node_name = 2;
+  string msg_type = 3;
+  bytes  data = 4;
+}
+
 
 enum SystemCommand {
   USER_EVENT = 0;  // used by other subsystem
@@ -106,5 +113,6 @@ service MediaApi {
   rpc StopSession(StopParam) returns (Status) {}
   rpc ExecuteAction(Action) returns (ActionResult) {}
   rpc ExecuteActionWithNotify(Action) returns (stream ActionEvent) {}
+  rpc ExecuteActionWithPush(stream PushData) returns (ActionResult) {}
   rpc SystemChannel(stream SystemEvent) returns (stream SystemEvent) {}
 }

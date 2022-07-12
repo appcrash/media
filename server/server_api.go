@@ -32,9 +32,9 @@ type MediaServer struct {
 
 	graph *event.Graph
 
-	sessionMutex      sync.Mutex
-	sessionMap        map[string]*MediaSession
-	executorMutex     sync.Mutex
+	sessionMutex sync.Mutex
+	sessionMap   map[string]*MediaSession
+
 	simpleExecutorMap map[string]CommandExecute
 	streamExecutorMap map[string]CommandExecute
 }
@@ -85,9 +85,12 @@ func StartServer(c *Config) (err error) {
 		sinkF:             c.SinkFactoryList,
 		sessionListener:   c.SessionListenerList,
 		sessionMap:        make(map[string]*MediaSession),
+
+		// read-only maps once executors registered
 		simpleExecutorMap: make(map[string]CommandExecute),
 		streamExecutorMap: make(map[string]CommandExecute),
-		graph:             event.NewEventGraph(),
+
+		graph: event.NewEventGraph(),
 	}
 	if ip, err = net.ResolveIPAddr("ip", rtpIp); err != nil {
 		return

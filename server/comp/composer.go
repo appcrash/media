@@ -219,7 +219,7 @@ func (c *Composer) UnlinkChannel(name string) error {
 			return err
 		}
 		ci.ch = nil
-		ci.isConnected = true
+		ci.isConnected = false
 		return nil
 	}
 	return fmt.Errorf("no such channel: %v", name)
