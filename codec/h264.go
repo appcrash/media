@@ -42,20 +42,20 @@ func (pkt *H264Packet) Clone() comp.Cloneable {
 
 // Only packetization-modes of 0 and 1 are supported
 
-func PacketListFromH264Mode0(payload []byte, pts uint32, payloadType uint8) (pl *utils.PacketList) {
+func PacketListFromH264Mode0(annexbPayload []byte, pts uint32, payloadType uint8) (pl *utils.PacketList) {
 	// packetization-mode == 0 or not present
 	// Only single NAL unit packets MAY be used in this mode. STAPs, MTAPs, and FUs
 	// MUST NOT be used.
-	nals := extractNals(payload)
+	nals := ExtractNals(annexbPayload)
 	makePacketList(&pl, nals, pts, payloadType)
 	return
 }
 
 // PacketListFromH264Mode1 payload mtu, not includes ip,udp headers
-func PacketListFromH264Mode1(payload []byte, pts uint32, payloadType uint8, mtu int) (pl *utils.PacketList) {
+func PacketListFromH264Mode1(annexbPayload []byte, pts uint32, payloadType uint8, mtu int) (pl *utils.PacketList) {
 	// packetization-mode == 1
 	// Only single NAL unit packets, STAP-As, and FU-As MAY be used in this mode.
-	nals := extractNals(payload)
+	nals := ExtractNals(annexbPayload)
 	var bufferedNals [][]byte
 	var rtpPayloadArray [][]byte
 	bufferedSize := 1 // stapA header with 1 byte
@@ -139,14 +139,14 @@ func makePacketList(pl **utils.PacketList, rtpPayload [][]byte, pts uint32, payl
 	}
 }
 
-// extractNals splits payload by start code
-func extractNals(payload []byte) (nals [][]byte) {
+// ExtractNals splits annexb payload by start code
+func ExtractNals(annexbPayload []byte) (nals [][]byte) {
 	// start code can be of 4 bytes: 0x00,0x00,0x00,0x01 (sps,pps,first slice)
 	// or 3 bytes: 0x00,0x00,0x01
 	zeros := 0
 	prevStart := 0
-	totalLen := len(payload)
-	for i, b := range payload {
+	totalLen := len(annexbPayload)
+	for i, b := range annexbPayload {
 		switch b {
 		case 0x00:
 			zeros++
@@ -155,7 +155,7 @@ func extractNals(payload []byte) (nals [][]byte) {
 			if zeros == 2 || zeros == 3 {
 				// found a start code
 				if i-zeros > prevStart {
-					nal := payload[prevStart : i-zeros]
+					nal := annexbPayload[prevStart : i-zeros]
 					nals = append(nals, nal)
 				}
 				prevStart = i + 1
@@ -167,7 +167,7 @@ func extractNals(payload []byte) (nals [][]byte) {
 		zeros = 0
 	}
 	if totalLen > prevStart {
-		nals = append(nals, payload[prevStart:])
+		nals = append(nals, annexbPayload[prevStart:])
 	}
 	return
 }
