@@ -9,7 +9,7 @@ import (
 // ScriptCommandHandler provides built-in command to execute nmd script
 type ScriptCommandHandler struct{}
 
-func (sc *ScriptCommandHandler) Execute(s *MediaSession, _ string, args string) {
+func (sc *ScriptCommandHandler) Execute(s *MediaSession, _ string, args string) (result []string) {
 	if args == "" {
 		return
 	}
@@ -27,7 +27,11 @@ func (sc *ScriptCommandHandler) Execute(s *MediaSession, _ string, args string) 
 			continue
 		}
 		logger.Infof("session:%v execute call: node(%v) with %v", sessionId, node, cmds)
-		ctrl.Call(node.Scope, node.Name, cmds)
+		re := ctrl.Call(node.Scope, node.Name, cmds)
+		if len(result) != 0 {
+			result = append(result, "\n")
+		}
+		result = append(result, re...)
 	}
 	for _, cast := range gt.GetCastActions() {
 		cmd, node := cast.Cmd, cast.Node
@@ -39,6 +43,7 @@ func (sc *ScriptCommandHandler) Execute(s *MediaSession, _ string, args string) 
 		logger.Infof("session:%v execute cast: node(%v) with %v", sessionId, node, cmds)
 		ctrl.Cast(node.Scope, node.Name, cmds)
 	}
+	return
 }
 
 func (sc *ScriptCommandHandler) ExecuteWithNotify(s *MediaSession, cmd string, args string, ctrlIn ExecuteCtrlChan, ctrlOut ExecuteCtrlChan) {

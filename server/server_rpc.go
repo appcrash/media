@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/common/log"
 	"io"
 	"runtime/debug"
+	"strings"
 	"sync"
 )
 
@@ -77,13 +78,13 @@ func (srv *MediaServer) ExecuteAction(_ context.Context, action *rpc.Action) (*r
 		arg := action.GetCmdArg()
 		exec, exist := srv.simpleExecutorMap[cmd]
 		if exist {
-			exec.Execute(session, cmd, arg)
+			re := exec.Execute(session, cmd, arg)
 			prom.SessionAction.With(prometheus.Labels{"cmd": cmd, "type": "simple"}).Inc()
-			result.State = "ok"
+			result.State = strings.Join(re, " ")
 			return &result, nil
 		}
 	}
-	result.State = "cmd execute not exist"
+	result.State = "error execute not exist"
 	return &result, nil
 }
 
