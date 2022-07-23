@@ -36,19 +36,23 @@ func TestPacketListFromH264Mode1(t *testing.T) {
 	nal1000 := makeDummyH264Nal(1, 0x11, 1000)
 	nal1001 := makeDummyH264Nal(1, 0x11, 1001)
 
-	pl := codec.PacketListFromH264Mode1(joinNals([][]byte{nal500, nal495}), 100, 97, 1000)
+	pl := codec.PacketListFromH264Mode1(joinNals([][]byte{nal500, nal495}), 100, 97, 1000, false)
 	if pl.Len() != 1 && len(pl.Payload) != 1000 {
 		t.Fatal("should be packed as a stapA")
 	}
-	pl = codec.PacketListFromH264Mode1(joinNals([][]byte{nal500, nal496}), 100, 97, 1000)
+	pl = codec.PacketListFromH264Mode1(joinNals([][]byte{nal500, nal495}), 100, 97, 1000, true)
+	if pl.Len() != 2 && len(pl.Payload) != 500 && len(pl.Next().Payload) != 495 {
+		t.Fatal("should be packed as 2 nals, no stapA")
+	}
+	pl = codec.PacketListFromH264Mode1(joinNals([][]byte{nal500, nal496}), 100, 97, 1000, false)
 	if pl.Len() != 2 && len(pl.Payload) != 500 && len(pl.Next().Payload) != 496 {
 		t.Fatal("should be packed as 2 nals")
 	}
-	pl = codec.PacketListFromH264Mode1(nal1000, 100, 97, 1000)
+	pl = codec.PacketListFromH264Mode1(nal1000, 100, 97, 1000, false)
 	if pl.Len() != 1 && len(pl.Payload) != 1000 {
 		t.Fatal("should be packed as a single nal")
 	}
-	pl = codec.PacketListFromH264Mode1(nal1001, 100, 97, 1000)
+	pl = codec.PacketListFromH264Mode1(nal1001, 100, 97, 1000, false)
 	ppl := pl.Next()
 	if pl.Len() != 2 &&
 		len(pl.Payload) != 1000 && (pl.Payload[0]&codec.BitmaskNalType) != codec.NalTypeFua &&
@@ -59,7 +63,7 @@ func TestPacketListFromH264Mode1(t *testing.T) {
 
 	nals := joinNals([][]byte{nal500, nal496, nal1001, nal1000})
 	nals = append([]byte{0x00, 0x00, 0x00, 0x01}, nals...) // with annexB start code
-	pl = codec.PacketListFromH264Mode1(nals, 100, 97, 1000)
+	pl = codec.PacketListFromH264Mode1(nals, 100, 97, 1000, false)
 	if pl.Len() != 5 {
 		t.Fatal("should be packed as single, aggregation and fu nals")
 	}

@@ -16,6 +16,8 @@ const (
 
 	NalTypeStapa uint8 = 24
 	NalTypeFua   uint8 = 28
+	NalTypeSei   uint8 = 5
+	NalTypeAu    uint8 = 6 // Access Unit Delimiter
 	NalTypeSps   uint8 = 7
 	NalTypePps   uint8 = 8
 
@@ -51,8 +53,10 @@ func PacketListFromH264Mode0(annexbPayload []byte, pts uint32, payloadType uint8
 	return
 }
 
-// PacketListFromH264Mode1 payload mtu, not includes ip,udp headers
-func PacketListFromH264Mode1(annexbPayload []byte, pts uint32, payloadType uint8, mtu int) (pl *utils.PacketList) {
+// PacketListFromH264Mode1
+// mtu is for payload, not including ip,udp headers
+// nal of type stapA would not be created if disableStap set true
+func PacketListFromH264Mode1(annexbPayload []byte, pts uint32, payloadType uint8, mtu int, disableStap bool) (pl *utils.PacketList) {
 	// packetization-mode == 1
 	// Only single NAL unit packets, STAP-As, and FU-As MAY be used in this mode.
 	nals := ExtractNals(annexbPayload)
@@ -63,6 +67,9 @@ func PacketListFromH264Mode1(annexbPayload []byte, pts uint32, payloadType uint8
 	for i < len(nals) {
 		nal := nals[i]
 		size := len(nal)
+		if disableStap {
+			goto noStap
+		}
 		if size+2+bufferedSize <= mtu {
 			// nal size with 2 bytes in stapA
 			bufferedNals = append(bufferedNals, nal)
@@ -82,27 +89,29 @@ func PacketListFromH264Mode1(annexbPayload []byte, pts uint32, payloadType uint8
 				bufferedNals = nil
 				bufferedSize = 1
 			}
-
-			// check this nal again
-			if size > mtu {
-				rtpPayload := makeFuA(mtu, nal)
-				rtpPayloadArray = append(rtpPayloadArray, rtpPayload...)
-				i++
-			} else if size+2+bufferedSize < mtu {
-				// size < mtu - (2 + bufferedSize)
-				// if this nal can be put into stapA after buffer flushed, do it again
-				continue
-			} else {
-				// mtu - (2 + bufferedSize) <= size <= mtu
-				// rare case, just send as it is
-				rtpPayloadArray = append(rtpPayloadArray, nal)
-				i++
-			}
 		}
+
+	noStap:
+		// check this nal again
+		if size > mtu {
+			rtpPayload := makeFuA(mtu, nal)
+			rtpPayloadArray = append(rtpPayloadArray, rtpPayload...)
+			i++
+		} else if !disableStap && size+2+bufferedSize < mtu {
+			// size < mtu - (2 + bufferedSize)
+			// if this nal can be put into stapA after buffer flushed, do it again
+			continue
+		} else {
+			// mtu - (2 + bufferedSize) <= size <= mtu
+			// rare case, just send as it is
+			rtpPayloadArray = append(rtpPayloadArray, nal)
+			i++
+		}
+
 	}
 
 	// check if buffered nals exist for the last time
-	if len(bufferedNals) > 0 {
+	if !disableStap && len(bufferedNals) > 0 {
 		if len(bufferedNals) == 1 {
 			// single nal, no aggregation
 			rtpPayloadArray = append(rtpPayloadArray, bufferedNals[0])
