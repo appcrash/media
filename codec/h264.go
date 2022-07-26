@@ -16,10 +16,10 @@ const (
 
 	NalTypeStapa uint8 = 24
 	NalTypeFua   uint8 = 28
-	NalTypeSei   uint8 = 5
-	NalTypeAu    uint8 = 6 // Access Unit Delimiter
+	NalTypeSei   uint8 = 6
 	NalTypeSps   uint8 = 7
 	NalTypePps   uint8 = 8
+	NalTypeAu    uint8 = 9 // Access Unit Delimiter
 
 	BitmaskNalType uint8 = 0x1f
 	BitmaskRefIdc  uint8 = 0x60
@@ -142,8 +142,14 @@ func makePacketList(pl **utils.PacketList, rtpPayload [][]byte, pts uint32, payl
 		}
 		prev = packet
 	}
-	if packet != nil {
-		// set last packet mark bit
+	if packet != nil && len(rtpPayload) > 1 {
+		// set last packet mark bit if they are in the same access unit
+
+		// TODO:
+		//For aggregation packets (STAP and MTAP), the marker bit in the RTP
+		//header MUST be set to the value that the marker bit of the last
+		//NAL unit of the aggregation packet would have been if it were
+		//transported in its own RTP packet
 		packet.Marker = true
 	}
 }
@@ -181,7 +187,7 @@ func ExtractNals(annexbPayload []byte) (nals [][]byte) {
 	return
 }
 
-func printNal(nal []byte) {
+func PrintNal(nal []byte) {
 	nalType := nal[0] & BitmaskNalType
 	nalRefIdc := nal[0] & BitmaskRefIdc
 	switch nalType {
@@ -189,6 +195,8 @@ func printNal(nal []byte) {
 		logger.Infof("type sps")
 	case NalTypePps:
 		logger.Infof("type pps")
+	case NalTypeSei:
+		logger.Infof("type sei")
 	case NalTypeFua:
 		logger.Infof("type fua")
 	case NalTypeStapa:
