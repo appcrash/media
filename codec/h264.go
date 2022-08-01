@@ -142,7 +142,7 @@ func makePacketList(pl **utils.PacketList, rtpPayload [][]byte, pts uint32, payl
 		}
 		prev = packet
 	}
-	if packet != nil && len(rtpPayload) > 1 {
+	if packet != nil {
 		// set last packet mark bit if they are in the same access unit
 
 		// TODO:
