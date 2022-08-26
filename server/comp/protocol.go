@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// Controller send CtrlMessage to nodes and get replies from them, and simply use string as rpc protocol.
+// CommandInitiator send CtrlMessage to nodes and get replies from them, and simply use string as rpc protocol.
 // this file provides utility functions to build and parse strings based on the protocol.
 
 //var regRemoveSpace = regexp.MustCompile("\\s+")

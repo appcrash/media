@@ -1,15 +1,15 @@
 package server
 
 import (
+	"context"
 	"github.com/appcrash/media/server/comp"
 	"github.com/appcrash/media/server/comp/nmd"
-	"github.com/appcrash/media/server/event"
 )
 
-// ScriptCommandHandler provides built-in command to execute nmd script
-type ScriptCommandHandler struct{}
+// BuiltinCommandHandler provides built-in command to interact with graph by executing nmd script
+type BuiltinCommandHandler struct{}
 
-func (sc *ScriptCommandHandler) Execute(s *MediaSession, _ string, args string) (result []string) {
+func (sc *BuiltinCommandHandler) Execute(s *MediaSession, _ string, args string) (result []string) {
 	if args == "" {
 		return
 	}
@@ -19,6 +19,8 @@ func (sc *ScriptCommandHandler) Execute(s *MediaSession, _ string, args string) 
 		return
 	}
 	ctrl := s.GetController()
+
+	// parse rpc command and call/cast to corresponding node, fromNode arg is set to empty string
 	for _, call := range gt.GetCallActions() {
 		cmd, node := call.Cmd, call.Node
 		cmds, err := comp.WithString(cmd)
@@ -26,8 +28,8 @@ func (sc *ScriptCommandHandler) Execute(s *MediaSession, _ string, args string) 
 			logger.Errorf("session:%v execute call: node(%v) with %v has error %v", sessionId, node, cmds, err)
 			continue
 		}
-		logger.Infof("session:%v execute call: node(%v) with %v", sessionId, node, cmds)
-		re := ctrl.Call(node.Scope, node.Name, cmds)
+		logger.Infof("session:%v execute call: node %v with %v", sessionId, node, cmds)
+		re := ctrl.Call("", node.Name, cmds)
 		if len(result) != 0 {
 			result = append(result, "\n")
 		}
@@ -41,12 +43,12 @@ func (sc *ScriptCommandHandler) Execute(s *MediaSession, _ string, args string) 
 			continue
 		}
 		logger.Infof("session:%v execute cast: node(%v) with %v", sessionId, node, cmds)
-		ctrl.Cast(node.Scope, node.Name, cmds)
+		ctrl.Cast("", node.Name, cmds)
 	}
 	return
 }
 
-func (sc *ScriptCommandHandler) ExecuteWithNotify(s *MediaSession, cmd string, args string, ctrlIn ExecuteCtrlChan, ctrlOut ExecuteCtrlChan) {
+func (sc *BuiltinCommandHandler) ExecuteWithNotify(s *MediaSession, args string, ctx context.Context, ctrlOut ExecuteCtrlChan) {
 	defer func() { close(ctrlOut) }()
 	if args == "" {
 		return
@@ -62,60 +64,89 @@ func (sc *ScriptCommandHandler) ExecuteWithNotify(s *MediaSession, cmd string, a
 		return
 	}
 	action := sinkAction[0]
-	chName := action.ChannelName
-	ch := make(chan *event.Event, 10)
-	if err := s.composer.LinkChannel(chName, ch); err != nil {
-		logger.Errorf("execute with notify: link channel error: %v", err)
+	nodeName := action.NodeName
+	outC := make(chan []byte, 32)
+
+	// search the given name node and ensure it is a ChanSink node
+	channelSinkNode := s.composer.GetNode(nodeName)
+	if channelSinkNode == nil {
+		logger.Errorf("execute with notify: link node with name %v failed, no such node", nodeName)
 		return
 	}
-	defer func() {
-		// tell graph to stop sending event to this channel
-		if err := s.composer.UnlinkChannel(chName); err != nil {
-			logger.Errorln(err)
+	if node, ok := channelSinkNode.(*comp.ChanSink); ok {
+		if err := node.LinkMe(outC); err != nil {
+			return
 		}
-	}()
+	} else {
+		logger.Errorf("node %v is not a channel sink node, can not link", node)
+		return
+	}
 
+	doneC := ctx.Done()
 	for {
 		select {
-		case evt, more := <-ch:
+		case rawByte, more := <-outC:
 			if !more {
 				return
 			}
-			if evt == nil || evt.GetObj() == nil {
-				continue
+			if rawByte != nil {
+				select {
+				case ctrlOut <- string(rawByte):
+				default:
+				}
 			}
-			select {
-			case ctrlOut <- string(evt.GetObj().(comp.RawByteMessage)):
-			default:
-			}
-		case _, more := <-ctrlIn:
-			if !more {
-				return
-			}
+		case <-doneC:
+			return
 		}
 	}
 }
 
-func (sc *ScriptCommandHandler) ExecuteWithPush(s *MediaSession, dataIn ExecuteDataChan) {
-	controller := s.GetController()
+func (sc *BuiltinCommandHandler) ExecuteWithPush(s *MediaSession, dataIn ExecuteDataChan) {
+	firstPacket := <-dataIn
+
+	// search the given name node and ensure it is a ChanSrc node
+	channelSrcNode := s.composer.GetNode(firstPacket.NodeName)
+	if channelSrcNode == nil {
+		logger.Errorf("execute with push: link node with name %v failed, no such node", firstPacket.NodeName)
+		return
+	}
+	var inC chan []byte
+	defer func() {
+		if inC != nil {
+			close(inC)
+		}
+	}()
+
+	if node, ok := channelSrcNode.(*comp.ChanSrc); ok {
+		inC = make(chan []byte, 16)
+		if err := node.LinkMe(inC); err != nil {
+			return
+		}
+	} else {
+		logger.Errorf("node %v is not a channel sink node, can not link", node)
+		return
+	}
+
 	for {
 		select {
 		case pushData, more := <-dataIn:
 			if !more {
 				return
 			}
-			// sanity check before pushing
-			nodeName := pushData.GetNodeName()
+			// convert rpc push data to raw byte and forward to graph
 			data := pushData.GetData()
-			if len(nodeName) == 0 || len(data) == 0 {
+			if len(data) == 0 {
 				continue
 			}
-			controller.PushData(nodeName, pushData.GetMsgType(), data)
+			select {
+			case inC <- data:
+			default:
+			}
 		}
 	}
 }
 
-func (sc *ScriptCommandHandler) GetCommandTrait() []CommandTrait {
+func (sc *BuiltinCommandHandler) GetCommandTrait() []CommandTrait {
 	return []CommandTrait{
 		{
 			"exec",

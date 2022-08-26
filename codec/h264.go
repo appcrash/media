@@ -11,7 +11,7 @@ const (
 	//+---------------+
 	//|0|1|2|3|4|5|6|7|
 	//+-+-+-+-+-+-+-+-+
-	//|F|NRI| Type    |
+	//|F|NRI| TypeId    |
 	//+---------------+
 
 	NalTypeStapa uint8 = 24
@@ -44,7 +44,7 @@ func (pkt *H264Packet) Clone() comp.Cloneable {
 
 // Only packetization-modes of 0 and 1 are supported
 
-func PacketListFromH264Mode0(annexbPayload []byte, pts uint32, payloadType uint8) (pl *utils.PacketList) {
+func PacketListFromH264Mode0(annexbPayload []byte, pts uint32, payloadType uint8) (pl *utils.RtpPacketList) {
 	// packetization-mode == 0 or not present
 	// Only single NAL unit packets MAY be used in this mode. STAPs, MTAPs, and FUs
 	// MUST NOT be used.
@@ -56,7 +56,7 @@ func PacketListFromH264Mode0(annexbPayload []byte, pts uint32, payloadType uint8
 // PacketListFromH264Mode1
 // mtu is for payload, not including ip,udp headers
 // nal of type stapA would not be created if disableStap set true
-func PacketListFromH264Mode1(annexbPayload []byte, pts uint32, payloadType uint8, mtu int, disableStap bool) (pl *utils.PacketList) {
+func PacketListFromH264Mode1(annexbPayload []byte, pts uint32, payloadType uint8, mtu int, disableStap bool) (pl *utils.RtpPacketList) {
 	// packetization-mode == 1
 	// Only single NAL unit packets, STAP-As, and FU-As MAY be used in this mode.
 	nals := ExtractNals(annexbPayload)
@@ -126,11 +126,11 @@ func PacketListFromH264Mode1(annexbPayload []byte, pts uint32, payloadType uint8
 	return
 }
 
-func makePacketList(pl **utils.PacketList, rtpPayload [][]byte, pts uint32, payloadType uint8) {
-	var packet *utils.PacketList
+func makePacketList(pl **utils.RtpPacketList, rtpPayload [][]byte, pts uint32, payloadType uint8) {
+	var packet *utils.RtpPacketList
 	prev := *pl
 	for _, payload := range rtpPayload {
-		packet = &utils.PacketList{
+		packet = &utils.RtpPacketList{
 			Payload:     payload,
 			Pts:         pts,
 			PayloadType: payloadType,
@@ -259,7 +259,7 @@ func makeFuA(mtu int, nal []byte) (rtpPayload [][]byte) {
 	//+---------------+
 	//|0|1|2|3|4|5|6|7|
 	//+-+-+-+-+-+-+-+-+
-	//|S|E|R| Type    |
+	//|S|E|R| TypeId    |
 	//+---------------+
 	nri := nal[0] & BitmaskRefIdc
 	nalType := nal[0] & BitmaskNalType

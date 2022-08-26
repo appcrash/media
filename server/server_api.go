@@ -25,10 +25,7 @@ type MediaServer struct {
 	rtpServerIpString string
 	rtpServerIpAddr   *net.IPAddr
 	portPool          *portPool
-
-	sourceF         []SourceFactory
-	sinkF           []SinkFactory
-	sessionListener []SessionListener
+	sessionListener   []SessionListener
 
 	graph *event.Graph
 
@@ -43,8 +40,6 @@ type Config struct {
 	RtpIp               string
 	StartPort, EndPort  uint16
 	ExecutorList        []CommandExecute
-	SourceFactoryList   []SourceFactory
-	SinkFactoryList     []SinkFactory
 	SessionListenerList []SessionListener
 
 	GrpcIp           string
@@ -73,6 +68,7 @@ func (b *BaseSessionListener) OnSessionStopped(s *MediaSession) {}
 func StartServer(c *Config) (err error) {
 	var lis net.Listener
 	var ip *net.IPAddr
+
 	if lis, err = net.Listen("tcp", fmt.Sprintf("%s:%d", c.GrpcIp, c.GrpcPort)); err != nil {
 		logger.Errorf("failed to listen to port(%v) for grpc", c.GrpcPort)
 		return
@@ -80,9 +76,7 @@ func StartServer(c *Config) (err error) {
 	rtpIp, rtpStartPort, rtpEndPort := c.RtpIp, c.StartPort, c.EndPort
 	server := MediaServer{
 		rtpServerIpString: rtpIp,
-		portPool:          new(portPool),
-		sourceF:           c.SourceFactoryList,
-		sinkF:             c.SinkFactoryList,
+		portPool:          newPortPool(),
 		sessionListener:   c.SessionListenerList,
 		sessionMap:        make(map[string]*MediaSession),
 
@@ -96,7 +90,7 @@ func StartServer(c *Config) (err error) {
 		return
 	}
 	server.init(ip, rtpStartPort, rtpEndPort)
-	server.registerCommandExecutor(&ScriptCommandHandler{}) // built-in script executor
+	server.registerCommandExecutor(&BuiltinCommandHandler{}) // built-in script executor
 	for _, e := range c.ExecutorList {
 		server.registerCommandExecutor(e)
 	}

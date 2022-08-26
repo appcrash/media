@@ -11,15 +11,15 @@ var (
 	})
 	NodeUserEventException = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "node_user_event_exception",
-		Help: "exceptions when handling user event",
+		Help: "Exceptions when handling user event",
 	})
 	NodeGraphNodes = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "node_graph_nodes",
-		Help: "node number in all graph",
+		Help: "Node number in all graph",
 	})
 	NodeGraphLinks = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "node_graph_links",
-		Help: "link number in all graph",
+		Help: "Link number in all graph",
 	})
 	CreatedSession = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "created_session",
@@ -36,7 +36,7 @@ var (
 
 	SessionAction = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "session_action",
-		Help: "executed action on session",
+		Help: "Executed action on session",
 	}, []string{"cmd", "type"})
 	SessionGoroutine = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "session_goroutine",

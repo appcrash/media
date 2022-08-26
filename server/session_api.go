@@ -7,6 +7,7 @@ import (
 	"github.com/appcrash/media/server/event"
 	"github.com/appcrash/media/server/prom"
 	"github.com/appcrash/media/server/rpc"
+	"github.com/appcrash/media/server/utils"
 	"net"
 	"sync"
 	"time"
@@ -43,9 +44,10 @@ type MediaSession struct {
 	cancelFunc           context.CancelFunc
 	doneC                chan string // notify this channel when loop is done
 
-	source   []Source
-	sink     []Sink
-	composer *comp.Composer
+	pullC        <-chan *utils.RtpPacketList
+	handleC      chan<- *utils.RtpPacketList
+	interceptors []RtpPacketInterceptor
+	composer     *comp.Composer
 }
 
 func (s *MediaSession) GetSessionId() string {
@@ -80,8 +82,8 @@ func (s *MediaSession) GetEventGraph() *event.Graph {
 	return s.server.graph
 }
 
-func (s *MediaSession) GetController() comp.Controller {
-	return s.composer.GetController()
+func (s *MediaSession) GetController() comp.CommandInitiator {
+	return s.composer.GetCommandInitiator()
 }
 
 func (s *MediaSession) Start() (err error) {
@@ -117,9 +119,9 @@ func (s *MediaSession) Start() (err error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancelFunc = cancel
-	go s.receiveCtrlLoop(ctx)
-	go s.receivePacketLoop(ctx)
-	go s.sendPacketLoop(ctx)
+	go s.receiveRtcpLoop(ctx)
+	go s.receiveRtpLoop(ctx)
+	go s.sendRtpLoop(ctx)
 	s.status = sessionStatusStarted
 	return
 }
@@ -145,7 +147,7 @@ func (s *MediaSession) Stop() {
 			select {
 			case <-s.doneC:
 				nbDone++
-			case <-time.After(10 * time.Second):
+			case <-time.After(5 * time.Second):
 				break done
 			}
 		}
@@ -156,14 +158,4 @@ func (s *MediaSession) Stop() {
 
 cleanup:
 	s.finalize()
-}
-
-// AddNode add an event node to server-wide event graph
-func (s *MediaSession) AddNode(node event.Node) {
-	s.server.graph.AddNode(node)
-}
-
-// LinkChannel links *ch* to the channel registered as *name* in graph description
-func (s *MediaSession) LinkChannel(name string, ch chan<- *event.Event) {
-	_ = s.composer.LinkChannel(name, ch)
 }

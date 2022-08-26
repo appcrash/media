@@ -50,6 +50,7 @@ type Node interface {
 }
 
 // NodeProperty embed it if node needs to be customized
+// set properties before adding node to graph
 // -----------------------------------------------------------
 // maxLink int:
 //   override default max output link number

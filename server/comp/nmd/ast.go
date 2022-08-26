@@ -2,8 +2,7 @@ package nmd
 
 import (
 	"fmt"
-	"regexp"
-	"strings"
+	"github.com/appcrash/media/server/utils"
 )
 
 // TODO: every statement should have sequence id
@@ -13,17 +12,9 @@ type NodeProp struct {
 	Value     interface{}
 }
 
-const regCamelCasePattern = `_+[a-z]`
-
-var regCamelCase = regexp.MustCompile(regCamelCasePattern)
-
-// FormalizeKey converts key in form of foo_bar or foo__bar ... into fooBar if possible
-// normal keys with camel case remain intact
 func (np *NodeProp) FormalizeKey() {
-	np.Key = regCamelCase.ReplaceAllStringFunc(np.Key, func(match string) string {
-		last := string(match[len(match)-1])
-		return strings.ToUpper(last)
-	})
+	// normal keys with camel case remain intact
+	np.Key = utils.SnakeToCamelCase(np.Key)
 }
 
 type NodeDef struct {
@@ -55,5 +46,5 @@ type CastActionDefs struct {
 }
 
 type SinkActionDefs struct {
-	ChannelName string
+	NodeName string
 }

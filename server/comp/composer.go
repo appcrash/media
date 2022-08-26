@@ -1,41 +1,47 @@
 package comp
 
 import (
-	"errors"
 	"fmt"
 	"github.com/appcrash/media/server/comp/nmd"
 	"github.com/appcrash/media/server/event"
-	"sort"
-	"strings"
-	"sync"
+	"github.com/appcrash/media/server/utils"
 )
 
+var preInitializerMetaType = MetaType[PreInitializer]()
+var postInitializerMetaType = MetaType[PostInitializer]()
+var preComposerMetaType = MetaType[PreComposer]()
+var postComposerMetaType = MetaType[PostComposer]()
+
 // Composer creates every node and config their properties based on the collected info, then
-// link them and send initial events as described before putting them into working state.
+// link and negotiate for them to put them into working state.
 type Composer struct {
-	sessionId           string
-	gt                  *nmd.GraphTopology
-	messageProviderList []MessageProvider
-	dispatch            *Dispatch
-	nodeList            []SessionAware // topographical sorted nodes
+	sessionId string
 
-	// channel handling, channels are registered by parsing nmd graph description, then linked dynamically
-	mutex        sync.Mutex
-	namedChannel map[string]*channelInfo
-}
+	gt             *nmd.GraphTopology
+	nodeSortedList []SessionAware // topographical sorted nodes, first one has no receiver
+	nodeMap        map[string]SessionAware
 
-type channelInfo struct {
-	isConnected bool
-	peerNode    *PubSubNode
-	ch          chan<- *event.Event
+	initiator  CommandInitiator
+	linkPoints []LinkPoint
 }
 
 func NewSessionComposer(sessionId string) *Composer {
 	sc := &Composer{
-		sessionId:    sessionId,
-		namedChannel: make(map[string]*channelInfo),
+		sessionId: sessionId,
+		nodeMap:   make(map[string]SessionAware),
 	}
+	sc.initiator = &builtinCommandInitiator{composer: sc}
 	return sc
+}
+
+func (c *Composer) IterateNode(iter func(name string, node SessionAware)) {
+	for name, node := range c.nodeMap {
+		iter(name, node)
+	}
+}
+
+func (c *Composer) GetNode(name string) SessionAware {
+	return c.nodeMap[name]
 }
 
 func (c *Composer) ParseGraphDescription(desc string) (err error) {
@@ -45,11 +51,67 @@ func (c *Composer) ParseGraphDescription(desc string) (err error) {
 	return
 }
 
+func (c *Composer) Connect(sender, receiver SessionAware, preferredOffer []MessageType) (lp LinkPoint, err error) {
+	receiverSession := receiver.GetNodeScope()
+	receiverName := receiver.GetNodeName()
+
+	if preferredOffer == nil {
+		preferredOffer = sender.Offer()
+	}
+
+	lp, err = sender.StreamTo(receiverSession, receiverName, preferredOffer)
+	return
+}
+
+func (c *Composer) preConnectNodes() error {
+	for _, node := range c.nodeSortedList {
+		utils.AopCall(node, []interface{}{c, node}, preComposerMetaType, "BeforeCompose")
+	}
+	return nil
+}
+
+func (c *Composer) postConnectNodes() error {
+	for _, node := range c.nodeSortedList {
+		utils.AopCall(node, []interface{}{c, node}, postComposerMetaType, "AfterCompose")
+	}
+	return nil
+}
+
+func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error) {
+	nodeDefs := c.gt.GetSortedNodeDefs()
+	// add all nodes to graph
+	var lp LinkPoint
+	for _, node := range c.nodeSortedList {
+		if !graph.AddNode(node) {
+			err = fmt.Errorf("failed to add node %v to graph", node.GetNodeName())
+			return
+		}
+	}
+	// all nodes are added but not connected, as connection is built only when sender and receiver agreed on the
+	// message type of their link. however, for some types of node (pubsub), what message type they output depends on
+	// their input message type, which means message types propagate from senders(at the end of sorted list) to
+	// receivers(at the start of sorted list), so iterate the sorted list reversely until all message types are
+	// determined as required by link creation
+	for i := len(c.nodeSortedList) - 1; i >= 0; i-- {
+		sender := c.nodeSortedList[i]
+		for _, receiverDef := range nodeDefs[i].Deps {
+			receiver := c.nodeMap[receiverDef.Name]
+			// TODO: nmd language add support for specifying preferred offer
+			// TODO: use ssa to analyze Offer() of every node, check the message type is statically or dynamically defined
+			if lp, err = c.Connect(sender, receiver, nil); err != nil {
+				return
+			} else {
+				lps = append(lps, lp)
+			}
+		}
+	}
+	return
+}
+
 // ComposeNodes create node instances by type, add them to graph, and link them
 func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 	var nodeIds []*Id
 	nodeDefs := c.gt.GetSortedNodeDefs()
-	nbNode := len(nodeDefs)
 
 	defer func() {
 		if err != nil {
@@ -71,97 +133,26 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 			err = fmt.Errorf("can not make unknown node: %v", n.Type)
 			return
 		}
+		utils.AopCall(sn, nil, preInitializerMetaType, "PreInit")
 		if err = sn.Init(); err != nil {
 			return
 		}
-		c.nodeList = append(c.nodeList, sn)
-		if provider, ok := sn.(MessageProvider); ok {
-			c.messageProviderList = append(c.messageProviderList, provider)
-		}
+		utils.AopCall(sn, nil, postInitializerMetaType, "PostInit")
 
+		c.nodeSortedList = append(c.nodeSortedList, sn)
+		c.nodeMap[sn.GetNodeName()] = sn
 		id := NewId(sn.GetNodeScope(), sn.GetNodeName())
 		nodeIds = append(nodeIds, id)
 	}
 
-	// sort message providers, those can handle specific payload type comes first
-	sort.SliceStable(c.messageProviderList, func(i, j int) bool {
-		return c.messageProviderList[i].Priority() < c.messageProviderList[j].Priority()
-	})
-	logger.Debugf("session(%s) has %v message providers", c.sessionId, len(c.messageProviderList))
-
-	// add all nodes to graph, create links between them, as nodes are already topographical sorted,
-	// for each node, its dependent nodes are in graph when adding it to graph
-	for i, n := range c.nodeList {
-		if !graph.AddNode(n) {
-			err = fmt.Errorf("failed to add node %v to graph", n.GetNodeName())
-			return
-		}
-		deps := nodeDefs[i].Deps
-		for _, ni := range deps {
-			// set pipe end to local session nodes
-			if n.SetPipeOut(c.sessionId, ni.Name) != nil {
-				err = fmt.Errorf("failed to link %v => %v", n.GetNodeName(), ni.Name)
-				return
-			}
-		}
-	}
-
-	// now every node is added to graph and linked
-	// create dispatch node which links to all nodes in the session
-	c.dispatch = MakeSessionNode(TypeDISPATCH, c.sessionId, nil).(*Dispatch)
-	c.dispatch.SetMaxLink(nbNode * 2) // reserved nbNode for dynamical link requests
-	if !graph.AddNode(c.dispatch) {
-		err = errors.New("fail to add send-node to graph")
+	if err = c.preConnectNodes(); err != nil {
 		return
 	}
-	if err = c.dispatch.connectTo(nodeIds); err != nil {
+	if c.linkPoints, err = c.connectNodes(graph); err != nil {
 		return
 	}
-
-	// again, let all nodes reference this dispatch
-	for _, n := range c.nodeList {
-		n.SetController(c.dispatch)
-	}
-
-	// subscribe channels, for all nodes of type pubsub, find the registered channel with same name
-	// as specified in pubsub's "channel" property
-	for i, n := range nodeDefs {
-		if n.Type != TypePUBSUB {
-			continue
-		}
-		var chNameList string
-		var ok bool
-		for _, p := range n.Props {
-			if p.Key == "channel" {
-				if p.Type != "str" || p.Value == nil {
-					err = fmt.Errorf("pubsub channel value is not string: %v", p.Value)
-					return
-				}
-				if chNameList, ok = p.Value.(string); ok {
-				} else {
-					err = fmt.Errorf("pubsub channel value can not converted to string: %v", p.Value)
-					return
-				}
-				break
-			}
-		}
-		if chNameList == "" {
-			logger.Debugf("pubsub channel props is nil")
-			continue
-		}
-
-		psNode := c.nodeList[i].(*PubSubNode)
-		// pubsub property, for example: channel=a,b,c ...
-		logger.Debugln("chNameList ", chNameList)
-		for _, chName := range strings.Split(chNameList, ",") {
-			if _, exist := c.namedChannel[chName]; exist {
-				// the channel is already registered
-				err = fmt.Errorf("channel:%v can only subscribe to one pubsub node", chName)
-				return
-			} else {
-				c.namedChannel[chName] = &channelInfo{peerNode: psNode}
-			}
-		}
+	if err = c.postConnectNodes(); err != nil {
+		return
 	}
 
 	return
@@ -171,65 +162,12 @@ func (c *Composer) GetSortedNodes() (ni []*nmd.NodeDef) {
 	return c.gt.GetSortedNodeDefs()
 }
 
-// GetMessageProvider get entry by its name
-func (c *Composer) GetMessageProvider(name string) MessageProvider {
-	for _, provider := range c.messageProviderList {
-		if provider.GetName() == name {
-			return provider
-		}
-	}
-	return nil
-}
-
-func (c *Composer) GetMessageProviderList() (mps []MessageProvider) {
-	mps = c.messageProviderList
-	return
-}
-
-func (c *Composer) GetController() Controller {
-	return c.dispatch
-}
-
-func (c *Composer) LinkChannel(name string, ch chan<- *event.Event) error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	// check if the channel is connected, if found and not connected, a pubsub node is waiting for it
-	if ci, exist := c.namedChannel[name]; exist {
-		if ci.isConnected {
-			return errors.New("channel is already connected")
-		}
-		if err := ci.peerNode.SubscribeChannel(name, ch); err != nil {
-			return err
-		}
-		ci.ch = ch
-		ci.isConnected = true
-		return nil
-	}
-	return fmt.Errorf("no such channel: %v", name)
-}
-
-func (c *Composer) UnlinkChannel(name string) error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	if ci, exist := c.namedChannel[name]; exist {
-		if !ci.isConnected {
-			return errors.New("channel is not connected")
-		}
-		if err := ci.peerNode.UnsubscribeChannel(name); err != nil {
-			return err
-		}
-		ci.ch = nil
-		ci.isConnected = false
-		return nil
-	}
-	return fmt.Errorf("no such channel: %v", name)
+func (c *Composer) GetCommandInitiator() CommandInitiator {
+	return c.initiator
 }
 
 func (c *Composer) ExitGraph() {
-	for _, n := range c.nodeList {
+	for _, n := range c.nodeSortedList {
 		n.ExitGraph()
-	}
-	if c.dispatch != nil {
-		c.dispatch.ExitGraph()
 	}
 }

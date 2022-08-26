@@ -73,16 +73,6 @@ func (srv *MediaServer) createSession(param *rpc.CreateParam) (session *MediaSes
 	if session, err = newSession(srv, param); err != nil {
 		return
 	}
-	// initialize source/sink list for each session
-	// the factory's order is important
-	for _, factory := range srv.sourceF {
-		src := factory.NewSource(session)
-		session.source = append(session.source, src)
-	}
-	for _, factory := range srv.sinkF {
-		sink := factory.NewSink(session)
-		session.sink = append(session.sink, sink)
-	}
 
 	// connect source/sink into event graph of this session
 	// then listen on udp messages
@@ -135,7 +125,7 @@ func (srv *MediaServer) startSession(param *rpc.StartParam) (err error) {
 	if exist {
 		err = session.Start()
 	} else {
-		err = errors.New("session not exist")
+		err = fmt.Errorf("session:%v not exist", sessionId)
 	}
 	if err == nil {
 		srv.invokeSessionListener(session, sessionStatusStarted)

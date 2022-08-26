@@ -3,16 +3,14 @@ package server
 import (
 	"context"
 	"github.com/appcrash/GoRTP/rtp"
-	"github.com/appcrash/media/codec"
 	"github.com/appcrash/media/server/prom"
 	"github.com/appcrash/media/server/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"runtime/debug"
-	"time"
 )
 
 // receive rtcp packet
-func (s *MediaSession) receiveCtrlLoop(ctx context.Context) {
+func (s *MediaSession) receiveRtcpLoop(ctx context.Context) {
 	rtcpReceiver := s.rtpSession.CreateCtrlEventChan()
 	gauge := prom.SessionGoroutine.With(prometheus.Labels{"type": "recv_ctrl"})
 	gauge.Inc()
@@ -44,13 +42,13 @@ func (s *MediaSession) receiveCtrlLoop(ctx context.Context) {
 	}
 }
 
-func (s *MediaSession) receivePacketLoop(ctx context.Context) {
+func (s *MediaSession) receiveRtpLoop(ctx context.Context) {
 	gauge := prom.SessionGoroutine.With(prometheus.Labels{"type": "recv"})
 	gauge.Inc()
 	// Create and store the data receive channel.
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Fatalln("receivePacketLoop panic(recovered)")
+			logger.Fatalln("receiveRtpLoop panic(recovered)")
 			debug.PrintStack()
 		}
 	}()
@@ -58,8 +56,18 @@ func (s *MediaSession) receivePacketLoop(ctx context.Context) {
 	defer func() {
 		gauge.Dec()
 		logger.Debugf("session:%v stop local receive", s.GetSessionId())
+		if s.handleC != nil {
+			// notify packet handler
+			close(s.handleC)
+			s.handleC = nil
+		}
 		s.doneC <- "done"
 	}()
+
+	if s.handleC == nil {
+		logger.Infof("session:%v has no rtp handling channel, stop local receive early", s.sessionId)
+		return
+	}
 
 	rtpSession := s.rtpSession
 	dataReceiver := rtpSession.CreateDataReceiveChan()
@@ -72,11 +80,13 @@ func (s *MediaSession) receivePacketLoop(ctx context.Context) {
 				return
 			}
 
-			// push received data to all sinks
+			// nonblock push received data to handler
 			pl := utils.NewPacketListFromRtpPacket(rp)
-			for _, sk := range s.sink {
-				sk.HandleData(s, pl)
+			select {
+			case s.handleC <- pl:
+			default:
 			}
+
 			// don't free packet, let it be GCed, as GoRTP will reuse this packet along with its buffer
 			// which may be hold by other packet-list objects
 			// rp.FreePacket()
@@ -86,13 +96,13 @@ func (s *MediaSession) receivePacketLoop(ctx context.Context) {
 	}
 }
 
-func (s *MediaSession) sendPacketLoop(ctx context.Context) {
+func (s *MediaSession) sendRtpLoop(ctx context.Context) {
 	gauge := prom.SessionGoroutine.With(prometheus.Labels{"type": "send"})
 	gauge.Inc()
 
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Errorf("sendPacketLoop panic %v", r)
+			logger.Errorf("sendRtpLoop panic %v", r)
 			debug.PrintStack()
 		}
 	}()
@@ -102,29 +112,29 @@ func (s *MediaSession) sendPacketLoop(ctx context.Context) {
 		s.doneC <- "done"
 	}()
 
-	timeStep := codec.GetCodecTimeStep(s.avPayloadCodec)
-	ticker := time.NewTicker(time.Duration(timeStep) * time.Millisecond)
+	if s.pullC == nil {
+		logger.Infof("session:%v has no rtp pulling channel, stop local send early", s.sessionId)
+	}
+
 	cancelC := ctx.Done()
-outLoop:
 	for {
 		select {
-		case <-ticker.C:
-			var pl *utils.PacketList
-			// pull data from all sources
-			for _, source := range s.source {
-				source.PullData(s, &pl)
+		// pump data out from graph
+		case packetList, more := <-s.pullC:
+			if !more {
+				return
 			}
 
 			if s.rtpSession == nil {
-				break outLoop
+				return
 			}
-			if pl == nil {
+			if packetList == nil {
 				continue
 			}
 
-			// send all packets based on PacketList
+			// send all packets based on RtpPacketList
 			// for video, a frame can have more than one packet with same timestamp
-			pl.Iterate(func(p *utils.PacketList) {
+			packetList.Iterate(func(p *utils.RtpPacketList) {
 				payload, ptype, pts, mark := p.Payload, p.PayloadType, p.Pts, p.Marker
 				if payload != nil {
 					packet := s.rtpSession.NewDataPacket(pts)
@@ -135,9 +145,8 @@ outLoop:
 				}
 			})
 		case <-cancelC:
-			break outLoop
+			return
 		}
 	}
 
-	ticker.Stop()
 }

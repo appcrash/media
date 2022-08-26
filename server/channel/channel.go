@@ -28,14 +28,14 @@ type Channel struct {
 }
 
 // singleton sys channel
-var sysChannel = New()
+var sysChannel = newChannel()
 
 const (
 	KeepAliveDuration = 2 * time.Second
 	KeepAliveTimeout  = KeepAliveDuration * 3
 )
 
-func New() *Channel {
+func newChannel() *Channel {
 	return &Channel{
 		instanceStateMap: make(map[string]*InstanceState),
 	}

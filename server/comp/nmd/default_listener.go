@@ -65,7 +65,7 @@ func (l *Listener) getNodeDef(name, scope, typ string) (ni *NodeDef) {
 		l.NodeDefs = append(l.NodeDefs, ni)
 		l.nbNode++
 	}
-	//if typ != "" && typ != name && ni.Type != typ {
+	//if typ != "" && typ != name && ni.TypeId != typ {
 	//	// if this is not abbreviated naming, and explicitly provide type that conflicts with previous defined
 	//	l.nbParseError++
 	//}
@@ -182,5 +182,5 @@ func (l *Listener) ExitCast_stmt(ctx *Cast_stmtContext) {
 }
 
 func (l *Listener) ExitSink_stmt(ctx *Sink_stmtContext) {
-	l.SinkDefs = append(l.SinkDefs, &SinkActionDefs{ctx.channel.GetText()})
+	l.SinkDefs = append(l.SinkDefs, &SinkActionDefs{ctx.node.GetText()})
 }

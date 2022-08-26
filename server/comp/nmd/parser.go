@@ -9,11 +9,14 @@ import (
 // nodes when session created
 
 type GraphTopology struct {
-	nodeDefs       []*NodeDef
-	callDefs       []*CallActionDefs
-	castDefs       []*CastActionDefs
-	sinkDefs       []*SinkActionDefs
-	sortedNodeDefs []*NodeDef // topographical sorted, node with less dependency comes first
+	nodeDefs []*NodeDef
+	callDefs []*CallActionDefs
+	castDefs []*CastActionDefs
+	sinkDefs []*SinkActionDefs
+
+	// topographical sorted, node with less dependency comes first
+	// i.e. first node in the list has not any receiver
+	sortedNodeDefs []*NodeDef
 	nbParseError   int
 }
 

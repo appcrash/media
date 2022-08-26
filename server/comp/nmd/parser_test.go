@@ -62,7 +62,7 @@ func TestSink(t *testing.T) {
 	antlr.ParseTreeWalkerDefault.Walk(listener, parser.Graph())
 
 	sinkDef := listener.SinkDefs[0]
-	if sinkDef.ChannelName != "mychannel" {
+	if sinkDef.NodeName != "mychannel" {
 		t.Fatal("parse sink statement failed")
 	}
 }
