@@ -6,7 +6,6 @@ import (
 	"github.com/appcrash/media/server/comp/nmd"
 	"github.com/appcrash/media/server/event"
 	"sort"
-	"strings"
 	"sync"
 )
 
@@ -16,8 +15,9 @@ type Composer struct {
 	sessionId           string
 	gt                  *nmd.GraphTopology
 	messageProviderList []MessageProvider
-	dispatch            *Dispatch
-	nodeList            []SessionAware // topographical sorted nodes
+	//dispatch            *Dispatch
+	nodeSortedList []SessionAware // topographical sorted nodes
+	nodeMap        map[string]SessionAware
 
 	// channel handling, channels are registered by parsing nmd graph description, then linked dynamically
 	mutex        sync.Mutex
@@ -45,11 +45,36 @@ func (c *Composer) ParseGraphDescription(desc string) (err error) {
 	return
 }
 
+func (c *Composer) Connect(sender, receiver SessionAware) (err error) {
+	receiverName := receiver.GetNodeName()
+	outputTraits := sender.ProvideOffer()
+	commonTrait := receiver.AnswerOffer(outputTraits)
+	if len(commonTrait) == 0 {
+		err = fmt.Errorf("can not create link between %v => %v, no common trait",
+			sender.GetNodeName(), receiver.GetNodeName())
+		return
+	}
+	// first comes first
+	trait := commonTrait[0]
+	var lp1, lp2 LinkPoint
+	if err, lp1 = sender.SetStreamTarget(c.sessionId, receiverName, trait); err != nil {
+		return
+	}
+	if err, lp2 = receiver.OnSetStream(c.sessionId, sender.GetNodeName(), trait); err != nil {
+		return
+	}
+	lp1.SetPeer(lp2)
+	lp2.SetPeer(lp1)
+	logger.Infof("session(%v) stream connection %v --->[%v]---> %v",
+		c.sessionId, sender.GetNodeName(), trait.Name, receiverName)
+	return
+}
+
 // ComposeNodes create node instances by type, add them to graph, and link them
 func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 	var nodeIds []*Id
 	nodeDefs := c.gt.GetSortedNodeDefs()
-	nbNode := len(nodeDefs)
+	//nbNode := len(nodeDefs)
 
 	defer func() {
 		if err != nil {
@@ -74,7 +99,8 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 		if err = sn.Init(); err != nil {
 			return
 		}
-		c.nodeList = append(c.nodeList, sn)
+		c.nodeSortedList = append(c.nodeSortedList, sn)
+		c.nodeMap[sn.GetNodeName()] = sn
 		if provider, ok := sn.(MessageProvider); ok {
 			c.messageProviderList = append(c.messageProviderList, provider)
 		}
@@ -91,16 +117,17 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 
 	// add all nodes to graph, create links between them, as nodes are already topographical sorted,
 	// for each node, its dependent nodes are in graph when adding it to graph
-	for i, n := range c.nodeList {
-		if !graph.AddNode(n) {
-			err = fmt.Errorf("failed to add node %v to graph", n.GetNodeName())
+	//var lp LinkPoint
+	for i, sender := range c.nodeSortedList {
+		if !graph.AddNode(sender) {
+			err = fmt.Errorf("failed to add node %v to graph", sender.GetNodeName())
 			return
 		}
 		deps := nodeDefs[i].Deps
-		for _, ni := range deps {
-			// set pipe end to local session nodes
-			if n.SetPipeOut(c.sessionId, ni.Name) != nil {
-				err = fmt.Errorf("failed to link %v => %v", n.GetNodeName(), ni.Name)
+		for _, receiverDef := range deps {
+			// negotiate and create link
+			receiver := c.nodeMap[receiverDef.Name]
+			if err = c.Connect(sender, receiver); err != nil {
 				return
 			}
 		}
@@ -108,61 +135,61 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 
 	// now every node is added to graph and linked
 	// create dispatch node which links to all nodes in the session
-	c.dispatch = MakeSessionNode(TypeDISPATCH, c.sessionId, nil).(*Dispatch)
-	c.dispatch.SetMaxLink(nbNode * 2) // reserved nbNode for dynamical link requests
-	if !graph.AddNode(c.dispatch) {
-		err = errors.New("fail to add send-node to graph")
-		return
-	}
-	if err = c.dispatch.connectTo(nodeIds); err != nil {
-		return
-	}
+	//c.dispatch = MakeSessionNode(TypeDISPATCH, c.sessionId, nil).(*Dispatch)
+	//c.dispatch.SetMaxLink(nbNode * 2) // reserved nbNode for dynamical link requests
+	//if !graph.AddNode(c.dispatch) {
+	//	err = errors.New("fail to add dispatch-node to graph")
+	//	return
+	//}
+	//if err = c.dispatch.connectTo(nodeIds); err != nil {
+	//	return
+	//}
 
 	// again, let all nodes reference this dispatch
-	for _, n := range c.nodeList {
-		n.SetController(c.dispatch)
+	for _, n := range c.nodeSortedList {
+		n.SetController(c)
 	}
 
-	// subscribe channels, for all nodes of type pubsub, find the registered channel with same name
+	// subscribe channels, for all nodes of type pubsub, find the registered channel with same Name
 	// as specified in pubsub's "channel" property
-	for i, n := range nodeDefs {
-		if n.Type != TypePUBSUB {
-			continue
-		}
-		var chNameList string
-		var ok bool
-		for _, p := range n.Props {
-			if p.Key == "channel" {
-				if p.Type != "str" || p.Value == nil {
-					err = fmt.Errorf("pubsub channel value is not string: %v", p.Value)
-					return
-				}
-				if chNameList, ok = p.Value.(string); ok {
-				} else {
-					err = fmt.Errorf("pubsub channel value can not converted to string: %v", p.Value)
-					return
-				}
-				break
-			}
-		}
-		if chNameList == "" {
-			logger.Debugf("pubsub channel props is nil")
-			continue
-		}
-
-		psNode := c.nodeList[i].(*PubSubNode)
-		// pubsub property, for example: channel=a,b,c ...
-		logger.Debugln("chNameList ", chNameList)
-		for _, chName := range strings.Split(chNameList, ",") {
-			if _, exist := c.namedChannel[chName]; exist {
-				// the channel is already registered
-				err = fmt.Errorf("channel:%v can only subscribe to one pubsub node", chName)
-				return
-			} else {
-				c.namedChannel[chName] = &channelInfo{peerNode: psNode}
-			}
-		}
-	}
+	//for i, n := range nodeDefs {
+	//	if n.Type != TypePUBSUB {
+	//		continue
+	//	}
+	//	var chNameList string
+	//	var ok bool
+	//	for _, p := range n.Props {
+	//		if p.Key == "channel" {
+	//			if p.Type != "str" || p.Value == nil {
+	//				err = fmt.Errorf("pubsub channel value is not string: %v", p.Value)
+	//				return
+	//			}
+	//			if chNameList, ok = p.Value.(string); ok {
+	//			} else {
+	//				err = fmt.Errorf("pubsub channel value can not converted to string: %v", p.Value)
+	//				return
+	//			}
+	//			break
+	//		}
+	//	}
+	//	if chNameList == "" {
+	//		logger.Debugf("pubsub channel props is nil")
+	//		continue
+	//	}
+	//
+	//	psNode := c.nodeSortedList[i].(*PubSubNode)
+	//	// pubsub property, for example: channel=a,b,c ...
+	//	logger.Debugln("chNameList ", chNameList)
+	//	for _, chName := range strings.Split(chNameList, ",") {
+	//		if _, exist := c.namedChannel[chName]; exist {
+	//			// the channel is already registered
+	//			err = fmt.Errorf("channel:%v can only subscribe to one pubsub node", chName)
+	//			return
+	//		} else {
+	//			c.namedChannel[chName] = &channelInfo{peerNode: psNode}
+	//		}
+	//	}
+	//}
 
 	return
 }
@@ -171,7 +198,7 @@ func (c *Composer) GetSortedNodes() (ni []*nmd.NodeDef) {
 	return c.gt.GetSortedNodeDefs()
 }
 
-// GetMessageProvider get entry by its name
+// GetMessageProvider get entry by its Name
 func (c *Composer) GetMessageProvider(name string) MessageProvider {
 	for _, provider := range c.messageProviderList {
 		if provider.GetName() == name {
@@ -186,8 +213,8 @@ func (c *Composer) GetMessageProviderList() (mps []MessageProvider) {
 	return
 }
 
-func (c *Composer) GetController() Controller {
-	return c.dispatch
+func (c *Composer) GetController() CommandInitiator {
+	return c
 }
 
 func (c *Composer) LinkChannel(name string, ch chan<- *event.Event) error {
@@ -226,10 +253,22 @@ func (c *Composer) UnlinkChannel(name string) error {
 }
 
 func (c *Composer) ExitGraph() {
-	for _, n := range c.nodeList {
+	for _, n := range c.nodeSortedList {
 		n.ExitGraph()
 	}
-	if c.dispatch != nil {
-		c.dispatch.ExitGraph()
+}
+
+func (c *Composer) Call(fromNode, toNode string, args []string) (resp []string) {
+	if to, ok := c.nodeMap[toNode]; ok {
+		resp = to.OnCall(c.sessionId, fromNode, args)
+	} else {
+		resp = WithError("no such node")
+	}
+	return
+}
+
+func (c *Composer) Cast(fromNode, toNode string, args []string) {
+	if to, ok := c.nodeMap[toNode]; ok {
+		to.OnCast(c.sessionId, fromNode, args)
 	}
 }

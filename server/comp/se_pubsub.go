@@ -328,7 +328,7 @@ func (p *PubSubNode) SubscribeChannel(chName string, c chan<- *event.Event) erro
 	return nil
 }
 
-// UnsubscribeChannel remove a channel subscriber with given name from this pubsub node
+// UnsubscribeChannel remove a channel subscriber with given Name from this pubsub node
 func (p *PubSubNode) UnsubscribeChannel(chName string) error {
 	if index, si := p.findChannelSubscriber(chName); si == nil {
 		return errors.New(fmt.Sprintf("channel %v is not subscribed, so unsubscribe fails", chName))

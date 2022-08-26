@@ -17,7 +17,7 @@ type CtrlMessage struct {
 	C chan []string // used to receive result if not nil
 }
 
-// GenericMessage is used to encapsulate custom object in message with tagged type name
+// GenericMessage is used to encapsulate custom object in message with tagged type Name
 // nodes can only communicate with each other who can build/handle GenericMessage of the same tagged type
 type GenericMessage struct {
 	Subtype string
@@ -27,6 +27,8 @@ type GenericMessage struct {
 // Message is the base interface of all kinds of message
 type Message interface {
 	AsEvent() *event.Event
+	GetMeta() []byte
+	Name() string
 }
 
 type Cloneable interface {

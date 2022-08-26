@@ -80,7 +80,7 @@ func (s *MediaSession) GetEventGraph() *event.Graph {
 	return s.server.graph
 }
 
-func (s *MediaSession) GetController() comp.Controller {
+func (s *MediaSession) GetController() comp.CommandInitiator {
 	return s.composer.GetController()
 }
 

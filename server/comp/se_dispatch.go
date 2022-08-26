@@ -11,7 +11,7 @@ import (
 // business commands normally change node's behaviour by send control messages to them with Call() or Cast(),
 // nodes react to these messages which may cause more messages(change other node's behaviour,chain reaction) to send.
 // all of these messages are sent from Dispatch.
-// it is a SessionNode as well as implementing Controller interfaces, so it provides api to callers as well as sending
+// it is a SessionNode as well as implementing CommandInitiator interfaces, so it provides api to callers as well as sending
 // messages to any other nodes in the event graph.
 type Dispatch struct {
 	SessionNode
@@ -19,6 +19,8 @@ type Dispatch struct {
 
 	mutex   sync.Mutex
 	linkMap map[string]int
+
+	linkPointMap map[string]LinkPoint
 
 	cachedDataNodeName string
 	cachedDataLink     int
@@ -62,7 +64,7 @@ func (d *Dispatch) connectTo(nl []*Id) (err error) {
 	return
 }
 
-// getLinkId retrieve requested node with given sessionId and name, if the link to it
+// getLinkId retrieve requested node with given sessionId and Name, if the link to it
 // has not established yet, connect to that node on the fly, then return created link id
 func (d *Dispatch) getLinkId(sessionId, name string) (linkId int, err error) {
 	var ok bool
@@ -133,7 +135,7 @@ func (d *Dispatch) PushData(nodeName string, msgType string, data []byte) {
 		if linkId, err = d.getLinkId(d.SessionId, nodeName); err != nil {
 			d.cachedDataNodeName = ""
 			d.cachedDataLink = 0
-			logger.Errorf("session (%v) push data with wrong node name(%v)", d.SessionId, nodeName)
+			logger.Errorf("session (%v) push data with wrong node Name(%v)", d.SessionId, nodeName)
 			return
 		}
 		d.cachedDataNodeName = nodeName

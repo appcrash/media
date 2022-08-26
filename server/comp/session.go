@@ -1,7 +1,6 @@
 package comp
 
 import (
-	"errors"
 	"fmt"
 	"github.com/appcrash/media/server/comp/nmd"
 	"github.com/appcrash/media/server/event"
@@ -9,15 +8,26 @@ import (
 	"unsafe"
 )
 
+type Id struct {
+	Name      string
+	SessionId string
+}
+
+func (id *Id) String() string {
+	return id.SessionId + "_" + id.Name
+}
+
+func NewId(sessionId, name string) *Id {
+	return &Id{SessionId: sessionId, Name: name}
+}
+
 // SessionNode is the base class of all nodes that provide capability in an RTP session
 type SessionNode struct {
 	Id
 	delegate *event.NodeDelegate
-	ctrl     Controller
+	ctrl     CommandInitiator
 
-	// record where the pipe output to
-	dataLinkId                    int
-	dataSessionName, dataNodeName string
+	InputTraits, OutputTraits []*MessageTrait
 }
 
 //------------------- Base Node Implementation -------------------------
@@ -45,9 +55,6 @@ func (s *SessionNode) OnEvent(evt *event.Event) {
 
 func (s *SessionNode) OnLinkDown(linkId int, scope string, nodeName string) {
 	logger.Debugf("node got link down (%v:%v) => (%v:%v) ", s.GetNodeScope(), s.GetNodeName(), scope, nodeName)
-	if linkId >= 0 && s.dataLinkId == linkId {
-		s.dataLinkId = -1
-	}
 }
 
 //--------------------------- Base SessionAware Implementation --------------------------------
@@ -58,66 +65,93 @@ func (s *SessionNode) ExitGraph() {
 	}
 }
 
-func (s *SessionNode) ConfigProperties(_ []*nmd.NodeProp) {
-}
-
 func (s *SessionNode) Init() error {
 	return nil
 }
 
-func (s *SessionNode) SetPipeOut(session, name string) error {
-	if s.delegate == nil {
-		return errors.New("delegate not ready when set pipe")
-	}
-	s.dataSessionName, s.dataNodeName = session, name
-	if s.dataLinkId = s.delegate.RequestLinkUp(session, name); s.dataLinkId < 0 {
-		return errors.New(fmt.Sprintf("can not set pipe to %v:%v", session, name))
-	}
-	return nil
+//func (s *SessionNode) SetPipeOut(session, Name string) error {
+//	if s.delegate == nil {
+//		return errors.New("delegate not ready when set pipe")
+//	}
+//	s.dataSessionName, s.dataNodeName = session, Name
+//	if s.dataLinkId = s.delegate.RequestLinkUp(session, Name); s.dataLinkId < 0 {
+//		return errors.New(fmt.Sprintf("can not set pipe to %v:%v", session, Name))
+//	}
+//	return nil
+//}
+
+func (s *SessionNode) ProvideOffer() (mt []*MessageTrait) {
+	return s.OutputTraits
 }
 
-func (s *SessionNode) SetController(ctrl Controller) {
+// AnswerOffer get common message types so that link is possible
+func (s *SessionNode) AnswerOffer(mt []*MessageTrait) (filteredMt []*MessageTrait) {
+	for _, t1 := range mt {
+		for _, t2 := range s.InputTraits {
+			if t1.Name == t2.Name {
+				filteredMt = append(filteredMt, t1)
+			}
+		}
+	}
+	return
+}
+
+func (s *SessionNode) OnCall(fromSession, fromNode string, args []string) (resp []string) {
+	return WithOk()
+}
+
+func (s *SessionNode) OnCast(fromSession, fromNode string, args []string) {
+
+}
+
+func (s *SessionNode) SetStreamTarget(session, name string, mt *MessageTrait) (err error, lp LinkPoint) {
+	if linkId := s.delegate.RequestLinkUp(session, name); linkId < 0 {
+		err = fmt.Errorf("(%v:%v) can not set stream target to %v:%v", s.SessionId, s.Name, session, name)
+	} else {
+		lp = &LinkPad{
+			owner:        s,
+			id:           linkId,
+			messageTrait: mt,
+			peer:         nil,
+			sendFunc:     nil,
+		}
+	}
+	return
+}
+
+func (s *SessionNode) OnSetStream(session, name string, mt *MessageTrait) (err error, lp LinkPoint) {
+
+}
+
+func (s *SessionNode) SetController(ctrl CommandInitiator) {
 	s.ctrl = ctrl
 }
 
 //--------------------------- Facility methods --------------------------------
 
-// DataPipeReady return whether data link is established
-func (s *SessionNode) DataPipeReady() bool {
-	return s.dataLinkId >= 0
-}
-
 // SendMessage utility method to put data message to next node
-func (s *SessionNode) SendMessage(msg Message) (err error) {
+func (s *SessionNode) sendMessage(linkId int, msg Message) (err error) {
 	evt := msg.AsEvent()
 	return s.SendEvent(evt)
 }
 
-func (s *SessionNode) SendEvent(evt *event.Event) (err error) {
-	if s.DataPipeReady() {
-		s.delegate.Deliver(s.dataLinkId, evt)
-	} else {
-		err = errors.New("data link is not established")
-	}
-	return
-}
+//func (s *SessionNode) SendEvent(evt *event.Event) (err error) {
+//	if s.DataPipeReady() {
+//		s.delegate.Deliver(s.dataLinkId, evt)
+//	} else {
+//		err = errors.New("data link is not established")
+//	}
+//	return
+//}
 
 // Call forward to controller
 func (s *SessionNode) Call(session, name string, args []string) (resp []string) {
 	return s.ctrl.Call(session, name, args)
 }
 
-func (s *SessionNode) CallSys(name string, args []string) (resp []string) {
-	return s.Call(SYS_NODE_SCOPE, name, args)
-}
-
 // Cast forward to controller
 func (s *SessionNode) Cast(session, name string, args []string) {
 	s.ctrl.Cast(session, name, args)
-}
-
-func (s *SessionNode) CastSys(name string, args []string) {
-	s.Cast(SYS_NODE_SCOPE, name, args)
 }
 
 // MakeSessionNode factory method of all session aware nodes
@@ -139,7 +173,7 @@ func MakeSessionNode(nodeType string, sessionId string, props []*nmd.NodeProp) S
 	node := getNodeByName(nodeType)
 	if node != nil {
 		props = setNodeProperties(node, props)
-		node.ConfigProperties(props)
+		//node.ConfigProperties(props)
 	}
 	return node
 }
