@@ -65,7 +65,7 @@ func (d *Dispatch) connectTo(nl []*Id) (err error) {
 }
 
 // getLinkId retrieve requested node with given sessionId and Name, if the link to it
-// has not established yet, connect to that node on the fly, then return created link id
+// has not established yet, connect to that node on the fly, then return created link linkId
 func (d *Dispatch) getLinkId(sessionId, name string) (linkId int, err error) {
 	var ok bool
 	id := NewId(sessionId, name)

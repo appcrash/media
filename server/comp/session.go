@@ -5,6 +5,7 @@ import (
 	"github.com/appcrash/media/server/comp/nmd"
 	"github.com/appcrash/media/server/event"
 	"reflect"
+	"time"
 	"unsafe"
 )
 
@@ -17,6 +18,8 @@ func (id *Id) String() string {
 	return id.SessionId + "_" + id.Name
 }
 
+type EventHandler func(evt *event.Event)
+
 func NewId(sessionId, name string) *Id {
 	return &Id{SessionId: sessionId, Name: name}
 }
@@ -27,7 +30,10 @@ type SessionNode struct {
 	delegate *event.NodeDelegate
 	ctrl     CommandInitiator
 
-	InputTraits, OutputTraits []*MessageTrait
+	inLinkPoint, outLinkPoint []LinkPoint
+
+	eventTypeMatch []int
+	eventHandler   []EventHandler
 }
 
 //------------------- Base Node Implementation -------------------------
@@ -43,6 +49,7 @@ func (s *SessionNode) GetNodeScope() string {
 func (s *SessionNode) OnEnter(delegate *event.NodeDelegate) {
 	logger.Debugf("node(%v) enters graph", s.GetNodeName())
 	s.delegate = delegate
+	s.AddHandler(NewLinkPoint, s.handleLinkPoint)
 }
 
 func (s *SessionNode) OnExit() {
@@ -50,7 +57,13 @@ func (s *SessionNode) OnExit() {
 }
 
 func (s *SessionNode) OnEvent(evt *event.Event) {
-	logger.Debugf("node(%v) got event with cmd:%v", s.GetNodeName(), evt.GetCmd())
+	cmd := evt.GetCmd()
+	for i, typ := range s.eventTypeMatch {
+		if cmd == typ {
+			s.eventHandler[i](evt)
+			return
+		}
+	}
 }
 
 func (s *SessionNode) OnLinkDown(linkId int, scope string, nodeName string) {
@@ -58,6 +71,10 @@ func (s *SessionNode) OnLinkDown(linkId int, scope string, nodeName string) {
 }
 
 //--------------------------- Base SessionAware Implementation --------------------------------
+
+func (s *SessionNode) handleLinkPoint(evt *event.Event) {
+
+}
 
 func (s *SessionNode) ExitGraph() {
 	if s.delegate != nil {
@@ -69,33 +86,6 @@ func (s *SessionNode) Init() error {
 	return nil
 }
 
-//func (s *SessionNode) SetPipeOut(session, Name string) error {
-//	if s.delegate == nil {
-//		return errors.New("delegate not ready when set pipe")
-//	}
-//	s.dataSessionName, s.dataNodeName = session, Name
-//	if s.dataLinkId = s.delegate.RequestLinkUp(session, Name); s.dataLinkId < 0 {
-//		return errors.New(fmt.Sprintf("can not set pipe to %v:%v", session, Name))
-//	}
-//	return nil
-//}
-
-func (s *SessionNode) ProvideOffer() (mt []*MessageTrait) {
-	return s.OutputTraits
-}
-
-// AnswerOffer get common message types so that link is possible
-func (s *SessionNode) AnswerOffer(mt []*MessageTrait) (filteredMt []*MessageTrait) {
-	for _, t1 := range mt {
-		for _, t2 := range s.InputTraits {
-			if t1.Name == t2.Name {
-				filteredMt = append(filteredMt, t1)
-			}
-		}
-	}
-	return
-}
-
 func (s *SessionNode) OnCall(fromSession, fromNode string, args []string) (resp []string) {
 	return WithOk()
 }
@@ -104,22 +94,55 @@ func (s *SessionNode) OnCast(fromSession, fromNode string, args []string) {
 
 }
 
-func (s *SessionNode) SetStreamTarget(session, name string, mt *MessageTrait) (err error, lp LinkPoint) {
-	if linkId := s.delegate.RequestLinkUp(session, name); linkId < 0 {
-		err = fmt.Errorf("(%v:%v) can not set stream target to %v:%v", s.SessionId, s.Name, session, name)
-	} else {
+func (s *SessionNode) StreamTo(session, name string, offer []*MessageTrait) (err error, lp LinkPoint) {
+	var linkId int
+	if linkId = s.delegate.RequestLinkUp(session, name); linkId < 0 {
+		err = fmt.Errorf("(%v:%v) can not set stream target to %v:%v due to request link up failed",
+			s.SessionId, s.Name, session, name)
+		return
+	}
+	sendFunc := func(msg Message) error {
+		if !s.delegate.Deliver(linkId, msg.AsEvent()) {
+			return fmt.Errorf("failed to deliver event")
+		}
+		return nil
+	}
+	linkIdentity := MakeLinkIdentity(session, name, linkId)
+	newLinkCmd := &LinkPointCommand{
+		OfferedTrait: offer,
+		LinkIdentity: linkIdentity,
+		C:            make(chan *MessageTrait, 1),
+	}
+	evt := event.NewEvent(NewLinkPoint, newLinkCmd)
+	if ok := s.delegate.Deliver(linkId, evt); !ok {
+		err = fmt.Errorf("(%v:%v) can not set stream target to %v:%v due to deliver event failed",
+			s.SessionId, s.Name, session, name)
+		return
+	}
+	select {
+	case agreedTrait := <-newLinkCmd.C:
+		if agreedTrait == nil {
+			err = fmt.Errorf("(%v:%v) can not set stream target to %v:%v due to offered traits not agreed",
+				s.SessionId, s.Name, session, name)
+		}
 		lp = &LinkPad{
 			owner:        s,
-			id:           linkId,
-			messageTrait: mt,
-			peer:         nil,
-			sendFunc:     nil,
+			linkId:       linkId,
+			identity:     linkIdentity,
+			messageTrait: agreedTrait,
+			sendFunc:     sendFunc,
 		}
+		s.outLinkPoint = append(s.outLinkPoint, lp)
+		logger.Infof("new stream connection (%v|%v) {%x} --->[%v]---> (%v|%v)",
+			s.GetNodeScope(), s.GetNodeName(), linkIdentity, agreedTrait.Name, session, name)
+	case <-time.After(10 * time.Second):
+		err = fmt.Errorf("(%v:%v) can not set stream target to %v:%v due to link point not retrieved",
+			s.SessionId, s.Name, session, name)
 	}
 	return
 }
 
-func (s *SessionNode) OnSetStream(session, name string, mt *MessageTrait) (err error, lp LinkPoint) {
+func (s *SessionNode) StreamBy(offer []*MessageTrait, linkIdentity uint64) *MessageTrait {
 
 }
 
@@ -129,20 +152,10 @@ func (s *SessionNode) SetController(ctrl CommandInitiator) {
 
 //--------------------------- Facility methods --------------------------------
 
-// SendMessage utility method to put data message to next node
-func (s *SessionNode) sendMessage(linkId int, msg Message) (err error) {
-	evt := msg.AsEvent()
-	return s.SendEvent(evt)
+func (s *SessionNode) AddHandler(msgType int, handler EventHandler) {
+	s.eventTypeMatch = append([]int{msgType}, s.eventTypeMatch...)
+	s.eventHandler = append([]EventHandler{handler}, s.eventHandler...)
 }
-
-//func (s *SessionNode) SendEvent(evt *event.Event) (err error) {
-//	if s.DataPipeReady() {
-//		s.delegate.Deliver(s.dataLinkId, evt)
-//	} else {
-//		err = errors.New("data link is not established")
-//	}
-//	return
-//}
 
 // Call forward to controller
 func (s *SessionNode) Call(session, name string, args []string) (resp []string) {
@@ -152,6 +165,18 @@ func (s *SessionNode) Call(session, name string, args []string) (resp []string) 
 // Cast forward to controller
 func (s *SessionNode) Cast(session, name string, args []string) {
 	s.ctrl.Cast(session, name, args)
+}
+
+// ToMessage convert event object back to concrete message
+func ToMessage[K Message](evt *event.Event) K {
+	obj := evt.GetObj()
+	if obj == nil {
+		return nil
+	}
+	if msg, ok := obj.(K); ok {
+		return msg
+	}
+	return nil
 }
 
 // MakeSessionNode factory method of all session aware nodes
@@ -165,10 +190,6 @@ func MakeSessionNode(nodeType string, sessionId string, props []*nmd.NodeProp) S
 			Key:   "SessionId",
 			Type:  "str",
 			Value: sessionId,
-		}, &nmd.NodeProp{
-			Key:   "dataLinkId",
-			Type:  "int",
-			Value: -1,
 		})
 	node := getNodeByName(nodeType)
 	if node != nil {

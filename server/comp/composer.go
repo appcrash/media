@@ -5,17 +5,14 @@ import (
 	"fmt"
 	"github.com/appcrash/media/server/comp/nmd"
 	"github.com/appcrash/media/server/event"
-	"sort"
 	"sync"
 )
 
 // Composer creates every node and config their properties based on the collected info, then
 // link them and send initial events as described before putting them into working state.
 type Composer struct {
-	sessionId           string
-	gt                  *nmd.GraphTopology
-	messageProviderList []MessageProvider
-	//dispatch            *Dispatch
+	sessionId      string
+	gt             *nmd.GraphTopology
 	nodeSortedList []SessionAware // topographical sorted nodes
 	nodeMap        map[string]SessionAware
 
@@ -23,6 +20,10 @@ type Composer struct {
 	mutex        sync.Mutex
 	namedChannel map[string]*channelInfo
 }
+
+const (
+	maxNegotiationIteration = 5
+)
 
 type channelInfo struct {
 	isConnected bool
@@ -45,7 +46,7 @@ func (c *Composer) ParseGraphDescription(desc string) (err error) {
 	return
 }
 
-func (c *Composer) Connect(sender, receiver SessionAware) (err error) {
+func (c *Composer) Connect(sender, receiver SessionAware) (llp, rlp LinkPoint, err error) {
 	receiverName := receiver.GetNodeName()
 	outputTraits := sender.ProvideOffer()
 	commonTrait := receiver.AnswerOffer(outputTraits)
@@ -54,27 +55,54 @@ func (c *Composer) Connect(sender, receiver SessionAware) (err error) {
 			sender.GetNodeName(), receiver.GetNodeName())
 		return
 	}
-	// first comes first
 	trait := commonTrait[0]
-	var lp1, lp2 LinkPoint
-	if err, lp1 = sender.SetStreamTarget(c.sessionId, receiverName, trait); err != nil {
+	if err, llp = sender.StreamTo(receiverName); err != nil {
 		return
 	}
-	if err, lp2 = receiver.OnSetStream(c.sessionId, sender.GetNodeName(), trait); err != nil {
+	if err, rlp = receiver.StreamBy(sender.GetNodeName()); err != nil {
 		return
 	}
-	lp1.SetPeer(lp2)
-	lp2.SetPeer(lp1)
-	logger.Infof("session(%v) stream connection %v --->[%v]---> %v",
-		c.sessionId, sender.GetNodeName(), trait.Name, receiverName)
+	llp.SetPeer(rlp)
+	rlp.SetPeer(llp)
+
 	return
+}
+
+func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error) {
+	nodeDefs := c.gt.GetSortedNodeDefs()
+	// add all nodes to graph, create links between them, as nodes are already topographical sorted,
+	// for each node, its dependent nodes are in graph when adding it to graph
+	var llp, rlp LinkPoint
+	for i, sender := range c.nodeSortedList {
+		if !graph.AddNode(sender) {
+			err = fmt.Errorf("failed to add node %v to graph", sender.GetNodeName())
+			return
+		}
+		deps := nodeDefs[i].Deps
+		for _, receiverDef := range deps {
+			// just create link point for each other
+			receiver := c.nodeMap[receiverDef.Name]
+			if llp, rlp, err = c.Connect(sender, receiver); err != nil {
+				return
+			} else {
+				lps = append(lps, llp, rlp)
+			}
+		}
+	}
+	return
+}
+
+func (c *Composer) Negotiate(lps []LinkPoint) (unresolved []LinkPoint, err error) {
+	var iteration int
+	for iteration < maxNegotiationIteration {
+
+	}
 }
 
 // ComposeNodes create node instances by type, add them to graph, and link them
 func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 	var nodeIds []*Id
 	nodeDefs := c.gt.GetSortedNodeDefs()
-	//nbNode := len(nodeDefs)
 
 	defer func() {
 		if err != nil {
@@ -101,49 +129,15 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 		}
 		c.nodeSortedList = append(c.nodeSortedList, sn)
 		c.nodeMap[sn.GetNodeName()] = sn
-		if provider, ok := sn.(MessageProvider); ok {
-			c.messageProviderList = append(c.messageProviderList, provider)
-		}
 
 		id := NewId(sn.GetNodeScope(), sn.GetNodeName())
 		nodeIds = append(nodeIds, id)
 	}
 
-	// sort message providers, those can handle specific payload type comes first
-	sort.SliceStable(c.messageProviderList, func(i, j int) bool {
-		return c.messageProviderList[i].Priority() < c.messageProviderList[j].Priority()
-	})
-	logger.Debugf("session(%s) has %v message providers", c.sessionId, len(c.messageProviderList))
-
-	// add all nodes to graph, create links between them, as nodes are already topographical sorted,
-	// for each node, its dependent nodes are in graph when adding it to graph
-	//var lp LinkPoint
-	for i, sender := range c.nodeSortedList {
-		if !graph.AddNode(sender) {
-			err = fmt.Errorf("failed to add node %v to graph", sender.GetNodeName())
-			return
-		}
-		deps := nodeDefs[i].Deps
-		for _, receiverDef := range deps {
-			// negotiate and create link
-			receiver := c.nodeMap[receiverDef.Name]
-			if err = c.Connect(sender, receiver); err != nil {
-				return
-			}
-		}
+	var lps []LinkPoint
+	if lps, err = c.connectNodes(graph); err != nil {
+		return
 	}
-
-	// now every node is added to graph and linked
-	// create dispatch node which links to all nodes in the session
-	//c.dispatch = MakeSessionNode(TypeDISPATCH, c.sessionId, nil).(*Dispatch)
-	//c.dispatch.SetMaxLink(nbNode * 2) // reserved nbNode for dynamical link requests
-	//if !graph.AddNode(c.dispatch) {
-	//	err = errors.New("fail to add dispatch-node to graph")
-	//	return
-	//}
-	//if err = c.dispatch.connectTo(nodeIds); err != nil {
-	//	return
-	//}
 
 	// again, let all nodes reference this dispatch
 	for _, n := range c.nodeSortedList {
@@ -196,21 +190,6 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 
 func (c *Composer) GetSortedNodes() (ni []*nmd.NodeDef) {
 	return c.gt.GetSortedNodeDefs()
-}
-
-// GetMessageProvider get entry by its Name
-func (c *Composer) GetMessageProvider(name string) MessageProvider {
-	for _, provider := range c.messageProviderList {
-		if provider.GetName() == name {
-			return provider
-		}
-	}
-	return nil
-}
-
-func (c *Composer) GetMessageProviderList() (mps []MessageProvider) {
-	mps = c.messageProviderList
-	return
 }
 
 func (c *Composer) GetController() CommandInitiator {

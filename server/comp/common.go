@@ -19,18 +19,17 @@ const (
 	TypeDISPATCH = "dispatch"
 )
 
-// LinkPoint is an affiliated in/out gateway of a node. it is used to communicate with other node as long as a link
+// LinkPoint is an affiliated output gateway of a node. it is used to communicate with other node as long as a link
 // keeps persistent, and gets destroyed once link down. A node can have many LinkPoint as needed
 type LinkPoint interface {
 	LinkId() int
+	Identity() uint64
 	Owner() SessionAware
-	SetPeer(point LinkPoint)
-	Peer() LinkPoint
 	SendMessage(msg Message) error
-	MessageTrait() MessageTrait
+	MessageTrait() *MessageTrait
 }
 
-// Command is used to send instant info  to nodes. it differs from message in:
+// Command is used to send instant info to nodes. it differs from message in:
 // --------------------------------------------------------------------------------------------
 // |   /      |                 Command              |               Message                  |
 // | tx-path  | signalling channel                   | data channel (implements Streamable)   |
@@ -55,21 +54,19 @@ type CommandReceiver interface {
 	OnCast(fromSession, fromNode string, args []string)
 }
 
-// Streamable can negotiate message traits before link is established and transfer data after that
+// Streamable can create or accept link to/from the other Streamable
 type Streamable interface {
-	ProvideOffer() (mt []*MessageTrait)
-	AnswerOffer(mt []*MessageTrait) (filteredMt []*MessageTrait)
-	SetStreamTarget(session, name string, mt *MessageTrait) (error, LinkPoint)
-	OnSetStream(session, name string, mt *MessageTrait) (error, LinkPoint)
+	StreamTo(session, name string) (error, LinkPoint)
+	StreamBy(offer []*MessageTrait, linkIdentity uint64) *MessageTrait
 }
 
 // SessionAware enables node to:
 // 1. config its static properties before any event flows
-// 2. set data output destination
-// 3. exit the graph when session ends
+// 2. react to commands
+// 3. stream data
+// 4. exit the graph when session ends
 type SessionAware interface {
 	event.Node
-
 	CommandReceiver
 	Streamable
 
@@ -130,8 +127,6 @@ func RegisterNodeFactory(typeName string, f SessionNodeFactory) error {
 
 // public commands
 const (
-	CtrlCall = iota + 10000
-	CtrlCast
-	RawByte
+	NewLinkPoint = iota + 10000
 	Generic
 )
