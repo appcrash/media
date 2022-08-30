@@ -1,13 +1,13 @@
 package comp
 
-// ChannelSink forward input message to go channel
-type ChannelSink struct {
+// ChanSink forward input message to go channel
+type ChanSink struct {
 	SessionNode
 
 	channel string // channel name to be linked
 }
 
 func NewChannelSink() SessionAware {
-	c := &ChannelSink{}
+	c := &ChanSink{}
 	return c
 }

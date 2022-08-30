@@ -33,7 +33,7 @@ type SessionNode struct {
 	eventTypeMatch []int
 	eventHandler   []EventHandler
 
-	Trait     NodeTrait
+	Trait     *NodeTrait
 	LinkPoint []LinkPoint
 }
 
@@ -74,19 +74,19 @@ func (s *SessionNode) OnLinkDown(linkId int, scope string, nodeName string) {
 //--------------------------- Base SessionAware Implementation --------------------------------
 
 func (s *SessionNode) handleLinkPoint(evt *event.Event) {
-	//msg, ok := ToMessage[*LinkPointCommand](evt)
-	//if !ok {
-	//	return
-	//}
-	//for _, offer := range msg.OfferedTrait {
-	//	for _, answer := range s.accept {
-	//		if offer.Match(answer) {
-	//			msg.C <- answer
-	//			return
-	//		}
-	//	}
-	//}
-	//msg.C <- nil
+	msg, ok := ToMessage[*LinkPointCommand](evt)
+	if !ok {
+		return
+	}
+	for _, offer := range msg.OfferedTrait {
+		for _, answer := range s.Trait.Accept {
+			if offer.Match(answer) {
+				msg.C <- answer
+				return
+			}
+		}
+	}
+	msg.C <- nil
 	return
 }
 
@@ -118,12 +118,6 @@ func (s *SessionNode) Offer() []MessageType {
 
 func (s *SessionNode) StreamTo(session, name string) (err error, lp LinkPoint) {
 	var linkId int
-
-	//if s.offer == nil {
-	//	err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to initiator has no offer",
-	//		s.SessionId, s.Name, session, name)
-	//	return
-	//}
 	if linkId = s.delegate.RequestLinkUp(session, name); linkId < 0 {
 		err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to request link up failed",
 			s.SessionId, s.Name, session, name)
@@ -205,7 +199,6 @@ func ToMessage[M Message](evt *event.Event) (msg M, ok bool) {
 // MakeSessionNode factory method of all session aware nodes
 func MakeSessionNode(nodeType string, sessionId string, props []*nmd.NodeProp) SessionAware {
 	if nodeType == "" || sessionId == "" {
-		logger.Errorln("make session node failed")
 		return nil
 	}
 	props = append(props,
@@ -214,11 +207,15 @@ func MakeSessionNode(nodeType string, sessionId string, props []*nmd.NodeProp) S
 			Type:  "str",
 			Value: sessionId,
 		})
-	node := getNodeByName(nodeType)
-	if node != nil {
-		props = setNodeProperties(node, props)
+	if trait, ok := NodeTraitOfName(nodeType); !ok {
+		return nil
+	} else {
+		node := trait.NewFunc()
+		if node != nil {
+			props = setNodeProperties(node, props)
+		}
+		return node
 	}
-	return node
 }
 
 // setNodeProperties use reflection to set fields by Name, it is cornerstone of config by scripting

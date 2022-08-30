@@ -56,6 +56,6 @@ func (l *LinkPointCommand) GetMeta() []byte {
 	return nil
 }
 
-func (l *LinkPointCommand) Type() int {
+func (l *LinkPointCommand) Type() MessageType {
 	return NewLinkPoint
 }
