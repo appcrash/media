@@ -16,14 +16,12 @@ type Composer struct {
 	nodeSortedList []SessionAware // topographical sorted nodes
 	nodeMap        map[string]SessionAware
 
+	linkPoints []LinkPoint
+
 	// channel handling, channels are registered by parsing nmd graph description, then linked dynamically
 	mutex        sync.Mutex
 	namedChannel map[string]*channelInfo
 }
-
-const (
-	maxNegotiationIteration = 5
-)
 
 type channelInfo struct {
 	isConnected bool
@@ -46,57 +44,42 @@ func (c *Composer) ParseGraphDescription(desc string) (err error) {
 	return
 }
 
-func (c *Composer) Connect(sender, receiver SessionAware) (llp, rlp LinkPoint, err error) {
+func (c *Composer) Connect(sender, receiver SessionAware) (lp LinkPoint, err error) {
+	receiverSession := receiver.GetNodeScope()
 	receiverName := receiver.GetNodeName()
-	outputTraits := sender.ProvideOffer()
-	commonTrait := receiver.AnswerOffer(outputTraits)
-	if len(commonTrait) == 0 {
-		err = fmt.Errorf("can not create link between %v => %v, no common trait",
-			sender.GetNodeName(), receiver.GetNodeName())
-		return
-	}
-	trait := commonTrait[0]
-	if err, llp = sender.StreamTo(receiverName); err != nil {
-		return
-	}
-	if err, rlp = receiver.StreamBy(sender.GetNodeName()); err != nil {
-		return
-	}
-	llp.SetPeer(rlp)
-	rlp.SetPeer(llp)
 
+	err, lp = sender.StreamTo(receiverSession, receiverName)
 	return
 }
 
 func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error) {
 	nodeDefs := c.gt.GetSortedNodeDefs()
-	// add all nodes to graph, create links between them, as nodes are already topographical sorted,
-	// for each node, its dependent nodes are in graph when adding it to graph
-	var llp, rlp LinkPoint
-	for i, sender := range c.nodeSortedList {
-		if !graph.AddNode(sender) {
-			err = fmt.Errorf("failed to add node %v to graph", sender.GetNodeName())
+	// add all nodes to graph
+	var lp LinkPoint
+	for _, node := range c.nodeSortedList {
+		if !graph.AddNode(node) {
+			err = fmt.Errorf("failed to add node %v to graph", node.GetNodeName())
 			return
 		}
-		deps := nodeDefs[i].Deps
-		for _, receiverDef := range deps {
-			// just create link point for each other
+
+	}
+	// all nodes are added but not connected, as connection is build only when sender and receiver agreed on the
+	// message type of their link. however, for some types of node (pubsub), what message type they output depends on
+	// their input message type, which means message types propagate from senders(at the end of sorted list) to
+	// receivers(at the start of sorted list), so iterate the sorted list reversely until all message types are
+	// determined as required to link creation
+	for i := len(c.nodeSortedList) - 1; i >= 0; i-- {
+		sender := c.nodeSortedList[i]
+		for _, receiverDef := range nodeDefs[i].Deps {
 			receiver := c.nodeMap[receiverDef.Name]
-			if llp, rlp, err = c.Connect(sender, receiver); err != nil {
+			if lp, err = c.Connect(sender, receiver); err != nil {
 				return
 			} else {
-				lps = append(lps, llp, rlp)
+				lps = append(lps, lp)
 			}
 		}
 	}
 	return
-}
-
-func (c *Composer) Negotiate(lps []LinkPoint) (unresolved []LinkPoint, err error) {
-	var iteration int
-	for iteration < maxNegotiationIteration {
-
-	}
 }
 
 // ComposeNodes create node instances by type, add them to graph, and link them
@@ -134,27 +117,26 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 		nodeIds = append(nodeIds, id)
 	}
 
-	var lps []LinkPoint
-	if lps, err = c.connectNodes(graph); err != nil {
+	if c.linkPoints, err = c.connectNodes(graph); err != nil {
 		return
 	}
 
 	// again, let all nodes reference this dispatch
-	for _, n := range c.nodeSortedList {
-		n.SetController(c)
-	}
+	//for _, n := range c.nodeSortedList {
+	//	n.SetController(c)
+	//}
 
 	// subscribe channels, for all nodes of type pubsub, find the registered channel with same Name
 	// as specified in pubsub's "channel" property
 	//for i, n := range nodeDefs {
-	//	if n.Type != TypePUBSUB {
+	//	if n.TypeId != TypePUBSUB {
 	//		continue
 	//	}
 	//	var chNameList string
 	//	var ok bool
 	//	for _, p := range n.Props {
 	//		if p.Key == "channel" {
-	//			if p.Type != "str" || p.Value == nil {
+	//			if p.TypeId != "str" || p.Value == nil {
 	//				err = fmt.Errorf("pubsub channel value is not string: %v", p.Value)
 	//				return
 	//			}
@@ -239,7 +221,7 @@ func (c *Composer) ExitGraph() {
 
 func (c *Composer) Call(fromNode, toNode string, args []string) (resp []string) {
 	if to, ok := c.nodeMap[toNode]; ok {
-		resp = to.OnCall(c.sessionId, fromNode, args)
+		resp = to.OnCall(fromNode, args)
 	} else {
 		resp = WithError("no such node")
 	}
@@ -248,6 +230,6 @@ func (c *Composer) Call(fromNode, toNode string, args []string) (resp []string) 
 
 func (c *Composer) Cast(fromNode, toNode string, args []string) {
 	if to, ok := c.nodeMap[toNode]; ok {
-		to.OnCast(c.sessionId, fromNode, args)
+		to.OnCast(fromNode, args)
 	}
 }

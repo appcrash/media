@@ -11,7 +11,7 @@ const (
 	//+---------------+
 	//|0|1|2|3|4|5|6|7|
 	//+-+-+-+-+-+-+-+-+
-	//|F|NRI| Type    |
+	//|F|NRI| TypeId    |
 	//+---------------+
 
 	NalTypeStapa uint8 = 24
@@ -259,7 +259,7 @@ func makeFuA(mtu int, nal []byte) (rtpPayload [][]byte) {
 	//+---------------+
 	//|0|1|2|3|4|5|6|7|
 	//+-+-+-+-+-+-+-+-+
-	//|S|E|R| Type    |
+	//|S|E|R| TypeId    |
 	//+---------------+
 	nri := nal[0] & BitmaskRefIdc
 	nalType := nal[0] & BitmaskNalType

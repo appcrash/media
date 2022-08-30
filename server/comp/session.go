@@ -30,10 +30,11 @@ type SessionNode struct {
 	delegate *event.NodeDelegate
 	ctrl     CommandInitiator
 
-	inLinkPoint, outLinkPoint []LinkPoint
-
 	eventTypeMatch []int
 	eventHandler   []EventHandler
+
+	Trait     NodeTrait
+	LinkPoint []LinkPoint
 }
 
 //------------------- Base Node Implementation -------------------------
@@ -49,7 +50,7 @@ func (s *SessionNode) GetNodeScope() string {
 func (s *SessionNode) OnEnter(delegate *event.NodeDelegate) {
 	logger.Debugf("node(%v) enters graph", s.GetNodeName())
 	s.delegate = delegate
-	s.AddHandler(NewLinkPoint, s.handleLinkPoint)
+	s.SetHandler(NewLinkPoint, s.handleLinkPoint)
 }
 
 func (s *SessionNode) OnExit() {
@@ -73,7 +74,20 @@ func (s *SessionNode) OnLinkDown(linkId int, scope string, nodeName string) {
 //--------------------------- Base SessionAware Implementation --------------------------------
 
 func (s *SessionNode) handleLinkPoint(evt *event.Event) {
-
+	//msg, ok := ToMessage[*LinkPointCommand](evt)
+	//if !ok {
+	//	return
+	//}
+	//for _, offer := range msg.OfferedTrait {
+	//	for _, answer := range s.accept {
+	//		if offer.Match(answer) {
+	//			msg.C <- answer
+	//			return
+	//		}
+	//	}
+	//}
+	//msg.C <- nil
+	return
 }
 
 func (s *SessionNode) ExitGraph() {
@@ -86,18 +100,32 @@ func (s *SessionNode) Init() error {
 	return nil
 }
 
-func (s *SessionNode) OnCall(fromSession, fromNode string, args []string) (resp []string) {
+func (s *SessionNode) OnCall(fromNode string, args []string) (resp []string) {
 	return WithOk()
 }
 
-func (s *SessionNode) OnCast(fromSession, fromNode string, args []string) {
+func (s *SessionNode) OnCast(fromNode string, args []string) {
 
 }
 
-func (s *SessionNode) StreamTo(session, name string, offer []*MessageTrait) (err error, lp LinkPoint) {
+func (s *SessionNode) Accept() []MessageType {
+	return nil
+}
+
+func (s *SessionNode) Offer() []MessageType {
+	return nil
+}
+
+func (s *SessionNode) StreamTo(session, name string) (err error, lp LinkPoint) {
 	var linkId int
+
+	//if s.offer == nil {
+	//	err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to initiator has no offer",
+	//		s.SessionId, s.Name, session, name)
+	//	return
+	//}
 	if linkId = s.delegate.RequestLinkUp(session, name); linkId < 0 {
-		err = fmt.Errorf("(%v:%v) can not set stream target to %v:%v due to request link up failed",
+		err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to request link up failed",
 			s.SessionId, s.Name, session, name)
 		return
 	}
@@ -109,20 +137,20 @@ func (s *SessionNode) StreamTo(session, name string, offer []*MessageTrait) (err
 	}
 	linkIdentity := MakeLinkIdentity(session, name, linkId)
 	newLinkCmd := &LinkPointCommand{
-		OfferedTrait: offer,
+		//OfferedTrait: s.offer,
 		LinkIdentity: linkIdentity,
 		C:            make(chan *MessageTrait, 1),
 	}
-	evt := event.NewEvent(NewLinkPoint, newLinkCmd)
+	evt := newLinkCmd.AsEvent()
 	if ok := s.delegate.Deliver(linkId, evt); !ok {
-		err = fmt.Errorf("(%v:%v) can not set stream target to %v:%v due to deliver event failed",
+		err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to deliver link point command failed",
 			s.SessionId, s.Name, session, name)
 		return
 	}
 	select {
 	case agreedTrait := <-newLinkCmd.C:
 		if agreedTrait == nil {
-			err = fmt.Errorf("(%v:%v) can not set stream target to %v:%v due to offered traits not agreed",
+			err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to offered traits not agreed",
 				s.SessionId, s.Name, session, name)
 		}
 		lp = &LinkPad{
@@ -132,51 +160,46 @@ func (s *SessionNode) StreamTo(session, name string, offer []*MessageTrait) (err
 			messageTrait: agreedTrait,
 			sendFunc:     sendFunc,
 		}
-		s.outLinkPoint = append(s.outLinkPoint, lp)
-		logger.Infof("new stream connection (%v|%v) {%x} --->[%v]---> (%v|%v)",
-			s.GetNodeScope(), s.GetNodeName(), linkIdentity, agreedTrait.Name, session, name)
+		s.LinkPoint = append(s.LinkPoint, lp)
+		logger.Infof("new stream connection (%v|%v){%x} --->[%v]---> (%v|%v)",
+			s.GetNodeScope(), s.GetNodeName(), linkIdentity, agreedTrait.Type.String(), session, name)
 	case <-time.After(10 * time.Second):
-		err = fmt.Errorf("(%v:%v) can not set stream target to %v:%v due to link point not retrieved",
+		err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to link point not retrieved",
 			s.SessionId, s.Name, session, name)
 	}
 	return
 }
 
-func (s *SessionNode) StreamBy(offer []*MessageTrait, linkIdentity uint64) *MessageTrait {
-
-}
-
-func (s *SessionNode) SetController(ctrl CommandInitiator) {
-	s.ctrl = ctrl
-}
-
 //--------------------------- Facility methods --------------------------------
 
-func (s *SessionNode) AddHandler(msgType int, handler EventHandler) {
+func (s *SessionNode) SetHandler(msgType int, handler EventHandler) {
+	for i := 0; i < len(s.eventTypeMatch); i++ {
+		if s.eventTypeMatch[i] == msgType {
+			s.eventHandler[i] = handler
+			return
+		}
+	}
+	// not found, prepend to head of array
 	s.eventTypeMatch = append([]int{msgType}, s.eventTypeMatch...)
 	s.eventHandler = append([]EventHandler{handler}, s.eventHandler...)
 }
 
-// Call forward to controller
-func (s *SessionNode) Call(session, name string, args []string) (resp []string) {
-	return s.ctrl.Call(session, name, args)
-}
-
-// Cast forward to controller
-func (s *SessionNode) Cast(session, name string, args []string) {
-	s.ctrl.Cast(session, name, args)
+// SendMessage use the first link point as in most use case
+func (s *SessionNode) SendMessage(msg Message) error {
+	if len(s.LinkPoint) == 0 {
+		return fmt.Errorf("(%v:%v) has no link point", s.GetNodeScope(), s.GetNodeName())
+	}
+	return s.LinkPoint[0].SendMessage(msg)
 }
 
 // ToMessage convert event object back to concrete message
-func ToMessage[K Message](evt *event.Event) K {
+func ToMessage[M Message](evt *event.Event) (msg M, ok bool) {
 	obj := evt.GetObj()
 	if obj == nil {
-		return nil
+		return
 	}
-	if msg, ok := obj.(K); ok {
-		return msg
-	}
-	return nil
+	msg, ok = obj.(M)
+	return
 }
 
 // MakeSessionNode factory method of all session aware nodes
@@ -194,7 +217,6 @@ func MakeSessionNode(nodeType string, sessionId string, props []*nmd.NodeProp) S
 	node := getNodeByName(nodeType)
 	if node != nil {
 		props = setNodeProperties(node, props)
-		//node.ConfigProperties(props)
 	}
 	return node
 }

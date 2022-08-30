@@ -1,6 +1,9 @@
 package comp
 
-import "hash/fnv"
+import (
+	"github.com/appcrash/media/server/event"
+	"hash/fnv"
+)
 
 // LinkPad is the default LinkPoint impl
 type LinkPad struct {
@@ -43,4 +46,16 @@ type LinkPointCommand struct {
 	OfferedTrait []*MessageTrait
 	LinkIdentity uint64
 	C            chan *MessageTrait
+}
+
+func (l *LinkPointCommand) AsEvent() *event.Event {
+	return event.NewEvent(NewLinkPoint, l)
+}
+
+func (l *LinkPointCommand) GetMeta() []byte {
+	return nil
+}
+
+func (l *LinkPointCommand) Type() int {
+	return NewLinkPoint
 }

@@ -1,8 +1,6 @@
 package comp
 
 import (
-	"errors"
-	"fmt"
 	"github.com/appcrash/media/server/event"
 	"github.com/sirupsen/logrus"
 )
@@ -14,9 +12,9 @@ func InitLogger(gl *logrus.Logger) {
 }
 
 const (
-	TypeENTRY    = "entry"
-	TypePUBSUB   = "pubsub"
-	TypeDISPATCH = "dispatch"
+	TypeENTRY       = "entry"
+	TypePUBSUB      = "pubsub"
+	TypeChannelSink = "chan_sink"
 )
 
 // LinkPoint is an affiliated output gateway of a node. it is used to communicate with other node as long as a link
@@ -32,7 +30,7 @@ type LinkPoint interface {
 // Command is used to send instant info to nodes. it differs from message in:
 // --------------------------------------------------------------------------------------------
 // |   /      |                 Command              |               Message                  |
-// | tx-path  | signalling channel                   | data channel (implements Streamable)   |
+// | tx-path  | signalling channel(out of band)      | data channel,in-band (Streamable)      |
 // |addressing| no link is created, invoke directly  | create link before data is transmitted |
 // |direction | uni(Cast) or bi (Call)               | uni-only, from one node to the other   |
 // |  peer    | anyone implements CommandInitiator   | only nodes that has been added to graph|
@@ -50,14 +48,15 @@ type CommandInitiator interface {
 
 // CommandReceiver receives commands from the other components in sync or async manners
 type CommandReceiver interface {
-	OnCall(fromSession, fromNode string, args []string) (resp []string)
-	OnCast(fromSession, fromNode string, args []string)
+	OnCall(fromNode string, args []string) (resp []string)
+	OnCast(fromNode string, args []string)
 }
 
 // Streamable can create or accept link to/from the other Streamable
 type Streamable interface {
+	Accept() []MessageType
+	Offer() []MessageType
 	StreamTo(session, name string) (error, LinkPoint)
-	StreamBy(offer []*MessageTrait, linkIdentity uint64) *MessageTrait
 }
 
 // SessionAware enables node to:
@@ -72,8 +71,6 @@ type SessionAware interface {
 
 	// Init do initialization after node is allocated and configured
 	Init() error
-
-	SetController(ctrl CommandInitiator)
 
 	// ExitGraph is used when initialization failed or session terminated
 	ExitGraph()
@@ -96,37 +93,10 @@ type MessageProvider interface {
 	Priority() uint32 // multiple message providers can be ordered by priority
 }
 
-// Registry service for new node type with predefined factories
+// predefined message types
 
-type SessionNodeFactory func() SessionAware
-
-var sessionNodeRegistry = map[string]SessionNodeFactory{
-	TypeENTRY:    newEntryNode,
-	TypePUBSUB:   newPubSubNode,
-	TypeDISPATCH: newDispatch,
-}
-
-func getNodeByName(typeName string) SessionAware {
-	if f, ok := sessionNodeRegistry[typeName]; ok {
-		return f()
-	}
-	logger.Errorf("unknown node type:%v\n", typeName)
-	return nil
-}
-
-func RegisterNodeFactory(typeName string, f SessionNodeFactory) error {
-	if typeName == "" || f == nil {
-		return errors.New("wrong typename or nil factory")
-	}
-	if _, ok := sessionNodeRegistry[typeName]; ok {
-		return errors.New(fmt.Sprintf("node of type:%v already registered", typeName))
-	}
-	sessionNodeRegistry[typeName] = f
-	return nil
-}
-
-// public commands
 const (
-	NewLinkPoint = iota + 10000
-	Generic
+	ANY = iota + 10000
+	NewLinkPoint
+	RawByte
 )
