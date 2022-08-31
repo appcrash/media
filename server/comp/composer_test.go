@@ -22,7 +22,7 @@ package comp_test
 //
 //func (p *printNode) OnEvent(e *event.Event) {
 //	switch e.GetCmd() {
-//	case comp.RawByte, comp.Generic:
+//	case comp.MtRawByte, comp.Generic:
 //		msg := e.GetObj()
 //		fmt.Printf("%v print %v\n", p.Name, msg)
 //	case comp.CtrlCall:

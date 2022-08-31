@@ -7,85 +7,22 @@ import (
 	"reflect"
 )
 
-// trait is the means of class meta-info bookkeeping that props up runtime polymorphism
-
-func MetaType[T any]() reflect.Type {
-	return reflect.TypeOf((*T)(nil)).Elem()
+type Channelable[T any] interface {
+	ChannelLink(c chan T)
 }
 
 var (
-	cloneableMetaType    = MetaType[Cloneable]()
-	messageMetaType      = MetaType[Message]()
 	sessionAwareMetaType = MetaType[SessionAware]()
+	channelableMetaType  = MetaType[Channelable[[]byte]]() // this can be more generic if golang improves
 )
 
-// MessageTrait is used to record all possible message kinds that flow among nodes of known types, ensure node links
-// are compatible, that is Node A output is accepted by Node B input if there would be a link.
-type MessageTrait struct {
-	TypeId        MessageType
-	PtrType, Type reflect.Type
-}
-
-func (m *MessageTrait) Clone() (cloned *MessageTrait) {
-	cloned = new(MessageTrait)
-	cloned.TypeId = m.TypeId
-	cloned.PtrType = m.PtrType
-	cloned.Type = m.Type
-	return
-}
-
-func (m *MessageTrait) Match(peer *MessageTrait) bool {
-	return m.TypeId == peer.TypeId ||
-		m.TypeId == ANY ||
-		peer.TypeId == ANY
-}
-
-func (m *MessageTrait) IsCloneable() bool {
-	return m.PtrType.Implements(cloneableMetaType)
-}
-
-var messageTraitRegistry = make(map[MessageType]*MessageTrait)
-
-func MT[T any]() *MessageTrait {
-	ptrType := reflect.TypeOf(new(T))
-	structType := ptrType.Elem()
-	if !ptrType.Implements(messageMetaType) {
-		panic(fmt.Errorf("type %v doesn't implements message interface", ptrType.String()))
-	}
-	msg := reflect.New(structType).Interface().(Message)
-	return &MessageTrait{
-		TypeId:  msg.Type(),
-		PtrType: ptrType,
-		Type:    structType,
-	}
-}
-
-func RegisterMessageTrait(traits ...*MessageTrait) {
-	for _, trait := range traits {
-		typ := trait.Type
-		typeId := trait.TypeId
-		if anotherTrait, exist := messageTraitRegistry[typeId]; exist {
-			panic(fmt.Sprintf("message(%v) of type %v already registered by %v", typ.String(), typeId, anotherTrait.Type.String()))
-		}
-		logger.Infof("register message anotherTrait (id:%v) => (type:%v)", typeId, typ.String())
-		messageTraitRegistry[typeId] = trait
-	}
-}
-
-func MessageTraitOfObject(model Message) (mt MessageTrait, exist bool) {
-	return MessageTraitOfType(model.Type())
-}
-
-func MessageTraitOfType(typeId MessageType) (mt MessageTrait, exist bool) {
-	var pmt *MessageTrait
-	if pmt, exist = messageTraitRegistry[typeId]; exist {
-		mt = *pmt
-	}
-	return
-}
+const (
+	nodeTraitChannelable = 1
+)
 
 // NodeTrait record factory method, negotiation infos
 type NodeTrait struct {
+	utils.Flag[uint32]
 	Name          string
 	NewFunc       func() SessionAware // new function only alloc node, not initialize it
 	Accept        []*MessageTrait
@@ -95,6 +32,7 @@ type NodeTrait struct {
 
 func (nt *NodeTrait) Clone() (cloned *NodeTrait) {
 	cloned = new(NodeTrait)
+	cloned.Flag = nt.Flag
 	cloned.Name = nt.Name
 	cloned.NewFunc = nt.NewFunc
 	cloned.PtrType = nt.PtrType
@@ -106,6 +44,10 @@ func (nt *NodeTrait) Clone() (cloned *NodeTrait) {
 		cloned.Offer = append(cloned.Offer, mt.Clone())
 	}
 	return
+}
+
+func (nt *NodeTrait) IsChannelable() bool {
+	return nt.HasFlag(nodeTraitChannelable)
 }
 
 var nodeTraitRegistry = make(map[string]*NodeTrait)
@@ -139,14 +81,14 @@ func NT[T any]() *NodeTrait {
 		if tr, ok := MessageTraitOfType(messageType); !ok {
 			panic(fmt.Errorf("node type(%v) accept unknown message type %v", name, messageType))
 		} else {
-			accept = append(accept, &tr)
+			accept = append(accept, tr)
 		}
 	}
 	for _, messageType := range nodeObj.Offer() {
 		if tr, ok := MessageTraitOfType(messageType); !ok {
 			panic(fmt.Errorf("node type(%v) offer unknown message type %v", name, messageType))
 		} else {
-			offer = append(offer, &tr)
+			offer = append(offer, tr)
 		}
 	}
 	trait.Name = name
@@ -155,6 +97,11 @@ func NT[T any]() *NodeTrait {
 	trait.Offer = offer
 	trait.PtrType = ptrType
 	trait.Type = structType
+
+	// inspect interface trait
+	if ptrType.Implements(channelableMetaType) {
+		trait.SetFlag(nodeTraitChannelable)
+	}
 	return trait
 }
 

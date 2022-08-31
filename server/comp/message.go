@@ -13,13 +13,17 @@ type Message interface {
 	Type() MessageType
 }
 
-type Cloneable interface {
-	Clone() Cloneable
-}
-
 type BaseMessage struct {
 	TypeId MessageType
 	Meta   []byte
+}
+
+// InBandCommandCall is itself a message but act as Call semantic of CommandInitiator
+// it is used in some case that synchronization between command and stream data is required
+// the message handler is responsible for putting response back through C or the caller may block forever
+type InBandCommandCall[T any] struct {
+	BaseMessage
+	C chan T
 }
 
 func (m *BaseMessage) AsEvent() *event.Event {
@@ -34,21 +38,13 @@ func (m *BaseMessage) Type() MessageType {
 	return m.TypeId
 }
 
-type MatchAnyMessage struct {
-	BaseMessage
-}
-
-func (m *MatchAnyMessage) Type() MessageType {
-	return ANY
-}
-
 type RawByteMessage struct {
 	BaseMessage
 	Data []byte
 }
 
 func (m *RawByteMessage) Type() MessageType {
-	return RawByte
+	return MtRawByte
 }
 
 func (m *RawByteMessage) Clone() Cloneable {
@@ -57,9 +53,10 @@ func (m *RawByteMessage) Clone() Cloneable {
 			TypeId: m.TypeId,
 			Meta:   m.Meta,
 		},
-		Data: make([]byte, len(m.Data)),
+		//Data: make([]byte, len(m.Data)),
+		Data: append([]byte(nil), m.Data...),
 	}
-	copy(clone.Data, m.Data)
+	//copy(clone.Data, m.Data)
 	return clone
 }
 

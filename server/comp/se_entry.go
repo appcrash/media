@@ -19,7 +19,7 @@ type EntryNode struct {
 
 func newEntryNode() SessionAware {
 	node := &EntryNode{}
-	node.Name = TypeENTRY
+	//node.Name = TypeENTRY
 
 	return node
 }

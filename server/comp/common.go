@@ -3,6 +3,7 @@ package comp
 import (
 	"github.com/appcrash/media/server/event"
 	"github.com/sirupsen/logrus"
+	"reflect"
 )
 
 var logger *logrus.Entry
@@ -11,11 +12,21 @@ func InitLogger(gl *logrus.Logger) {
 	logger = gl.WithFields(logrus.Fields{"module": "comp"})
 }
 
-const (
-	TypeENTRY       = "entry"
-	TypePUBSUB      = "pubsub"
-	TypeChannelSink = "chan_sink"
-)
+func InitBuiltinMessage() {
+	// register predefined messages
+	RegisterMessageTrait(
+		MT[RawByteMessage](),
+	)
+}
+
+func InitBuiltinNode() {
+	// register predefined nodes
+	RegisterNodeTrait(NT[ChanSink]())
+}
+
+func MetaType[T any]() reflect.Type {
+	return reflect.TypeOf((*T)(nil)).Elem()
+}
 
 // LinkPoint is an affiliated output gateway of a node. it is used to communicate with other node as long as a link
 // keeps persistent, and gets destroyed once link down. A node can have many LinkPoint as needed
@@ -23,6 +34,8 @@ type LinkPoint interface {
 	LinkId() int
 	Identity() uint64
 	Owner() SessionAware
+	Peer() SessionAware
+	SetPeer(s SessionAware)
 	SendMessage(msg Message) error
 	MessageTrait() *MessageTrait
 }
@@ -35,6 +48,7 @@ type LinkPoint interface {
 // |direction | uni(Cast) or bi (Call)               | uni-only, from one node to the other   |
 // |  peer    | anyone implements CommandInitiator   | only nodes that has been added to graph|
 // |  scope   | only send to local scope(in session) | can cross scope, i.e. a-leg to b-leg   |
+// --------------------------------------------------------------------------------------------
 
 // CommandInitiator can be used by session commands and nodes in the event graph to invoke actions of other nodes.
 // it provides a unified way to send control message to nodes without any knowledge of links
@@ -56,7 +70,7 @@ type CommandReceiver interface {
 type Streamable interface {
 	Accept() []MessageType
 	Offer() []MessageType
-	StreamTo(session, name string) (error, LinkPoint)
+	StreamTo(session, name string) (LinkPoint, error)
 }
 
 // SessionAware enables node to:
@@ -92,11 +106,3 @@ type MessageProvider interface {
 	CanHandlePayloadType(pt uint8) bool
 	Priority() uint32 // multiple message providers can be ordered by priority
 }
-
-// predefined message types
-
-const (
-	ANY = iota + 10000
-	NewLinkPoint
-	RawByte
-)

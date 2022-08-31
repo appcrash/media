@@ -18,7 +18,7 @@ func (id *Id) String() string {
 	return id.SessionId + "_" + id.Name
 }
 
-type EventHandler func(evt *event.Event)
+type MessageHandler func(evt *event.Event)
 
 func NewId(sessionId, name string) *Id {
 	return &Id{SessionId: sessionId, Name: name}
@@ -30,8 +30,8 @@ type SessionNode struct {
 	delegate *event.NodeDelegate
 	ctrl     CommandInitiator
 
-	eventTypeMatch []int
-	eventHandler   []EventHandler
+	messageTypeMatch []MessageType
+	messageHandler   []MessageHandler
 
 	Trait     *NodeTrait
 	LinkPoint []LinkPoint
@@ -50,7 +50,8 @@ func (s *SessionNode) GetNodeScope() string {
 func (s *SessionNode) OnEnter(delegate *event.NodeDelegate) {
 	logger.Debugf("node(%v) enters graph", s.GetNodeName())
 	s.delegate = delegate
-	s.SetHandler(NewLinkPoint, s.handleLinkPoint)
+	s.SetHandler(MtNewLinkPoint, s.handleLinkPoint)
+	s.SetHandler(MtConnectNode, s.handleConnectNode)
 }
 
 func (s *SessionNode) OnExit() {
@@ -58,10 +59,10 @@ func (s *SessionNode) OnExit() {
 }
 
 func (s *SessionNode) OnEvent(evt *event.Event) {
-	cmd := evt.GetCmd()
-	for i, typ := range s.eventTypeMatch {
-		if cmd == typ {
-			s.eventHandler[i](evt)
+	msgType := MessageType(evt.GetCmd())
+	for i, typ := range s.messageTypeMatch {
+		if msgType == typ {
+			s.messageHandler[i](evt)
 			return
 		}
 	}
@@ -74,7 +75,7 @@ func (s *SessionNode) OnLinkDown(linkId int, scope string, nodeName string) {
 //--------------------------- Base SessionAware Implementation --------------------------------
 
 func (s *SessionNode) handleLinkPoint(evt *event.Event) {
-	msg, ok := ToMessage[*LinkPointCommand](evt)
+	msg, ok := ToMessage[*LinkPointMessage](evt)
 	if !ok {
 		return
 	}
@@ -88,6 +89,28 @@ func (s *SessionNode) handleLinkPoint(evt *event.Event) {
 	}
 	msg.C <- nil
 	return
+}
+
+// DESIGN DRAWBACK: connect to the other node may cause jitter when stream flow is under heavy load,
+// because this is a sync operation
+// ALTERNATIVE: put the StreamTo to other goroutine?
+func (s *SessionNode) handleConnectNode(evt *event.Event) {
+	var connected bool
+	msg, ok := ToMessage[*ConnectNodeMessage](evt)
+	if !ok {
+		return
+	}
+	defer func() { msg.C <- connected }()
+	if len(msg.Session) == 0 || len(msg.NodeName) == 0 {
+		logger.Errorf("node(%v) got invalid connect node request %v", s, msg)
+		return
+	}
+	if lp, err := s.StreamTo(msg.Session, msg.NodeName); err != nil {
+		return
+	} else {
+		connected = true
+		s.LinkPoint = append(s.LinkPoint, lp)
+	}
 }
 
 func (s *SessionNode) ExitGraph() {
@@ -116,7 +139,11 @@ func (s *SessionNode) Offer() []MessageType {
 	return nil
 }
 
-func (s *SessionNode) StreamTo(session, name string) (err error, lp LinkPoint) {
+// StreamTo sync connect to the other node if negotiation is successful, as it will change the node's state, only call
+// it at:
+// 1. node initialized but not in work state(i.e. no stream is flowing), such as in composer phase
+// 2. within the node's event goroutine after node has started working
+func (s *SessionNode) StreamTo(session, name string) (lp LinkPoint, err error) {
 	var linkId int
 	if linkId = s.delegate.RequestLinkUp(session, name); linkId < 0 {
 		err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to request link up failed",
@@ -130,11 +157,18 @@ func (s *SessionNode) StreamTo(session, name string) (err error, lp LinkPoint) {
 		return nil
 	}
 	linkIdentity := MakeLinkIdentity(session, name, linkId)
-	newLinkCmd := &LinkPointCommand{
-		//OfferedTrait: s.offer,
-		LinkIdentity: linkIdentity,
-		C:            make(chan *MessageTrait, 1),
+	offer := s.Trait.Offer
+	if len(offer) == 0 {
+		err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to sender has no offer",
+			s.SessionId, s.Name, session, name)
+		return
 	}
+	newLinkCmd := &LinkPointMessage{
+		OfferedTrait: offer,
+		LinkIdentity: linkIdentity,
+	}
+	newLinkCmd.C = make(chan *MessageTrait, 1)
+
 	evt := newLinkCmd.AsEvent()
 	if ok := s.delegate.Deliver(linkId, evt); !ok {
 		err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to deliver link point command failed",
@@ -166,16 +200,16 @@ func (s *SessionNode) StreamTo(session, name string) (err error, lp LinkPoint) {
 
 //--------------------------- Facility methods --------------------------------
 
-func (s *SessionNode) SetHandler(msgType int, handler EventHandler) {
-	for i := 0; i < len(s.eventTypeMatch); i++ {
-		if s.eventTypeMatch[i] == msgType {
-			s.eventHandler[i] = handler
+func (s *SessionNode) SetHandler(msgType MessageType, handler MessageHandler) {
+	for i := 0; i < len(s.messageTypeMatch); i++ {
+		if s.messageTypeMatch[i] == msgType {
+			s.messageHandler[i] = handler
 			return
 		}
 	}
 	// not found, prepend to head of array
-	s.eventTypeMatch = append([]int{msgType}, s.eventTypeMatch...)
-	s.eventHandler = append([]EventHandler{handler}, s.eventHandler...)
+	s.messageTypeMatch = append([]MessageType{msgType}, s.messageTypeMatch...)
+	s.messageHandler = append([]MessageHandler{handler}, s.messageHandler...)
 }
 
 // SendMessage use the first link point as in most use case
@@ -184,6 +218,11 @@ func (s *SessionNode) SendMessage(msg Message) error {
 		return fmt.Errorf("(%v:%v) has no link point", s.GetNodeScope(), s.GetNodeName())
 	}
 	return s.LinkPoint[0].SendMessage(msg)
+}
+
+// DeliverToStream put message to stream, don't call it in stream event goroutine or deadlock!
+func (s *SessionNode) DeliverToStream(msg Message) {
+	s.delegate.DeliverSelf(msg.AsEvent())
 }
 
 // ToMessage convert event object back to concrete message

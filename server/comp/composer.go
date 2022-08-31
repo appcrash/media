@@ -1,7 +1,6 @@
 package comp
 
 import (
-	"errors"
 	"fmt"
 	"github.com/appcrash/media/server/comp/nmd"
 	"github.com/appcrash/media/server/event"
@@ -25,7 +24,7 @@ type Composer struct {
 
 type channelInfo struct {
 	isConnected bool
-	peerNode    *PubSubNode
+	peerNode    *Pubsub
 	ch          chan<- *event.Event
 }
 
@@ -48,7 +47,7 @@ func (c *Composer) Connect(sender, receiver SessionAware) (lp LinkPoint, err err
 	receiverSession := receiver.GetNodeScope()
 	receiverName := receiver.GetNodeName()
 
-	err, lp = sender.StreamTo(receiverSession, receiverName)
+	lp, err = sender.StreamTo(receiverSession, receiverName)
 	return
 }
 
@@ -61,7 +60,6 @@ func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error)
 			err = fmt.Errorf("failed to add node %v to graph", node.GetNodeName())
 			return
 		}
-
 	}
 	// all nodes are added but not connected, as connection is build only when sender and receiver agreed on the
 	// message type of their link. however, for some types of node (pubsub), what message type they output depends on
@@ -75,6 +73,7 @@ func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error)
 			if lp, err = c.Connect(sender, receiver); err != nil {
 				return
 			} else {
+				lp.SetPeer(receiver)
 				lps = append(lps, lp)
 			}
 		}
@@ -153,7 +152,7 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 	//		continue
 	//	}
 	//
-	//	psNode := c.nodeSortedList[i].(*PubSubNode)
+	//	psNode := c.nodeSortedList[i].(*Pubsub)
 	//	// pubsub property, for example: channel=a,b,c ...
 	//	logger.Debugln("chNameList ", chNameList)
 	//	for _, chName := range strings.Split(chNameList, ",") {
@@ -176,41 +175,6 @@ func (c *Composer) GetSortedNodes() (ni []*nmd.NodeDef) {
 
 func (c *Composer) GetController() CommandInitiator {
 	return c
-}
-
-func (c *Composer) LinkChannel(name string, ch chan<- *event.Event) error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	// check if the channel is connected, if found and not connected, a pubsub node is waiting for it
-	if ci, exist := c.namedChannel[name]; exist {
-		if ci.isConnected {
-			return errors.New("channel is already connected")
-		}
-		if err := ci.peerNode.SubscribeChannel(name, ch); err != nil {
-			return err
-		}
-		ci.ch = ch
-		ci.isConnected = true
-		return nil
-	}
-	return fmt.Errorf("no such channel: %v", name)
-}
-
-func (c *Composer) UnlinkChannel(name string) error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	if ci, exist := c.namedChannel[name]; exist {
-		if !ci.isConnected {
-			return errors.New("channel is not connected")
-		}
-		if err := ci.peerNode.UnsubscribeChannel(name); err != nil {
-			return err
-		}
-		ci.ch = nil
-		ci.isConnected = false
-		return nil
-	}
-	return fmt.Errorf("no such channel: %v", name)
 }
 
 func (c *Composer) ExitGraph() {
