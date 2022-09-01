@@ -1,10 +1,12 @@
 package comp
 
 import (
+	"errors"
 	"fmt"
 	"github.com/appcrash/media/server/comp/nmd"
 	"github.com/appcrash/media/server/event"
 	"reflect"
+	"sync"
 	"time"
 	"unsafe"
 )
@@ -29,12 +31,13 @@ type SessionNode struct {
 	Id
 	delegate *event.NodeDelegate
 	ctrl     CommandInitiator
+	mutex    sync.Mutex
 
 	messageTypeMatch []MessageType
 	messageHandler   []MessageHandler
 
 	Trait     *NodeTrait
-	LinkPoint []LinkPoint
+	linkPoint []LinkPoint // grow only array
 }
 
 //------------------- Base Node Implementation -------------------------
@@ -109,7 +112,7 @@ func (s *SessionNode) handleConnectNode(evt *event.Event) {
 		return
 	} else {
 		connected = true
-		s.LinkPoint = append(s.LinkPoint, lp)
+		s.linkPoint = append(s.linkPoint, lp)
 	}
 }
 
@@ -139,12 +142,51 @@ func (s *SessionNode) Offer() []MessageType {
 	return nil
 }
 
+func (s *SessionNode) AddLinkPoint(lp LinkPoint) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.linkPoint = append(s.linkPoint, lp)
+}
+
+func (s *SessionNode) GetLinkPoint(index int) (lp LinkPoint) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	if index > len(s.linkPoint)-1 {
+		return
+	}
+	return s.linkPoint[index]
+}
+
+func (s *SessionNode) GetLinkPointOfType(messageType MessageType) (lp LinkPoint) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	for _, l := range s.linkPoint {
+		if l.MessageTrait().TypeId == messageType {
+			return l
+		}
+	}
+	return
+}
+
 // StreamTo sync connect to the other node if negotiation is successful, as it will change the node's state, only call
 // it at:
 // 1. node initialized but not in work state(i.e. no stream is flowing), such as in composer phase
 // 2. within the node's event goroutine after node has started working
 func (s *SessionNode) StreamTo(session, name string) (lp LinkPoint, err error) {
 	var linkId int
+
+	defer func() {
+		if err != nil && linkId >= 0 {
+			s.delegate.RequestLinkDown(linkId)
+		}
+	}()
+	offer := s.Trait.Offer
+	if len(offer) == 0 {
+		err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to sender has no offer",
+			s.SessionId, s.Name, session, name)
+		return
+	}
+
 	if linkId = s.delegate.RequestLinkUp(session, name); linkId < 0 {
 		err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to request link up failed",
 			s.SessionId, s.Name, session, name)
@@ -152,23 +194,16 @@ func (s *SessionNode) StreamTo(session, name string) (lp LinkPoint, err error) {
 	}
 	sendFunc := func(msg Message) error {
 		if !s.delegate.Deliver(linkId, msg.AsEvent()) {
-			return fmt.Errorf("failed to deliver event")
+			return errors.New("failed to deliver event")
 		}
 		return nil
 	}
 	linkIdentity := MakeLinkIdentity(session, name, linkId)
-	offer := s.Trait.Offer
-	if len(offer) == 0 {
-		err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to sender has no offer",
-			s.SessionId, s.Name, session, name)
-		return
-	}
 	newLinkCmd := &LinkPointMessage{
 		OfferedTrait: offer,
 		LinkIdentity: linkIdentity,
 	}
 	newLinkCmd.C = make(chan *MessageTrait, 1)
-
 	evt := newLinkCmd.AsEvent()
 	if ok := s.delegate.Deliver(linkId, evt); !ok {
 		err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to deliver link point command failed",
@@ -180,18 +215,13 @@ func (s *SessionNode) StreamTo(session, name string) (lp LinkPoint, err error) {
 		if agreedTrait == nil {
 			err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to offered traits not agreed",
 				s.SessionId, s.Name, session, name)
+			return
 		}
-		lp = &LinkPad{
-			owner:        s,
-			linkId:       linkId,
-			identity:     linkIdentity,
-			messageTrait: agreedTrait,
-			sendFunc:     sendFunc,
-		}
-		s.LinkPoint = append(s.LinkPoint, lp)
+		lp = NewLinkPad(s, linkId, linkIdentity, agreedTrait, sendFunc)
+		s.AddLinkPoint(lp)
 		logger.Infof("new stream connection (%v|%v){%x} --->[%v]---> (%v|%v)",
 			s.GetNodeScope(), s.GetNodeName(), linkIdentity, agreedTrait.Type.String(), session, name)
-	case <-time.After(10 * time.Second):
+	case <-time.After(2 * time.Second):
 		err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to link point not retrieved",
 			s.SessionId, s.Name, session, name)
 	}
@@ -210,14 +240,6 @@ func (s *SessionNode) SetHandler(msgType MessageType, handler MessageHandler) {
 	// not found, prepend to head of array
 	s.messageTypeMatch = append([]MessageType{msgType}, s.messageTypeMatch...)
 	s.messageHandler = append([]MessageHandler{handler}, s.messageHandler...)
-}
-
-// SendMessage use the first link point as in most use case
-func (s *SessionNode) SendMessage(msg Message) error {
-	if len(s.LinkPoint) == 0 {
-		return fmt.Errorf("(%v:%v) has no link point", s.GetNodeScope(), s.GetNodeName())
-	}
-	return s.LinkPoint[0].SendMessage(msg)
 }
 
 // DeliverToStream put message to stream, don't call it in stream event goroutine or deadlock!

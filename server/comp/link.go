@@ -2,16 +2,19 @@ package comp
 
 import (
 	"hash/fnv"
+	"sync/atomic"
 )
+
+type sendFuncType func(msg Message) error
 
 // LinkPad is the default LinkPoint impl
 type LinkPad struct {
 	owner        SessionAware
-	peer         SessionAware
 	linkId       int
 	identity     uint64
+	enabled      atomic.Value
 	messageTrait *MessageTrait
-	sendFunc     func(msg Message) error
+	sendFunc     sendFuncType
 }
 
 func (l *LinkPad) LinkId() int {
@@ -26,20 +29,34 @@ func (l *LinkPad) Owner() SessionAware {
 	return l.owner
 }
 
-func (l *LinkPad) Peer() SessionAware {
-	return l.peer
+func (l *LinkPad) SendMessage(msg Message) (err error) {
+	if !l.enabled.Load().(bool) {
+		return nil
+	}
+	if err = l.sendFunc(msg); err != nil {
+		logger.Debugf("disable linkpoint %v of %v as send message failed", l.identity, l.owner)
+		l.SetEnabled(false)
+	}
+	return
 }
 
-func (l *LinkPad) SetPeer(s SessionAware) {
-	l.peer = s
-}
-
-func (l *LinkPad) SendMessage(msg Message) error {
-	return l.sendFunc(msg)
+func (l *LinkPad) SetEnabled(e bool) {
+	l.enabled.Store(e)
 }
 
 func (l *LinkPad) MessageTrait() *MessageTrait {
 	return l.messageTrait
+}
+
+func NewLinkPad(owner SessionAware, linkId int, identity uint64, messageTrait *MessageTrait, sendFunc sendFuncType) *LinkPad {
+	pad := &LinkPad{
+		owner:        owner,
+		linkId:       linkId,
+		identity:     identity,
+		messageTrait: messageTrait,
+		sendFunc:     sendFunc,
+	}
+	return pad
 }
 
 func MakeLinkIdentity(session, name string, linkId int) uint64 {

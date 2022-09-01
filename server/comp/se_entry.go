@@ -45,9 +45,9 @@ func (e *EntryNode) Init() error {
 }
 
 func (e *EntryNode) PushMessage(msg Message) error {
-	if msg != nil {
-		return e.SendMessage(msg)
-	}
+	//if msg != nil {
+	//	return e.SendMessage(msg)
+	//}
 	return fmt.Errorf("push nil message")
 }
 

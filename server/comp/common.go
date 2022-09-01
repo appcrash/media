@@ -34,10 +34,9 @@ type LinkPoint interface {
 	LinkId() int
 	Identity() uint64
 	Owner() SessionAware
-	Peer() SessionAware
-	SetPeer(s SessionAware)
 	SendMessage(msg Message) error
 	MessageTrait() *MessageTrait
+	SetEnabled(e bool)
 }
 
 // Command is used to send instant info to nodes. it differs from message in:

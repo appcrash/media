@@ -65,7 +65,7 @@ func (p *Pubsub) handleInputStream(evt *event.Event) {
 	// no cast check, as in negotiation phase we have inspected message trait, if sender doesn't obey the rule,
 	// panic is waiting for you ...
 	cloneableMessage := msg.(Cloneable)
-	for _, lp := range p.LinkPoint {
+	for _, lp := range p.linkPoint {
 		cloned := cloneableMessage.Clone()
 		lp.SendMessage(cloned.(Message))
 	}

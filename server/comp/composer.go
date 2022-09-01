@@ -73,7 +73,6 @@ func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error)
 			if lp, err = c.Connect(sender, receiver); err != nil {
 				return
 			} else {
-				lp.SetPeer(receiver)
 				lps = append(lps, lp)
 			}
 		}
