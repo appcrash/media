@@ -26,6 +26,12 @@ type InBandCommandCall[T any] struct {
 	C chan T
 }
 
+// TaggedMessage embed it when receiver needs to distinguish the sender's identity
+type TaggedMessage[T any] struct {
+	BaseMessage
+	Tag T
+}
+
 func (m *BaseMessage) AsEvent() *event.Event {
 	return event.NewEvent(int(m.Type()), m)
 }

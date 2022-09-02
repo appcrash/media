@@ -35,9 +35,9 @@ type SessionNode struct {
 
 	messageTypeMatch []MessageType
 	messageHandler   []MessageHandler
+	linkPoint        []LinkPoint // grow only array
 
-	Trait     *NodeTrait
-	linkPoint []LinkPoint // grow only array
+	Trait *NodeTrait
 }
 
 //------------------- Base Node Implementation -------------------------
@@ -48,6 +48,10 @@ func (s *SessionNode) GetNodeName() string {
 
 func (s *SessionNode) GetNodeScope() string {
 	return s.SessionId
+}
+
+func (s *SessionNode) GetNodeTypeName() string {
+	return s.Trait.Name
 }
 
 func (s *SessionNode) OnEnter(delegate *event.NodeDelegate) {
@@ -268,7 +272,7 @@ func MakeSessionNode(nodeType string, sessionId string, props []*nmd.NodeProp) S
 			Type:  "str",
 			Value: sessionId,
 		})
-	if trait, ok := NodeTraitOfName(nodeType); !ok {
+	if trait, ok := NodeTraitOfType(nodeType); !ok {
 		return nil
 	} else {
 		node := trait.NewFunc()

@@ -7,17 +7,33 @@ import (
 	"reflect"
 )
 
+//go:generate go run ../../cmd/gentrait
+
 type Channelable[T any] interface {
 	ChannelLink(c chan T)
+}
+
+type PreComposer interface {
+	// BeforeCompose is called after nodes initialized but not added to graph yet
+	BeforeCompose(c *Composer) error
+}
+
+type PostComposer interface {
+	// AfterCompose is called after nodes are negotiated and connected
+	AfterCompose(c *Composer) error
 }
 
 var (
 	sessionAwareMetaType = MetaType[SessionAware]()
 	channelableMetaType  = MetaType[Channelable[[]byte]]() // this can be more generic if golang improves
+	preComposerMetaType  = MetaType[PreComposer]()
+	postComposerMetaType = MetaType[PostComposer]()
 )
 
 const (
-	nodeTraitChannelable = 1
+	nodeTraitChannelable  = 1 << 0
+	nodeTraitPreComposer  = 1 << 1
+	nodeTraitPostComposer = 1 << 2
 )
 
 // NodeTrait record factory method, negotiation infos
@@ -50,6 +66,14 @@ func (nt *NodeTrait) IsChannelable() bool {
 	return nt.HasFlag(nodeTraitChannelable)
 }
 
+func (nt *NodeTrait) IsPreComposer() bool {
+	return nt.HasFlag(nodeTraitPreComposer)
+}
+
+func (nt *NodeTrait) IsPostComposer() bool {
+	return nt.HasFlag(nodeTraitPostComposer)
+}
+
 var nodeTraitRegistry = make(map[string]*NodeTrait)
 
 // NT is a template method to make node trait
@@ -71,7 +95,6 @@ func NT[T any]() *NodeTrait {
 		// this is SessionNode specific hack, other session aware implementation must define these fields to
 		// proceed successfully
 		nodeValue := reflect.ValueOf(node).Elem()
-		nodeValue.FieldByName("Name").Set(reflect.ValueOf(name))
 		nodeValue.FieldByName("Trait").Set(reflect.ValueOf(trait.Clone()))
 		return node.(SessionAware)
 	}
@@ -102,10 +125,16 @@ func NT[T any]() *NodeTrait {
 	if ptrType.Implements(channelableMetaType) {
 		trait.SetFlag(nodeTraitChannelable)
 	}
+	if ptrType.Implements(preComposerMetaType) {
+		trait.SetFlag(nodeTraitPreComposer)
+	}
+	if ptrType.Implements(postComposerMetaType) {
+		trait.SetFlag(nodeTraitPostComposer)
+	}
 	return trait
 }
 
-// RegisterNodeTrait enable node can be configed by name required by nmd graph
+// RegisterNodeTrait enable node being configed by name required by nmd graph
 // the name is simply got by converting node struct name to snake case, i.e. ChanSink -> chan_sink
 func RegisterNodeTrait(traits ...*NodeTrait) error {
 	// sanity check at start-up time to avoid runtime checking
@@ -127,7 +156,7 @@ func RegisterNodeTrait(traits ...*NodeTrait) error {
 	return nil
 }
 
-func NodeTraitOfName(name string) (nt *NodeTrait, exist bool) {
+func NodeTraitOfType(name string) (nt *NodeTrait, exist bool) {
 	var pnt *NodeTrait
 	if pnt, exist = nodeTraitRegistry[name]; exist {
 		nt = pnt.Clone()

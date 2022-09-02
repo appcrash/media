@@ -3,16 +3,17 @@ package comp
 // predefined message types
 
 const (
-	MtNewLinkPoint = iota + 10000
+	MtNewLinkPoint = iota
 	MtConnectNode
 	MtChannelLink
 	MtRawByte
+	MtUserMessageStart
 )
 
 type LinkPointMessage struct {
 	InBandCommandCall[*MessageTrait]
 	OfferedTrait []*MessageTrait
-	LinkIdentity uint64
+	LinkIdentity LinkIdentityType
 }
 
 func (l *LinkPointMessage) Type() MessageType {

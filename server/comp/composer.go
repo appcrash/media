@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"github.com/appcrash/media/server/comp/nmd"
 	"github.com/appcrash/media/server/event"
-	"sync"
 )
 
 // Composer creates every node and config their properties based on the collected info, then
-// link them and send initial events as described before putting them into working state.
+// link and negotiate for them to put them into working state.
 type Composer struct {
 	sessionId      string
 	gt             *nmd.GraphTopology
@@ -16,22 +15,11 @@ type Composer struct {
 	nodeMap        map[string]SessionAware
 
 	linkPoints []LinkPoint
-
-	// channel handling, channels are registered by parsing nmd graph description, then linked dynamically
-	mutex        sync.Mutex
-	namedChannel map[string]*channelInfo
-}
-
-type channelInfo struct {
-	isConnected bool
-	peerNode    *Pubsub
-	ch          chan<- *event.Event
 }
 
 func NewSessionComposer(sessionId string) *Composer {
 	sc := &Composer{
-		sessionId:    sessionId,
-		namedChannel: make(map[string]*channelInfo),
+		sessionId: sessionId,
 	}
 	return sc
 }
@@ -51,6 +39,24 @@ func (c *Composer) Connect(sender, receiver SessionAware) (lp LinkPoint, err err
 	return
 }
 
+func (c *Composer) preConnectNodes() {
+	for _, node := range c.nodeSortedList {
+		trait, _ := NodeTraitOfType(node.GetNodeTypeName())
+		if trait.IsPreComposer() {
+			node.(PreComposer).BeforeCompose(c)
+		}
+	}
+}
+
+func (c *Composer) postConnectNodes() {
+	for _, node := range c.nodeSortedList {
+		trait, _ := NodeTraitOfType(node.GetNodeTypeName())
+		if trait.IsPostComposer() {
+			node.(PostComposer).AfterCompose(c)
+		}
+	}
+}
+
 func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error) {
 	nodeDefs := c.gt.GetSortedNodeDefs()
 	// add all nodes to graph
@@ -61,7 +67,7 @@ func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error)
 			return
 		}
 	}
-	// all nodes are added but not connected, as connection is build only when sender and receiver agreed on the
+	// all nodes are added but not connected, as connection is built only when sender and receiver agreed on the
 	// message type of their link. however, for some types of node (pubsub), what message type they output depends on
 	// their input message type, which means message types propagate from senders(at the end of sorted list) to
 	// receivers(at the start of sorted list), so iterate the sorted list reversely until all message types are
@@ -115,55 +121,11 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 		nodeIds = append(nodeIds, id)
 	}
 
+	c.preConnectNodes()
 	if c.linkPoints, err = c.connectNodes(graph); err != nil {
 		return
 	}
-
-	// again, let all nodes reference this dispatch
-	//for _, n := range c.nodeSortedList {
-	//	n.SetController(c)
-	//}
-
-	// subscribe channels, for all nodes of type pubsub, find the registered channel with same Name
-	// as specified in pubsub's "channel" property
-	//for i, n := range nodeDefs {
-	//	if n.TypeId != TypePUBSUB {
-	//		continue
-	//	}
-	//	var chNameList string
-	//	var ok bool
-	//	for _, p := range n.Props {
-	//		if p.Key == "channel" {
-	//			if p.TypeId != "str" || p.Value == nil {
-	//				err = fmt.Errorf("pubsub channel value is not string: %v", p.Value)
-	//				return
-	//			}
-	//			if chNameList, ok = p.Value.(string); ok {
-	//			} else {
-	//				err = fmt.Errorf("pubsub channel value can not converted to string: %v", p.Value)
-	//				return
-	//			}
-	//			break
-	//		}
-	//	}
-	//	if chNameList == "" {
-	//		logger.Debugf("pubsub channel props is nil")
-	//		continue
-	//	}
-	//
-	//	psNode := c.nodeSortedList[i].(*Pubsub)
-	//	// pubsub property, for example: channel=a,b,c ...
-	//	logger.Debugln("chNameList ", chNameList)
-	//	for _, chName := range strings.Split(chNameList, ",") {
-	//		if _, exist := c.namedChannel[chName]; exist {
-	//			// the channel is already registered
-	//			err = fmt.Errorf("channel:%v can only subscribe to one pubsub node", chName)
-	//			return
-	//		} else {
-	//			c.namedChannel[chName] = &channelInfo{peerNode: psNode}
-	//		}
-	//	}
-	//}
+	c.postConnectNodes()
 
 	return
 }

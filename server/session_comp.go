@@ -29,12 +29,20 @@ func profileOfCodec(c rpc.CodecType) (profile string) {
 	return
 }
 
-func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, error) {
+func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (s *MediaSession, err error) {
 	var localPort, remotePort uint16
 	var remoteIp *net.IPAddr
-	var err error
+
+	defer func() {
+		// if create session failed, avoid port leaking
+		if err != nil && localPort > 0 {
+			srv.reclaimRtpPort(localPort)
+		}
+	}()
+
 	if localPort = srv.getNextAvailableRtpPort(); localPort == 0 {
-		return nil, errors.New("server runs out of port resource")
+		err = errors.New("server runs out of port resource")
+		return
 	}
 	//instanceId := mediaParam.InstanceId
 	//if !channel.GetSystemChannel().HasInstance(instanceId) {
@@ -53,11 +61,11 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, e
 	gd := mediaParam.GetGraphDesc()
 	composer := comp.NewSessionComposer(sid)
 	if err = composer.ParseGraphDescription(gd); err != nil {
-		logger.Errorln(err)
+		logger.Errorf("parse graph error: %v", err)
 		return nil, errors.New("composer parse graph description failed")
 	}
 	now := time.Now()
-	s := MediaSession{
+	s = &MediaSession{
 		server:     srv,
 		sessionId:  sid,
 		localIp:    srv.rtpServerIpAddr,
@@ -78,14 +86,16 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, e
 	}
 	codecInfos := mediaParam.GetCodecs()
 	if len(codecInfos) == 0 {
-		return nil, errors.New("create s without any codec info")
+		err = errors.New("create session without any codec info")
+		return
 	}
 	for _, ci := range codecInfos {
 		switch ci.PayloadType {
 		case rpc.CodecType_PCM_ALAW, rpc.CodecType_AMRNB, rpc.CodecType_AMRWB, rpc.CodecType_H264:
 			if s.avPayloadNumber != 0 {
-				return nil, fmt.Errorf("create session with more than one audio type:"+
+				err = fmt.Errorf("create session with more than one audio/video type:"+
 					" previous number:%v, this number:%v", s.avPayloadNumber, ci.PayloadNumber)
+				return
 			}
 			s.avPayloadNumber = uint8(ci.PayloadNumber)
 			s.avPayloadCodec = ci.PayloadType
@@ -97,38 +107,16 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (*MediaSession, e
 		}
 	}
 	if s.avPayloadNumber == 0 {
-		return nil, errors.New("create session without any audio codec info")
+		err = errors.New("create session without any audio/video codec info")
+		return
 	}
 
-	return &s, nil
+	return
 }
 
 func (s *MediaSession) setupGraph() error {
-	// search any source or sink that is interested in composer
-	var ca []comp.ComposerAware
-	for _, src := range s.source {
-		if cs, ok := src.(comp.ComposerAware); ok {
-			ca = append(ca, cs)
-		}
-	}
-	for _, sink := range s.sink {
-		if cs, ok := sink.(comp.ComposerAware); ok {
-			ca = append(ca, cs)
-		}
-	}
-	// call pre- and post- setup
-	for _, cai := range ca {
-		if err := cai.PreSetup(s.composer); err != nil {
-			return err
-		}
-	}
 	if err := s.composer.ComposeNodes(s.server.graph); err != nil {
 		return err
-	}
-	for _, cai := range ca {
-		if err := cai.PostSetup(s.composer); err != nil {
-			return err
-		}
 	}
 	return nil
 }

@@ -28,11 +28,13 @@ func MetaType[T any]() reflect.Type {
 	return reflect.TypeOf((*T)(nil)).Elem()
 }
 
+type LinkIdentityType uint64 // it differs from linkId as it is unique among whole graph instead of node scope
+
 // LinkPoint is an affiliated output gateway of a node. it is used to communicate with other node as long as a link
 // keeps persistent, and gets destroyed once link down. A node can have many LinkPoint as needed
 type LinkPoint interface {
 	LinkId() int
-	Identity() uint64
+	Identity() LinkIdentityType
 	Owner() SessionAware
 	SendMessage(msg Message) error
 	MessageTrait() *MessageTrait
@@ -65,7 +67,7 @@ type CommandReceiver interface {
 	OnCast(fromNode string, args []string)
 }
 
-// Streamable can create or accept link to/from the other Streamable
+// Streamable can create/accept link to/from the other Streamable
 type Streamable interface {
 	Accept() []MessageType
 	Offer() []MessageType
@@ -82,20 +84,14 @@ type SessionAware interface {
 	CommandReceiver
 	Streamable
 
+	// GetNodeTypeName return the node trait name
+	GetNodeTypeName() string
+
 	// Init do initialization after node is allocated and configured
 	Init() error
 
 	// ExitGraph is used when initialization failed or session terminated
 	ExitGraph()
-}
-
-// ComposerAware enable class to interact with composer at each phase
-type ComposerAware interface {
-	// PreSetup called after composer parsed graph description, before creating node instances
-	PreSetup(c *Composer) error
-
-	// PostSetup called after composer created and setuped nodes
-	PostSetup(c *Composer) error
 }
 
 // MessageProvider can push data message to event-graph

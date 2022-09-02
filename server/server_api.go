@@ -25,10 +25,7 @@ type MediaServer struct {
 	rtpServerIpString string
 	rtpServerIpAddr   *net.IPAddr
 	portPool          *portPool
-
-	sourceF         []SourceFactory
-	sinkF           []SinkFactory
-	sessionListener []SessionListener
+	sessionListener   []SessionListener
 
 	graph *event.Graph
 
@@ -84,9 +81,7 @@ func StartServer(c *Config) (err error) {
 	rtpIp, rtpStartPort, rtpEndPort := c.RtpIp, c.StartPort, c.EndPort
 	server := MediaServer{
 		rtpServerIpString: rtpIp,
-		portPool:          new(portPool),
-		sourceF:           c.SourceFactoryList,
-		sinkF:             c.SinkFactoryList,
+		portPool:          newPortPool(),
 		sessionListener:   c.SessionListenerList,
 		sessionMap:        make(map[string]*MediaSession),
 
