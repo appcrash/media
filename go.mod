@@ -9,6 +9,7 @@ require (
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/common v0.26.0
 	github.com/sirupsen/logrus v1.8.1
+	golang.org/x/tools v0.0.0-20190524140312-2c0ae7006135
 	google.golang.org/grpc v1.37.1
 	google.golang.org/protobuf v1.27.1
 )
