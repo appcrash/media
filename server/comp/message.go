@@ -13,7 +13,7 @@ type Message interface {
 	Type() MessageType
 }
 
-type BaseMessage struct {
+type MessageBase struct {
 	TypeId MessageType
 	Meta   []byte
 }
@@ -22,30 +22,30 @@ type BaseMessage struct {
 // it is used in some case that synchronization between command and stream data is required
 // the message handler is responsible for putting response back through C or the caller may block forever
 type InBandCommandCall[T any] struct {
-	BaseMessage
+	MessageBase
 	C chan T
 }
 
 // TaggedMessage embed it when receiver needs to distinguish the sender's identity
 type TaggedMessage[T any] struct {
-	BaseMessage
+	MessageBase
 	Tag T
 }
 
-func (m *BaseMessage) AsEvent() *event.Event {
+func (m *MessageBase) AsEvent() *event.Event {
 	return event.NewEvent(int(m.Type()), m)
 }
 
-func (m *BaseMessage) GetMeta() []byte {
+func (m *MessageBase) GetMeta() []byte {
 	return m.Meta
 }
 
-func (m *BaseMessage) Type() MessageType {
+func (m *MessageBase) Type() MessageType {
 	return m.TypeId
 }
 
 type RawByteMessage struct {
-	BaseMessage
+	MessageBase
 	Data []byte
 }
 
@@ -55,7 +55,7 @@ func (m *RawByteMessage) Type() MessageType {
 
 func (m *RawByteMessage) Clone() Cloneable {
 	clone := &RawByteMessage{
-		BaseMessage: BaseMessage{
+		MessageBase: MessageBase{
 			TypeId: m.TypeId,
 			Meta:   m.Meta,
 		},

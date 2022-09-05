@@ -7,8 +7,6 @@ import (
 	"reflect"
 )
 
-//go:generate go run ../../cmd/gentrait
-
 type Channelable[T any] interface {
 	ChannelLink(c chan T)
 }

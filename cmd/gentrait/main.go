@@ -11,52 +11,38 @@ import (
 	"os"
 )
 
-const loadMode = packages.NeedName |
-	packages.NeedFiles |
-	packages.NeedCompiledGoFiles |
-	packages.NeedImports |
-	packages.NeedDeps |
-	packages.NeedTypes |
-	packages.NeedSyntax |
-	packages.NeedTypesInfo
+var (
+	genType, genFile string
+)
+
+func init() {
+	flag.StringVar(&genType, "t", "", "gen node or message type")
+	flag.StringVar(&genFile, "o", "", "output file")
+}
 
 func main() {
 	flag.Parse()
 
 	cwd, _ := os.Getwd()
-	packageName := os.Getenv("GOPACKAGE")
-	log.Printf("gentrait in package %v, cwd is %v", packageName, cwd)
+	currentPackageName = os.Getenv("GOPACKAGE")
+	log.Printf("==> gentrait in package %v, cwd is %v", currentPackageName, cwd)
+	log.Printf("==> gentrait type: %v, output file: %v", genType, genFile)
+
+	if len(genFile) == 0 {
+		panic("no genFile specified")
+	}
 
 	initPackage()
 
-	for index, syn := range mainPackage.Syntax {
-		inspectFile(mainPackage, mainPackage.GoFiles[index], syn)
-		//log.Printf("%v  imports:\n", p.GoFiles[index])
-		//for _, i := range syn.Imports {
-		//
-		//	log.Printf("=> %v\n", i.Path.Value)
-		//}
-		//for _, dec := range syn.Decls {
-		//	log.Printf("%v \n", dec.Pos())
-		//}
-
+	switch genType {
+	case "message":
+		generateMessageTrait()
+	case "node":
+		generateNodeTrait()
+	default:
+		panic("unknown genType")
 	}
 
-	for _, p := range userPackage {
-		for index, syn := range p.Syntax {
-			inspectFile(p, p.GoFiles[index], syn)
-			//log.Printf("%v  imports:\n", p.GoFiles[index])
-			//for _, i := range syn.Imports {
-			//
-			//	log.Printf("=> %v\n", i.Path.Value)
-			//}
-			//for _, dec := range syn.Decls {
-			//	log.Printf("%v \n", dec.Pos())
-			//}
-
-		}
-
-	}
 }
 
 func inspectFile(pkg *packages.Package, fileName string, file *ast.File) {

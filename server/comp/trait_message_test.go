@@ -6,7 +6,7 @@ import (
 )
 
 type testNonCloneableMessage struct {
-	comp.BaseMessage
+	comp.MessageBase
 }
 
 func (t *testNonCloneableMessage) Type() comp.MessageType {
