@@ -24,8 +24,9 @@ func InitBuiltinNode() {
 	RegisterNodeTrait(NT[ChanSink]())
 }
 
-func MetaType[T any]() reflect.Type {
-	return reflect.TypeOf((*T)(nil)).Elem()
+func MetaType[T any]() *reflect.Type {
+	typ := reflect.TypeOf((*T)(nil)).Elem()
+	return &typ
 }
 
 type LinkIdentityType uint64 // it differs from linkId as it is unique among whole graph instead of node scope

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/prometheus/common/log"
 	"go/ast"
-	"go/token"
 	"go/types"
 	"golang.org/x/tools/go/packages"
 	"regexp"
@@ -12,13 +11,16 @@ import (
 
 const (
 	msgEnumPrefix              = "Mt"
+	msgEnumEnd                 = msgEnumPrefix + "UserMessageBegin"
 	msgPostFix                 = "Message"
 	msgConvertInterfacePostfix = "Convertable"
 	msgConvertMethodPrefix     = "As"
 )
 
 var concreteMsgPattern = regexp.MustCompile(`^.+` + msgPostFix + `$`)
-var mti []*messageTypeInfo
+var msgTypeInfos []*messageTypeInfo
+var concreteMessageTypeInfo []*messageTypeInfo
+var msgTraitInfInfos []*messageTraitInterfaceInfo
 
 type messageTypeInfo struct {
 	id         uint16
@@ -44,6 +46,15 @@ func (i *messageTypeInfo) baseName() string {
 	return name
 }
 
+type messageTraitInterfaceInfo struct {
+	id            uint16
+	interfaceType *types.Interface
+}
+
+func (i *messageTypeInfo) typeName() string {
+	return i.structType.Name()
+}
+
 func (i *messageTypeInfo) enumName() string {
 	return msgEnumPrefix + i.baseName()
 }
@@ -53,11 +64,11 @@ func (i *messageTypeInfo) convertInterfaceName() string {
 }
 
 func (i *messageTypeInfo) convertMethodName() string {
-	return msgConvertMethodPrefix + i.baseName()
+	return msgConvertMethodPrefix + i.typeName()
 }
 
 func generateMessageTrait() {
-	if len(userPackage) > 0 {
+	if isGenForUser() {
 		for _, p := range userPackage {
 			inspectPackageForMessage(p)
 		}
@@ -69,44 +80,55 @@ func generateMessageTrait() {
 
 func inspectPackageForMessage(pkg *packages.Package) {
 	msgPassFindImplementer(pkg)
-	msgPassCheckGeneric()
+	msgPassFindTraitInterface(pkg)
+	msgPassCollectConcreteClass()
+	msgPassCheckConvertable()
 }
 
 func msgPassFindImplementer(pkg *packages.Package) {
-	//scope := pkg.Types.Scope()
-	for _, fileSyntax := range pkg.Syntax {
-		//fileName := pkg.GoFiles[index]
-		//log.Infof("[message] inspecting %v", fileName)
-		var idGen uint16
-		for _, decl := range fileSyntax.Decls {
-			if gen, ok := decl.(*ast.GenDecl); ok && gen.Tok == token.TYPE {
-				// check whether the ptr of this type implements Message interface
-				for _, spec := range gen.Specs {
-					if ts, ok1 := spec.(*ast.TypeSpec); ok1 {
-						var isStruct bool
-						structType, _ := pkg.TypesInfo.Defs[ts.Name]
-						if _, isStruct = structType.Type().Underlying().(*types.Struct); !isStruct {
-							// not a struct type
-							continue
-						}
-						ptr := types.NewPointer(structType.Type())
-						if types.Implements(ptr, messageInterfaceType) {
-							mti = append(mti, &messageTypeInfo{
-								id:         idGen,
-								structType: structType,
-								spec:       ts,
-							})
-							idGen++
-						}
-					}
-				}
-			}
+	var idGen uint16
+	findClassImplements(pkg, messageInterfaceType, func(object types.Object, ts *ast.TypeSpec) {
+		msgTypeInfos = append(msgTypeInfos, &messageTypeInfo{
+			id:         idGen,
+			structType: object,
+			spec:       ts,
+		})
+		idGen++
+	})
+}
+
+func msgPassCollectConcreteClass() {
+	for _, i := range msgTypeInfos {
+		if i.isConcrete() {
+			concreteMessageTypeInfo = append(concreteMessageTypeInfo, i)
 		}
 	}
 }
 
-func msgPassCheckGeneric() {
-	for _, i := range mti {
+// find all interfaces embedding MessageTraitTag
+func msgPassFindTraitInterface(pkg *packages.Package) {
+	var idGen uint16
+	findDeclaredTypeOfType(pkg, func(objectType types.Object, inf *types.Interface) {
+		n := inf.NumEmbeddeds() - 1
+		for n >= 0 {
+			typ := inf.EmbeddedType(n)
+			// CAVEAT: use Underlying when comparing type
+			if types.Identical(messageTraitTagInterfaceType, typ.Underlying()) {
+				info := &messageTraitInterfaceInfo{
+					id:            idGen,
+					interfaceType: inf,
+				}
+				msgTraitInfInfos = append(msgTraitInfInfos, info)
+				idGen++
+			}
+			n--
+		}
+	})
+}
+
+// check convertibility between a message and all other messages
+func msgPassCheckConvertable() {
+	for _, i := range msgTypeInfos {
 		if i.isConcrete() {
 			log.Infof(" %v \n", i.enumName())
 		}

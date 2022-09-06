@@ -11,13 +11,24 @@ import (
 // trait is the means of class meta-info bookkeeping that props up runtime polymorphism
 // it is a workaround because of limitation of golang runtime feature
 
+// MessageTraitTag is a dummy interface, its main use is to notify gentrait tool that the parent interface who embeds it
+// requires being treated as a message trait interface, so generate code for it
+type MessageTraitTag interface{}
+
 type Cloneable interface {
+	MessageTraitTag
 	Clone() Cloneable
 }
 
+const (
+	maxMessageType = 512
+)
+
 var (
-	messageMetaType   = MetaType[Message]()
-	cloneableMetaType = MetaType[Cloneable]()
+	// initialized by generated code when package loaded
+	messageMetaTypes              = make([]*reflect.Type, maxMessageType)
+	messageTraitRegistry          = make(map[MessageType]*MessageTrait)
+	messageConvertibilityRegistry = make([]bool, maxMessageType*maxMessageType)
 )
 
 const (
@@ -38,6 +49,7 @@ func (m *MessageTrait) Clone() (cloned *MessageTrait) {
 	cloned.TypeId = m.TypeId
 	cloned.PtrType = m.PtrType
 	cloned.Type = m.Type
+
 	return
 }
 
@@ -53,14 +65,12 @@ func (m *MessageTrait) IsCloneable() bool {
 	return m.HasFlag(messageTraitCloneable)
 }
 
-var messageTraitRegistry = make(map[MessageType]*MessageTrait)
-
 func MT[T any]() *MessageTrait {
 	ptrType := reflect.TypeOf(new(T))
 	structType := ptrType.Elem()
-	if !ptrType.Implements(messageMetaType) {
-		panic(fmt.Errorf("type %v doesn't implements message interface", ptrType.String()))
-	}
+	//if !ptrType.Implements(messageMetaType) {
+	//	panic(fmt.Errorf("type %v doesn't implements message interface", ptrType.String()))
+	//}
 
 	msg := reflect.New(structType).Interface().(Message)
 	trait := &MessageTrait{
@@ -70,9 +80,9 @@ func MT[T any]() *MessageTrait {
 	}
 
 	// inspect interface trait
-	if ptrType.Implements(cloneableMetaType) {
-		trait.SetFlag(messageTraitCloneable)
-	}
+	//if ptrType.Implements(cloneableMetaType) {
+	//	trait.SetFlag(messageTraitCloneable)
+	//}
 	return trait
 }
 
@@ -98,4 +108,8 @@ func MessageTraitOfType(typeId MessageType) (mt *MessageTrait, exist bool) {
 		mt = pmt.Clone()
 	}
 	return
+}
+
+func AddMessageMetaType(types ...*reflect.Type) {
+	messageMetaTypes = append(messageMetaTypes, types...)
 }

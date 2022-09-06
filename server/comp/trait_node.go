@@ -7,6 +7,10 @@ import (
 	"reflect"
 )
 
+// NodeTraitTag is a dummy interface, its main use is to notify gentrait tool that the parent interface who embeds it
+// requires being treated as a node trait interface, so generate code for it
+type NodeTraitTag interface{}
+
 type Channelable[T any] interface {
 	ChannelLink(c chan T)
 }

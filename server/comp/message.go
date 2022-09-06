@@ -14,8 +14,7 @@ type Message interface {
 }
 
 type MessageBase struct {
-	TypeId MessageType
-	Meta   []byte
+	Meta []byte
 }
 
 // InBandCommandCall is itself a message but act as Call semantic of CommandInitiator
@@ -32,16 +31,16 @@ type TaggedMessage[T any] struct {
 	Tag T
 }
 
-func (m *MessageBase) AsEvent() *event.Event {
-	return event.NewEvent(int(m.Type()), m)
-}
-
 func (m *MessageBase) GetMeta() []byte {
 	return m.Meta
 }
 
 func (m *MessageBase) Type() MessageType {
-	return m.TypeId
+	panic("message Type() not implemented")
+}
+
+func (m *MessageBase) AsEvent() *event.Event {
+	panic("message AsEvent not implemented")
 }
 
 type RawByteMessage struct {
@@ -49,15 +48,10 @@ type RawByteMessage struct {
 	Data []byte
 }
 
-func (m *RawByteMessage) Type() MessageType {
-	return MtRawByte
-}
-
 func (m *RawByteMessage) Clone() Cloneable {
 	clone := &RawByteMessage{
 		MessageBase: MessageBase{
-			TypeId: m.TypeId,
-			Meta:   m.Meta,
+			Meta: m.Meta,
 		},
 		//Data: make([]byte, len(m.Data)),
 		Data: append([]byte(nil), m.Data...),
