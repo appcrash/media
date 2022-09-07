@@ -23,11 +23,17 @@ package {{ .Name }}
 	msgTempEnumValue = template.Must(template.New("enum").Parse(
 		`    {{.Name}}
 `))
-	msgTempConvertableInterface = template.Must(template.New("convertable").Parse(
+	msgTempConvertableInterface = template.Must(template.New("convertable_interface").Parse(
 		`type {{ .InterfaceName }} interface {
     {{ .MethodName }}() *{{ .MessageTypeName }}
 }
 
+`))
+	msgTempConvertableMappingStart = template.Must(template.New("convertable_mapping_start").Parse(`func initMessageConversion() {
+    m := {{.Name}}     
+`))
+	msgTempConvertableMappingValue = template.Must(template.New("convertable_mapping_value").Parse(
+		`    m({{.From}},{{.To}})
 `))
 	msgTempMessageImpl = template.Must(template.New("message_impl").Parse(
 		`func (m *{{.Name}}) Type() {{.MessageType}} {
@@ -35,7 +41,7 @@ package {{ .Name }}
 }
 
 func (m *{{.Name}}) AsEvent() *event.Event {
-    return event.NewEvent(int(m.Type()), m)
+    return event.NewEvent({{.Enum}}, m)
 }
 
 `))
@@ -51,20 +57,41 @@ func _V(name string) string {
 	return name
 }
 
+var emitMtis []*messageTypeInfo
+var emitMriis []*messageTraitInterfaceInfo
+
 func msgEmitAll() {
+	if isGenForUser() {
+		emitMtis = userMessageTypeInfo
+		emitMriis = msgUserTraitInfInfos
+	} else {
+		emitMtis = concreteMessageTypeInfo
+		emitMriis = msgTraitInfInfos
+	}
+	if len(emitMtis) == 0 {
+		panic("no concrete message to generate")
+	}
+
 	file, err := os.Create(genFile)
 	defer func() { file.Close() }()
 	if err != nil {
 		panic(err)
 	}
-	writer := bufio.NewWriter(file)
-	defer func() { writer.Flush() }()
+	w := bufio.NewWriter(file)
+	defer func() { w.Flush() }()
 
-	msgEmitPackage(writer)
-	msgEmitEnum(writer)
-	msgEmitConvertableInterface(writer)
-	msgEmitMessageImpl(writer)
-	msgEmitMetaTypeFunc(writer)
+	msgEmitPackage(w)
+
+	msgEmitTraitEnum(w)
+
+	msgEmitEnum(w)
+	msgEmitConvertableInterface(w)
+	msgEmitMessageImpl(w)
+
+	msgEmitMetaTypeFunc(w)
+	msgEmitConvertableMappingFunc(w)
+	msgEmitInitFunc(w)
+
 }
 
 func msgEmitPackage(w io.Writer) {
@@ -81,16 +108,33 @@ func msgEmitPackage(w io.Writer) {
 	msgTempImport.Execute(w, struct{ Import string }{"github.com/appcrash/media/server/event"})
 }
 
-func msgEmitEnum(w io.Writer) {
-	if len(concreteMessageTypeInfo) == 0 {
+func msgEmitTraitEnum(w *bufio.Writer) {
+	if len(emitMriis) == 0 {
 		return
 	}
 	start := "iota"
 	if isGenForUser() {
+		start = _V(msgTraitEnumEnd)
+	}
+	w.Write([]byte("// Message Trait Enum\n"))
+	msgTempEnumStart.Execute(w, struct{ Name, Start string }{emitMriis[0].enumName(), start})
+	for _, i := range emitMriis[1:] {
+		msgTempEnumValue.Execute(w, templateName{i.enumName()})
+	}
+	if !isGenForUser() {
+		msgTempEnumValue.Execute(w, templateName{msgTraitEnumEnd})
+	}
+	w.Write([]byte(")\n\n")) // finish const block
+}
+
+func msgEmitEnum(w io.Writer) {
+	start := "iota"
+	if isGenForUser() {
 		start = _V(msgEnumEnd)
 	}
-	msgTempEnumStart.Execute(w, struct{ Name, Start string }{concreteMessageTypeInfo[0].enumName(), start})
-	for _, i := range concreteMessageTypeInfo[1:] {
+	w.Write([]byte("// Message Type Enum\n"))
+	msgTempEnumStart.Execute(w, struct{ Name, Start string }{emitMtis[0].enumName(), start})
+	for _, i := range emitMtis[1:] {
 		msgTempEnumValue.Execute(w, templateName{i.enumName()})
 	}
 	if !isGenForUser() {
@@ -100,26 +144,48 @@ func msgEmitEnum(w io.Writer) {
 }
 
 func msgEmitMessageImpl(w *bufio.Writer) {
-	for _, i := range concreteMessageTypeInfo {
+	w.Write([]byte("// --------Message Implementation Begin--------\n"))
+	for _, i := range emitMtis {
 		msgTempMessageImpl.Execute(w, struct{ Name, Enum, MessageType string }{
 			i.typeName(), i.enumName(), _V("MessageType")})
 	}
+	w.Write([]byte("// --------Message Implementation End--------\n\n"))
 }
 
 func msgEmitMetaTypeFunc(w *bufio.Writer) {
 	w.Write([]byte(`func initMessageMetaTypes() {
     AddMessageMetaType(
 `))
-	for _, i := range concreteMessageTypeInfo {
+	for _, i := range emitMtis {
 		msgTempMetaTypeFuncValue.Execute(w, templateName{i.typeName()})
 	}
 	w.Write([]byte(")}\n\n")) // finish function block
 }
 
 func msgEmitConvertableInterface(w io.Writer) {
-	for _, i := range concreteMessageTypeInfo {
+	for _, i := range emitMtis {
 		msgTempConvertableInterface.Execute(w, struct {
 			InterfaceName, MethodName, MessageTypeName string
 		}{i.convertInterfaceName(), i.convertMethodName(), i.typeName()})
 	}
+}
+
+func msgEmitConvertableMappingFunc(w *bufio.Writer) {
+	msgTempConvertableMappingStart.Execute(w, templateName{_V("SetMessageConvertable")})
+	for _, i := range emitMtis {
+		for _, to := range i.convertedTo {
+			msgTempConvertableMappingValue.Execute(w, struct{ From, To string }{
+				i.enumName(), to.enumName(),
+			})
+		}
+	}
+	w.Write([]byte("}\n\n")) // finish function block
+}
+
+func msgEmitInitFunc(w *bufio.Writer) {
+	w.Write([]byte(`
+func init() {
+    initMessageMetaTypes()
+    initMessageConversion()
+}`))
 }

@@ -15,3 +15,7 @@ type ChannelLinkMessage struct {
 	InBandCommandCall[interface{}]
 	LinkChannel chan []byte
 }
+
+func (m *ChannelLinkMessage) AsRawByteMessage() (r *RawByteMessage) {
+	return
+}

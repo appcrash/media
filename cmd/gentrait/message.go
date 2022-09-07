@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/prometheus/common/log"
 	"go/ast"
 	"go/types"
 	"golang.org/x/tools/go/packages"
@@ -15,17 +14,23 @@ const (
 	msgPostFix                 = "Message"
 	msgConvertInterfacePostfix = "Convertable"
 	msgConvertMethodPrefix     = "As"
+	msgTraitEnumPrefix         = "Mr"
+	msgTraitEnumEnd            = msgTraitEnumPrefix + "UserTraitBegin"
 )
 
 var concreteMsgPattern = regexp.MustCompile(`^.+` + msgPostFix + `$`)
-var msgTypeInfos []*messageTypeInfo
-var concreteMessageTypeInfo []*messageTypeInfo
-var msgTraitInfInfos []*messageTraitInterfaceInfo
+var msgTypeInfos []*messageTypeInfo            // all message type besides generic or ill-named struct types
+var concreteMessageTypeInfo []*messageTypeInfo // only concrete message type
+var userMessageTypeInfo []*messageTypeInfo     // only concrete message type within user package (exclude root package)
+
+var msgTraitInfInfos []*messageTraitInterfaceInfo     // all trait interface
+var msgUserTraitInfInfos []*messageTraitInterfaceInfo // only trait interface within user package (exclude root package)
 
 type messageTypeInfo struct {
-	id         uint16
-	structType types.Object
-	spec       *ast.TypeSpec
+	id          uint16
+	structType  types.Object
+	spec        *ast.TypeSpec
+	convertedTo []*messageTypeInfo // destination message types this type can convert to
 }
 
 func (i *messageTypeInfo) isGeneric() bool {
@@ -46,11 +51,6 @@ func (i *messageTypeInfo) baseName() string {
 	return name
 }
 
-type messageTraitInterfaceInfo struct {
-	id            uint16
-	interfaceType *types.Interface
-}
-
 func (i *messageTypeInfo) typeName() string {
 	return i.structType.Name()
 }
@@ -65,6 +65,16 @@ func (i *messageTypeInfo) convertInterfaceName() string {
 
 func (i *messageTypeInfo) convertMethodName() string {
 	return msgConvertMethodPrefix + i.typeName()
+}
+
+type messageTraitInterfaceInfo struct {
+	id            uint16
+	objectType    types.Object
+	interfaceType *types.Interface
+}
+
+func (i *messageTraitInterfaceInfo) enumName() string {
+	return msgTraitEnumPrefix + i.objectType.Name()
 }
 
 func generateMessageTrait() {
@@ -82,12 +92,13 @@ func inspectPackageForMessage(pkg *packages.Package) {
 	msgPassFindImplementer(pkg)
 	msgPassFindTraitInterface(pkg)
 	msgPassCollectConcreteClass()
-	msgPassCheckConvertable()
+	msgPassAnalyzeConvertable(pkg)
 }
 
 func msgPassFindImplementer(pkg *packages.Package) {
 	var idGen uint16
 	findClassImplements(pkg, messageInterfaceType, func(object types.Object, ts *ast.TypeSpec) {
+
 		msgTypeInfos = append(msgTypeInfos, &messageTypeInfo{
 			id:         idGen,
 			structType: object,
@@ -101,6 +112,9 @@ func msgPassCollectConcreteClass() {
 	for _, i := range msgTypeInfos {
 		if i.isConcrete() {
 			concreteMessageTypeInfo = append(concreteMessageTypeInfo, i)
+			if isGenForUser() && i.structType.Pkg().Path() != rootPackageName {
+				userMessageTypeInfo = append(userMessageTypeInfo, i)
+			}
 		}
 	}
 }
@@ -116,10 +130,14 @@ func msgPassFindTraitInterface(pkg *packages.Package) {
 			if types.Identical(messageTraitTagInterfaceType, typ.Underlying()) {
 				info := &messageTraitInterfaceInfo{
 					id:            idGen,
+					objectType:    objectType,
 					interfaceType: inf,
 				}
 				msgTraitInfInfos = append(msgTraitInfInfos, info)
 				idGen++
+				if info.objectType.Pkg().Path() != rootPackageName {
+					msgUserTraitInfInfos = append(msgUserTraitInfInfos, info)
+				}
 			}
 			n--
 		}
@@ -127,11 +145,50 @@ func msgPassFindTraitInterface(pkg *packages.Package) {
 }
 
 // check convertibility between a message and all other messages
-func msgPassCheckConvertable() {
-	for _, i := range msgTypeInfos {
-		if i.isConcrete() {
-			log.Infof(" %v \n", i.enumName())
+func msgPassAnalyzeConvertable(pkg *packages.Package) {
+	var from, to []*messageTypeInfo
+	to = concreteMessageTypeInfo
+	scope := pkg.Types.Scope()
+	if isGenForUser() {
+		// check classes of [user => (user+predefined)] conversion possibility
+		from = userMessageTypeInfo
+	} else {
+		// check classes of [predefined => predefined] conversion possibility
+		from = concreteMessageTypeInfo
+	}
+	methodPattern := regexp.MustCompile("^" + msgConvertMethodPrefix + ".+$")
+	for _, f := range from {
+		decls := findClassMethodsLike(pkg, f.typeName(), true, methodPattern)
+		for _, d := range decls {
+			// the function should not have any param and only one return value of type in message type list
+			ft := d.Type
+			if ft.TypeParams.NumFields() != 0 || ft.Params.NumFields() != 0 || ft.Results.NumFields() != 1 {
+				continue
+			}
+			returnExpr := ft.Results.List[0].Type
+			switch expr := returnExpr.(type) {
+			case *ast.StarExpr:
+				// return value type must be one-level ptr type
+				if ident, ok := expr.X.(*ast.Ident); ok {
+					returnType := scope.Lookup(ident.Name)
+					if returnType == nil {
+						// not found ?
+						continue
+					}
+					// found an eligible function with correct signature, then match from registered message types
+					// it is a very slow algorithm, but I'm too lazy to improve it :)
+					for _, ti := range to {
+						left := ti.structType.Type()
+						right := returnType.Type()
+						//log.Printf("left %v  right %v\n", left, right)
+						if types.Identical(left, right) {
+							f.convertedTo = append(f.convertedTo, ti)
+						}
+					}
+				}
+
+			}
+
 		}
 	}
-	return
 }

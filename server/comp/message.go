@@ -18,7 +18,7 @@ type MessageBase struct {
 }
 
 // InBandCommandCall is itself a message but act as Call semantic of CommandInitiator
-// it is used in some case that synchronization between command and stream data is required
+// it is used in some case when synchronization between command and stream data is required
 // the message handler is responsible for putting response back through C or the caller may block forever
 type InBandCommandCall[T any] struct {
 	MessageBase

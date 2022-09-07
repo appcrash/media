@@ -113,3 +113,17 @@ func MessageTraitOfType(typeId MessageType) (mt *MessageTrait, exist bool) {
 func AddMessageMetaType(types ...*reflect.Type) {
 	messageMetaTypes = append(messageMetaTypes, types...)
 }
+
+func SetMessageConvertable(from, to MessageType) {
+	if from > maxMessageType || to > maxMessageType {
+		panic("SetMessageConvertable failed due to message type too large")
+	}
+	messageConvertibilityRegistry[from*maxMessageType+to] = true
+}
+
+func CanConvertMessage(from, to MessageType) bool {
+	if from > maxMessageType || to > maxMessageType {
+		return false
+	}
+	return messageConvertibilityRegistry[from*maxMessageType+to]
+}

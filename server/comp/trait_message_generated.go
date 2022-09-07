@@ -3,6 +3,13 @@ package comp
 
 import "github.com/appcrash/media/server/event"
 
+// Message Trait Enum
+const (
+	MrCloneable = iota
+	MrUserTraitBegin
+)
+
+// Message Type Enum
 const (
 	MtRawByte = iota
 	MtLinkPoint
@@ -10,47 +17,6 @@ const (
 	MtChannelLink
 	MtUserMessageBegin
 )
-
-func (m *RawByteMessage) Type() MessageType {
-	return MtRawByte
-}
-
-func (m *RawByteMessage) AsEvent() *event.Event {
-	return event.NewEvent(int(m.Type()), m)
-}
-
-func (m *LinkPointMessage) Type() MessageType {
-	return MtLinkPoint
-}
-
-func (m *LinkPointMessage) AsEvent() *event.Event {
-	return event.NewEvent(int(m.Type()), m)
-}
-
-func (m *ConnectNodeMessage) Type() MessageType {
-	return MtConnectNode
-}
-
-func (m *ConnectNodeMessage) AsEvent() *event.Event {
-	return event.NewEvent(int(m.Type()), m)
-}
-
-func (m *ChannelLinkMessage) Type() MessageType {
-	return MtChannelLink
-}
-
-func (m *ChannelLinkMessage) AsEvent() *event.Event {
-	return event.NewEvent(int(m.Type()), m)
-}
-
-func initMessageMetaTypes() {
-	AddMessageMetaType(
-		MetaType[RawByteMessage](),
-		MetaType[LinkPointMessage](),
-		MetaType[ConnectNodeMessage](),
-		MetaType[ChannelLinkMessage](),
-	)
-}
 
 type RawByteConvertable interface {
 	AsRawByteMessage() *RawByteMessage
@@ -66,4 +32,58 @@ type ConnectNodeConvertable interface {
 
 type ChannelLinkConvertable interface {
 	AsChannelLinkMessage() *ChannelLinkMessage
+}
+
+// --------Message Implementation Begin--------
+func (m *RawByteMessage) Type() MessageType {
+	return MtRawByte
+}
+
+func (m *RawByteMessage) AsEvent() *event.Event {
+	return event.NewEvent(MtRawByte, m)
+}
+
+func (m *LinkPointMessage) Type() MessageType {
+	return MtLinkPoint
+}
+
+func (m *LinkPointMessage) AsEvent() *event.Event {
+	return event.NewEvent(MtLinkPoint, m)
+}
+
+func (m *ConnectNodeMessage) Type() MessageType {
+	return MtConnectNode
+}
+
+func (m *ConnectNodeMessage) AsEvent() *event.Event {
+	return event.NewEvent(MtConnectNode, m)
+}
+
+func (m *ChannelLinkMessage) Type() MessageType {
+	return MtChannelLink
+}
+
+func (m *ChannelLinkMessage) AsEvent() *event.Event {
+	return event.NewEvent(MtChannelLink, m)
+}
+
+// --------Message Implementation End--------
+
+func initMessageMetaTypes() {
+	AddMessageMetaType(
+		MetaType[RawByteMessage](),
+		MetaType[LinkPointMessage](),
+		MetaType[ConnectNodeMessage](),
+		MetaType[ChannelLinkMessage](),
+	)
+}
+
+func initMessageConversion() {
+	m := SetMessageConvertable
+	m(MtChannelLink, MtRawByte)
+}
+
+func init() {
+	initMessageMetaTypes()
+	initMessageConversion()
 }
