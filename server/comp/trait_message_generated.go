@@ -69,12 +69,12 @@ func (m *ChannelLinkMessage) AsEvent() *event.Event {
 
 // --------Message Implementation End--------
 
-func initMessageMetaTypes() {
-	AddMessageMetaType(
-		MetaType[RawByteMessage](),
-		MetaType[LinkPointMessage](),
-		MetaType[ConnectNodeMessage](),
-		MetaType[ChannelLinkMessage](),
+func initMessageTraits() {
+	AddMessageTrait(
+		MT[RawByteMessage](MetaType[RawByteConvertable]()),
+		MT[LinkPointMessage](MetaType[LinkPointConvertable]()),
+		MT[ConnectNodeMessage](MetaType[ConnectNodeConvertable]()),
+		MT[ChannelLinkMessage](MetaType[ChannelLinkConvertable]()),
 	)
 }
 
@@ -84,6 +84,6 @@ func initMessageConversion() {
 }
 
 func init() {
-	initMessageMetaTypes()
+	initMessageTraits()
 	initMessageConversion()
 }

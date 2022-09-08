@@ -45,17 +45,14 @@ func (m *{{.Name}}) AsEvent() *event.Event {
 }
 
 `))
-	msgTempMetaTypeFuncValue = template.Must(template.New("meta_type_func_value").Parse(
-		`        MetaType[{{.Name}}](),
+	msgTempTraitFuncStart = template.Must(template.New("trait_func_start").Parse(
+		`func initMessageTraits() {
+    {{.Name}}(
+`))
+	msgTempTraitFuncValue = template.Must(template.New("trait_func_value").Parse(
+		`        {{.MT}}[{{.MessageType}}]({{.MetaType}}[{{.ConvertMessageInterface}}]()),
 `))
 )
-
-func _V(name string) string {
-	if isGenForUser() {
-		return "comp." + name
-	}
-	return name
-}
 
 var emitMtis []*messageTypeInfo
 var emitMriis []*messageTraitInterfaceInfo
@@ -88,7 +85,7 @@ func msgEmitAll() {
 	msgEmitConvertableInterface(w)
 	msgEmitMessageImpl(w)
 
-	msgEmitMetaTypeFunc(w)
+	msgEmitTraitFunc(w)
 	msgEmitConvertableMappingFunc(w)
 	msgEmitInitFunc(w)
 
@@ -152,12 +149,11 @@ func msgEmitMessageImpl(w *bufio.Writer) {
 	w.Write([]byte("// --------Message Implementation End--------\n\n"))
 }
 
-func msgEmitMetaTypeFunc(w *bufio.Writer) {
-	w.Write([]byte(`func initMessageMetaTypes() {
-    AddMessageMetaType(
-`))
+func msgEmitTraitFunc(w *bufio.Writer) {
+	msgTempTraitFuncStart.Execute(w, templateName{_V("AddMessageTrait")})
 	for _, i := range emitMtis {
-		msgTempMetaTypeFuncValue.Execute(w, templateName{i.typeName()})
+		msgTempTraitFuncValue.Execute(w, struct{ MT, MetaType, MessageType, ConvertMessageInterface string }{
+			_V("MT"), _V("MetaType"), i.typeName(), i.convertInterfaceName()})
 	}
 	w.Write([]byte(")}\n\n")) // finish function block
 }
@@ -185,7 +181,7 @@ func msgEmitConvertableMappingFunc(w *bufio.Writer) {
 func msgEmitInitFunc(w *bufio.Writer) {
 	w.Write([]byte(`
 func init() {
-    initMessageMetaTypes()
+    initMessageTraits()
     initMessageConversion()
 }`))
 }

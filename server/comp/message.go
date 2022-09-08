@@ -43,6 +43,16 @@ func (m *MessageBase) AsEvent() *event.Event {
 	panic("message AsEvent not implemented")
 }
 
+// ToMessage convert event object back to concrete message
+func ToMessage[M Message](evt *event.Event) (msg M, ok bool) {
+	obj := evt.GetObj()
+	if obj == nil {
+		return
+	}
+	msg, ok = obj.(M)
+	return
+}
+
 type RawByteMessage struct {
 	MessageBase
 	Data []byte

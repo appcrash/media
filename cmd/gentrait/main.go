@@ -3,25 +3,33 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"go/ast"
 	"go/token"
 	"go/types"
 	"golang.org/x/tools/go/packages"
-	"log"
 	"os"
 )
 
 var (
 	genType, genFile string
+	verbose          bool
 )
+
+var log = logrus.New()
 
 func init() {
 	flag.StringVar(&genType, "t", "", "gen node or message type")
 	flag.StringVar(&genFile, "o", "", "output file")
+	flag.BoolVar(&verbose, "v", false, "verbose log")
 }
 
 func main() {
 	flag.Parse()
+	log.SetOutput(os.Stdout)
+	if verbose {
+		log.SetLevel(logrus.DebugLevel)
+	}
 
 	cwd, _ := os.Getwd()
 	currentPackageName = os.Getenv("GOPACKAGE")

@@ -44,7 +44,7 @@ func initPackage() {
 	os.Remove(genFile)
 
 	pkgs, err := packages.Load(loadConfig, rootPackageName, ".")
-	//log.Printf("pkgs len is %v\n", len(pkgs))
+	log.Debugf("==> total loading packages  len is %v", len(pkgs))
 	if err != nil {
 		panic(err)
 	} else {
@@ -70,6 +70,13 @@ func initPackage() {
 
 func isGenForUser() bool {
 	return len(userPackage) > 0
+}
+
+func _V(name string) string {
+	if isGenForUser() {
+		return "comp." + name
+	}
+	return name
 }
 
 func findClassMethodsLike(pkg *packages.Package, structName string, isPtrReceiver bool, methodPattern *regexp.Regexp) (funcDecls []*ast.FuncDecl) {

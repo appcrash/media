@@ -5,24 +5,15 @@ import (
 	"testing"
 )
 
-type testNonCloneableMessage struct {
-	comp.MessageBase
-}
-
-func (t *testNonCloneableMessage) Type() comp.MessageType {
-	return 100
-}
-
 func TestMessageTrait(t *testing.T) {
-	comp.InitBuiltinMessage()
-	comp.RegisterMessageTrait(comp.MT[testNonCloneableMessage]())
+	cm := &comp.ChannelLinkMessage{}
 	trait, ok := comp.MessageTraitOfObject(&comp.RawByteMessage{})
-	if !ok || !trait.IsCloneable() {
-		t.Fatal("raw byte message must be cloneable")
+	if !ok {
+		t.Fatal("not found")
 	}
-	trait, ok = comp.MessageTraitOfObject(&testNonCloneableMessage{})
-	if !ok || trait.IsCloneable() {
-		t.Fatal("should not be cloneable")
+	converted, err := trait.ConvertFrom(cm)
+	if err != nil {
+		t.Fatal(err)
 	}
-
+	t.Logf("converted is %v\n", converted)
 }

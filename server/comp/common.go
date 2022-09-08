@@ -12,21 +12,14 @@ func InitLogger(gl *logrus.Logger) {
 	logger = gl.WithFields(logrus.Fields{"module": "comp"})
 }
 
-func InitBuiltinMessage() {
-	// register predefined messages
-	RegisterMessageTrait(
-		MT[RawByteMessage](),
-	)
-}
-
 func InitBuiltinNode() {
 	// register predefined nodes
 	RegisterNodeTrait(NT[ChanSink]())
 }
 
-func MetaType[T any]() *reflect.Type {
+func MetaType[T any]() reflect.Type {
 	typ := reflect.TypeOf((*T)(nil)).Elem()
-	return &typ
+	return typ
 }
 
 type LinkIdentityType uint64 // it differs from linkId as it is unique among whole graph instead of node scope

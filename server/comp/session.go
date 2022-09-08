@@ -57,7 +57,7 @@ func (s *SessionNode) GetNodeTypeName() string {
 func (s *SessionNode) OnEnter(delegate *event.NodeDelegate) {
 	logger.Debugf("node(%v) enters graph", s.GetNodeName())
 	s.delegate = delegate
-	s.SetHandler(MtNewLinkPoint, s.handleLinkPoint)
+	s.SetHandler(MtLinkPoint, s.handleLinkPoint)
 	s.SetHandler(MtConnectNode, s.handleConnectNode)
 }
 
@@ -249,16 +249,6 @@ func (s *SessionNode) SetHandler(msgType MessageType, handler MessageHandler) {
 // DeliverToStream put message to stream, don't call it in stream event goroutine or deadlock!
 func (s *SessionNode) DeliverToStream(msg Message) {
 	s.delegate.DeliverSelf(msg.AsEvent())
-}
-
-// ToMessage convert event object back to concrete message
-func ToMessage[M Message](evt *event.Event) (msg M, ok bool) {
-	obj := evt.GetObj()
-	if obj == nil {
-		return
-	}
-	msg, ok = obj.(M)
-	return
 }
 
 // MakeSessionNode factory method of all session aware nodes

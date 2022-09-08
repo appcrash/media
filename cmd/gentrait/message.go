@@ -98,7 +98,6 @@ func inspectPackageForMessage(pkg *packages.Package) {
 func msgPassFindImplementer(pkg *packages.Package) {
 	var idGen uint16
 	findClassImplements(pkg, messageInterfaceType, func(object types.Object, ts *ast.TypeSpec) {
-
 		msgTypeInfos = append(msgTypeInfos, &messageTypeInfo{
 			id:         idGen,
 			structType: object,
@@ -180,8 +179,11 @@ func msgPassAnalyzeConvertable(pkg *packages.Package) {
 					for _, ti := range to {
 						left := ti.structType.Type()
 						right := returnType.Type()
-						//log.Printf("left %v  right %v\n", left, right)
+
 						if types.Identical(left, right) {
+							log.Debugf("===>covnert signature verified:"+
+								"message type %v has convert function with returned type %v",
+								f.typeName(), right)
 							f.convertedTo = append(f.convertedTo, ti)
 						}
 					}

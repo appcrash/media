@@ -26,7 +26,7 @@ type Pubsub struct {
 
 func (p *Pubsub) OnEnter(delegate *event.NodeDelegate) {
 	p.SessionNode.OnEnter(delegate)
-	p.SetHandler(MtNewLinkPoint, p.handleLinkPoint)
+	//p.SetHandler(MtNewLinkPoint, p.handleLinkPoint)
 }
 
 func (p *Pubsub) handleLinkPoint(evt *event.Event) {
@@ -44,9 +44,9 @@ func (p *Pubsub) handleLinkPoint(evt *event.Event) {
 
 	// find the first eligible trait
 	for _, trait := range msg.OfferedTrait {
-		if trait.IsCloneable() {
-			p.messageTrait = trait.Clone()
-		}
+		//if trait.IsCloneable() {
+		p.messageTrait = trait.Clone()
+		//}
 	}
 	if p.messageTrait == nil {
 		logger.Errorf("pubsub(%v) reject the offer as none of them(%v) is cloneable", p, msg.OfferedTrait)

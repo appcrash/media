@@ -1,5 +1,7 @@
 package comp
 
+import "fmt"
+
 type LinkPointMessage struct {
 	InBandCommandCall[*MessageTrait]
 	OfferedTrait []*MessageTrait
@@ -17,5 +19,9 @@ type ChannelLinkMessage struct {
 }
 
 func (m *ChannelLinkMessage) AsRawByteMessage() (r *RawByteMessage) {
+	fmt.Printf("As....\n")
+	r = &RawByteMessage{
+		Data: []byte("hello"),
+	}
 	return
 }
