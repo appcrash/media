@@ -71,9 +71,6 @@ func StartServer(c *Config) (err error) {
 	var lis net.Listener
 	var ip *net.IPAddr
 
-	comp.InitBuiltinMessage()
-	comp.InitBuiltinNode()
-
 	if lis, err = net.Listen("tcp", fmt.Sprintf("%s:%d", c.GrpcIp, c.GrpcPort)); err != nil {
 		logger.Errorf("failed to listen to port(%v) for grpc", c.GrpcPort)
 		return

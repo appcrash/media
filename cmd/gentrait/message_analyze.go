@@ -18,13 +18,15 @@ const (
 	msgTraitEnumEnd            = msgTraitEnumPrefix + "UserTraitBegin"
 )
 
-var concreteMsgPattern = regexp.MustCompile(`^.+` + msgPostFix + `$`)
-var msgTypeInfos []*messageTypeInfo            // all message type besides generic or ill-named struct types
-var concreteMessageTypeInfo []*messageTypeInfo // only concrete message type
-var userMessageTypeInfo []*messageTypeInfo     // only concrete message type within user package (exclude root package)
+var (
+	concreteMsgPattern      = regexp.MustCompile(`^.+` + msgPostFix + `$`)
+	msgTypeInfos            []*messageTypeInfo // all message type besides generic or ill-named struct types
+	concreteMessageTypeInfo []*messageTypeInfo // only concrete message type
+	userMessageTypeInfo     []*messageTypeInfo // only concrete message type within user package (exclude root package)
 
-var msgTraitInfInfos []*messageTraitInterfaceInfo     // all trait interface
-var msgUserTraitInfInfos []*messageTraitInterfaceInfo // only trait interface within user package (exclude root package)
+	msgTraitInfInfos     []*messageTraitInterfaceInfo // all trait interface
+	msgUserTraitInfInfos []*messageTraitInterfaceInfo // only trait interface within user package (exclude root package)
+)
 
 type messageTypeInfo struct {
 	id          uint16
@@ -34,11 +36,19 @@ type messageTypeInfo struct {
 }
 
 func (i *messageTypeInfo) isGeneric() bool {
-	return i.spec.TypeParams.NumFields() > 0
+	return i.spec != nil && i.spec.TypeParams.NumFields() > 0
 }
 
 func (i *messageTypeInfo) isConcrete() bool {
 	return !i.isGeneric() && concreteMsgPattern.MatchString(i.structType.Name())
+}
+
+func (i *messageTypeInfo) packagePath() string {
+	return i.structType.Pkg().Path()
+}
+
+func (i *messageTypeInfo) packageName() string {
+	return i.structType.Pkg().Name()
 }
 
 func (i *messageTypeInfo) baseName() string {
@@ -53,6 +63,16 @@ func (i *messageTypeInfo) baseName() string {
 
 func (i *messageTypeInfo) typeName() string {
 	return i.structType.Name()
+}
+
+func (i *messageTypeInfo) fullTypeName() string {
+	// name appears in other package
+	name := i.structType.Name()
+	if currentGeneratingPackage.PkgPath != i.packagePath() {
+		return i.packageName() + "." + name
+	} else {
+		return name
+	}
 }
 
 func (i *messageTypeInfo) enumName() string {
@@ -78,12 +98,14 @@ func (i *messageTraitInterfaceInfo) enumName() string {
 }
 
 func generateMessageTrait() {
-	if isGenForUser() {
+	if len(userPackage) > 0 {
 		for _, p := range userPackage {
+			currentGeneratingPackage = p
 			inspectPackageForMessage(p)
 		}
 	} else {
-		inspectPackageForMessage(mainPackage)
+		currentGeneratingPackage = rootPackage
+		inspectPackageForMessage(rootPackage)
 	}
 	msgEmitAll()
 }
@@ -121,7 +143,7 @@ func msgPassCollectConcreteClass() {
 // find all interfaces embedding MessageTraitTag
 func msgPassFindTraitInterface(pkg *packages.Package) {
 	var idGen uint16
-	findDeclaredTypeOfType(pkg, func(objectType types.Object, inf *types.Interface) {
+	findAllDeclaredTypeOfType(pkg, func(objectType types.Object, inf *types.Interface) {
 		n := inf.NumEmbeddeds() - 1
 		for n >= 0 {
 			typ := inf.EmbeddedType(n)
@@ -159,7 +181,7 @@ func msgPassAnalyzeConvertable(pkg *packages.Package) {
 	for _, f := range from {
 		decls := findClassMethodsLike(pkg, f.typeName(), true, methodPattern)
 		for _, d := range decls {
-			// the function should not have any param and only one return value of type in message type list
+			// the function should NOT have any param and only one return value of type in message type list
 			ft := d.Type
 			if ft.TypeParams.NumFields() != 0 || ft.Params.NumFields() != 0 || ft.Results.NumFields() != 1 {
 				continue
@@ -181,7 +203,7 @@ func msgPassAnalyzeConvertable(pkg *packages.Package) {
 						right := returnType.Type()
 
 						if types.Identical(left, right) {
-							log.Debugf("===>covnert signature verified:"+
+							log.Debugf("====> covnert signature verified:"+
 								"message type %v has convert function with returned type %v",
 								f.typeName(), right)
 							f.convertedTo = append(f.convertedTo, ti)

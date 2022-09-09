@@ -126,6 +126,10 @@ func (s *SessionNode) ExitGraph() {
 	}
 }
 
+func (s *SessionNode) ConfigHandler() {
+
+}
+
 func (s *SessionNode) Init() error {
 	return nil
 }

@@ -6,17 +6,17 @@ import (
 	"reflect"
 )
 
+// CAVEAT: always generate message trait first, as node analysis depends on message types
+//go:generate go run ../../cmd/gentrait -t message -o trait_message_generated.go
+//go:generate go run ../../cmd/gentrait -t node -o trait_node_generated.go  -v
+
 var logger *logrus.Entry
 
 func InitLogger(gl *logrus.Logger) {
 	logger = gl.WithFields(logrus.Fields{"module": "comp"})
 }
 
-func InitBuiltinNode() {
-	// register predefined nodes
-	RegisterNodeTrait(NT[ChanSink]())
-}
-
+// MetaType return the type of type/interface object
 func MetaType[T any]() reflect.Type {
 	typ := reflect.TypeOf((*T)(nil)).Elem()
 	return typ
@@ -41,7 +41,7 @@ type LinkPoint interface {
 // | tx-path  | signalling channel(out of band)      | data channel,in-band (Streamable)      |
 // |addressing| no link is created, invoke directly  | create link before data is transmitted |
 // |direction | uni(Cast) or bi (Call)               | uni-only, from one node to the other   |
-// |  peer    | anyone implements CommandInitiator   | only nodes that has been added to graph|
+// |  peer    | anyone implements CommandInitiator   |only nodes that have been added to graph|
 // |  scope   | only send to local scope(in session) | can cross scope, i.e. a-leg to b-leg   |
 // --------------------------------------------------------------------------------------------
 
@@ -80,6 +80,9 @@ type SessionAware interface {
 
 	// GetNodeTypeName return the node trait name
 	GetNodeTypeName() string
+
+	// ConfigHandler setup message handler
+	ConfigHandler()
 
 	// Init do initialization after node is allocated and configured
 	Init() error

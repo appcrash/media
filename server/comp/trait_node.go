@@ -33,14 +33,14 @@ var (
 )
 
 const (
-	nodeTraitChannelable  = 1 << 0
-	nodeTraitPreComposer  = 1 << 1
-	nodeTraitPostComposer = 1 << 2
+	nodeTraitChannelable  = uint64(1) << 0
+	nodeTraitPreComposer  = uint64(1) << 1
+	nodeTraitPostComposer = uint64(1) << 2
 )
 
 // NodeTrait record factory method, negotiation infos
 type NodeTrait struct {
-	utils.Flag[uint32]
+	utils.Flag[uint64]
 	Name          string
 	NewFunc       func() SessionAware // new function only alloc node, not initialize it
 	Accept        []*MessageTrait

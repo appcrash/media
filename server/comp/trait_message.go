@@ -6,8 +6,6 @@ import (
 	"reflect"
 )
 
-//go:generate go run ../../cmd/gentrait -v -t message -o trait_message_generated.go
-
 // trait is the means of class meta-info bookkeeping that props up runtime polymorphism
 // it is a workaround because of limitation of golang runtime feature
 

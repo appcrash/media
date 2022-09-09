@@ -24,11 +24,15 @@ var (
 	nodeTraitTagInterfaceType    *types.Interface
 	messageTraitTagInterfaceType *types.Interface
 	messageInterfaceType         *types.Interface
+	messageTypeInterfaceType     *types.Named
 	sessionAwareInterfaceType    *types.Interface
-	mainPackage                  *packages.Package
-	userPackage                  []*packages.Package
+	toMessageFunc                *types.Func
 
-	currentPackageName string
+	rootPackage              *packages.Package
+	userPackage              []*packages.Package
+	currentGeneratingPackage *packages.Package
+
+	workingPackageName string // the package in which go:generate is called
 )
 
 type templateName struct {
@@ -44,32 +48,34 @@ func initPackage() {
 	os.Remove(genFile)
 
 	pkgs, err := packages.Load(loadConfig, rootPackageName, ".")
-	log.Debugf("==> total loading packages  len is %v", len(pkgs))
+	log.Debugf("==> total loaded packages length is %v", len(pkgs))
 	if err != nil {
 		panic(err)
 	} else {
 		for _, p := range pkgs {
 			if p.PkgPath == rootPackageName {
-				mainPackage = p
+				rootPackage = p
 				scope := p.Types.Scope()
 				nodeTraitTagInterfaceType = scope.Lookup("NodeTraitTag").Type().Underlying().(*types.Interface)
 				messageTraitTagInterfaceType = scope.Lookup("MessageTraitTag").Type().Underlying().(*types.Interface)
 				messageInterfaceType = scope.Lookup("Message").Type().Underlying().(*types.Interface)
+				messageTypeInterfaceType = scope.Lookup("MessageType").Type().(*types.Named)
 				sessionAwareInterfaceType = scope.Lookup("SessionAware").Type().Underlying().(*types.Interface)
+				toMessageFunc = scope.Lookup("ToMessage").(*types.Func)
 			} else {
 				userPackage = append(userPackage, p)
 			}
 		}
 	}
 
-	if mainPackage == nil {
+	if rootPackage == nil {
 		panic("cannot find necessary interface types in root package")
 	}
 
 }
 
 func isGenForUser() bool {
-	return len(userPackage) > 0
+	return currentGeneratingPackage.PkgPath != rootPackageName
 }
 
 func _V(name string) string {
@@ -77,6 +83,25 @@ func _V(name string) string {
 		return "comp." + name
 	}
 	return name
+}
+
+func _T(obj types.Object) string {
+	if obj.Pkg().Path() != currentGeneratingPackage.PkgPath {
+		return obj.Pkg().Name() + "." + obj.Name()
+	} else {
+		return obj.Name()
+	}
+}
+
+// search a type object in all packages
+func lookupTypeObject(name string) types.Object {
+	for _, p := range append([]*packages.Package{rootPackage}, userPackage...) {
+		obj := p.Types.Scope().Lookup(name)
+		if obj != nil {
+			return obj
+		}
+	}
+	return nil
 }
 
 func findClassMethodsLike(pkg *packages.Package, structName string, isPtrReceiver bool, methodPattern *regexp.Regexp) (funcDecls []*ast.FuncDecl) {
@@ -105,11 +130,11 @@ func findClassMethodsLike(pkg *packages.Package, structName string, isPtrReceive
 	return
 }
 
+// find struct that implements provided interface type, NOTE: function receiver must be ptr not struct
 func findClassImplements(pkg *packages.Package, implemented *types.Interface, f func(object types.Object, ts *ast.TypeSpec)) {
-	//scope := pkg.Types.Scope()
 	for _, fileSyntax := range pkg.Syntax {
 		//fileName := pkg.GoFiles[index]
-		//log.Infof("[message] inspecting %v", fileName)
+		//log.Debugf("====> searching interface implementer in %v", fileName)
 		for _, decl := range fileSyntax.Decls {
 			if gen, ok := decl.(*ast.GenDecl); ok && gen.Tok == token.TYPE {
 				// check whether the ptr of this type implements this interface
@@ -132,19 +157,18 @@ func findClassImplements(pkg *packages.Package, implemented *types.Interface, f 
 	}
 }
 
-func findDeclaredTypeOfType[T any](pkg *packages.Package, f func(objectType types.Object, t T)) {
+func findAllDeclaredTypeOfType[T *types.Interface | *types.Struct](pkg *packages.Package, f func(objectType types.Object, t T)) {
 	for _, fileSyntax := range pkg.Syntax {
 		for _, decl := range fileSyntax.Decls {
 			if gen, ok := decl.(*ast.GenDecl); ok && gen.Tok == token.TYPE {
 				for _, spec := range gen.Specs {
 					if ts, ok1 := spec.(*ast.TypeSpec); ok1 {
 						objectType, _ := pkg.TypesInfo.Defs[ts.Name]
-						if t, ok1 := objectType.Type().Underlying().(T); !ok1 {
+						if t, ok2 := objectType.Type().Underlying().(T); !ok2 {
 							continue
 						} else {
 							f(objectType, t)
 						}
-
 					}
 				}
 			}
