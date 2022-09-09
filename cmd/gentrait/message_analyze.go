@@ -15,7 +15,7 @@ const (
 	msgConvertInterfacePostfix = "Convertable"
 	msgConvertMethodPrefix     = "As"
 	msgTraitEnumPrefix         = "Mr"
-	msgTraitEnumEnd            = msgTraitEnumPrefix + "UserTraitBegin"
+	msgTraitEnumShiftEnd       = "UserTraitEnumShiftBegin"
 )
 
 var (

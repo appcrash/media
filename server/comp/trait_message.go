@@ -88,7 +88,10 @@ func MT[T any](convertType reflect.Type) *MessageTrait {
 	ptrType := reflect.TypeOf(new(T))
 	structType := ptrType.Elem()
 
-	msg := reflect.New(structType).Interface().(Message)
+	msg, ok := reflect.New(structType).Interface().(Message)
+	if !ok {
+		panic(fmt.Errorf("%v doesn't implement Message", ptrType.String()))
+	}
 	trait := &MessageTrait{
 		TypeId:      msg.Type(),
 		PtrType:     ptrType,

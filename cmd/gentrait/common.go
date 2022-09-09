@@ -1,12 +1,15 @@
 package main
 
 import (
+	"fmt"
 	"go/ast"
 	"go/token"
 	"go/types"
 	"golang.org/x/tools/go/packages"
 	"os"
+	"reflect"
 	"regexp"
+	"strconv"
 )
 
 const rootPackageName = "github.com/appcrash/media/server/comp"
@@ -74,6 +77,58 @@ func initPackage() {
 
 }
 
+func findConstInPackage[T any](p *packages.Package, constName string) (returnValue T) {
+	var found bool
+	iterateDeclaresInPackage(p, func(gen *ast.GenDecl) {
+		if found {
+			return
+		}
+		if gen.Tok == token.CONST {
+			for _, s := range gen.Specs {
+				spec := s.(*ast.ValueSpec)
+				for _, n := range spec.Names {
+					if n.Name == constName {
+						if len(spec.Values) != 1 {
+							panic("dont support multiple value assignment const")
+						}
+						if bl, ok := spec.Values[0].(*ast.BasicLit); !ok {
+							panic("const value is not basic lit")
+						} else {
+							var cv interface{}
+							var err error
+							found = true
+							strValue := bl.Value
+							rv := reflect.ValueOf(returnValue)
+							switch rv.Type().Kind() {
+							case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+								reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+								cv, err = strconv.Atoi(strValue)
+							case reflect.String:
+								cv = strValue
+							case reflect.Float32:
+								cv, err = strconv.ParseFloat(strValue, 32)
+							case reflect.Float64:
+								cv, err = strconv.ParseFloat(strValue, 64)
+							default:
+								panic("find a not supported const type")
+							}
+							if err != nil {
+								panic(err)
+							}
+							returnValue = reflect.ValueOf(cv).Convert(rv.Type()).Interface().(T)
+						}
+					}
+				}
+			}
+
+		}
+	})
+	if !found {
+		panic(fmt.Errorf("cannot find the const %v", constName))
+	}
+	return
+}
+
 func isGenForUser() bool {
 	return currentGeneratingPackage.PkgPath != rootPackageName
 }
@@ -104,74 +159,73 @@ func lookupTypeObject(name string) types.Object {
 	return nil
 }
 
-func findClassMethodsLike(pkg *packages.Package, structName string, isPtrReceiver bool, methodPattern *regexp.Regexp) (funcDecls []*ast.FuncDecl) {
+func iterateDeclaresInPackage[T *ast.FuncDecl | *ast.GenDecl](pkg *packages.Package, f func(obj T)) {
 	for _, fileSyntax := range pkg.Syntax {
 		for _, decl := range fileSyntax.Decls {
-			if fd, ok := decl.(*ast.FuncDecl); ok {
-				if !methodPattern.MatchString(fd.Name.Name) {
-					continue
-				}
-				for i := 0; i < fd.Recv.NumFields(); i++ {
-					expr := fd.Recv.List[i].Type
-					switch expr := expr.(type) {
-					case *ast.Ident:
-						if !isPtrReceiver && expr.Name == structName {
-							funcDecls = append(funcDecls, fd)
-						}
-					case *ast.StarExpr:
-						if isPtrReceiver && expr.X.(*ast.Ident).Name == structName {
-							funcDecls = append(funcDecls, fd)
-						}
-					}
-				}
+			if fd, ok := decl.(T); ok {
+				f(fd)
 			}
 		}
 	}
+}
+
+func findClassMethodsLike(pkg *packages.Package, structName string, isPtrReceiver bool, methodPattern *regexp.Regexp) (funcDecls []*ast.FuncDecl) {
+	iterateDeclaresInPackage(pkg, func(fd *ast.FuncDecl) {
+		if !methodPattern.MatchString(fd.Name.Name) {
+			return
+		}
+		for i := 0; i < fd.Recv.NumFields(); i++ {
+			expr := fd.Recv.List[i].Type
+			switch expr := expr.(type) {
+			case *ast.Ident:
+				if !isPtrReceiver && expr.Name == structName {
+					funcDecls = append(funcDecls, fd)
+				}
+			case *ast.StarExpr:
+				if isPtrReceiver && expr.X.(*ast.Ident).Name == structName {
+					funcDecls = append(funcDecls, fd)
+				}
+			}
+		}
+	})
+
 	return
 }
 
 // find struct that implements provided interface type, NOTE: function receiver must be ptr not struct
 func findClassImplements(pkg *packages.Package, implemented *types.Interface, f func(object types.Object, ts *ast.TypeSpec)) {
-	for _, fileSyntax := range pkg.Syntax {
-		//fileName := pkg.GoFiles[index]
-		//log.Debugf("====> searching interface implementer in %v", fileName)
-		for _, decl := range fileSyntax.Decls {
-			if gen, ok := decl.(*ast.GenDecl); ok && gen.Tok == token.TYPE {
-				// check whether the ptr of this type implements this interface
-				for _, spec := range gen.Specs {
-					if ts, ok1 := spec.(*ast.TypeSpec); ok1 {
-						var isStruct bool
-						structType, _ := pkg.TypesInfo.Defs[ts.Name]
-						if _, isStruct = structType.Type().Underlying().(*types.Struct); !isStruct {
-							// not a struct type
-							continue
-						}
-						ptr := types.NewPointer(structType.Type())
-						if types.Implements(ptr, implemented) {
-							f(structType, ts)
-						}
+	iterateDeclaresInPackage(pkg, func(gen *ast.GenDecl) {
+		if gen.Tok == token.TYPE {
+			// check whether the ptr of this type implements this interface
+			for _, spec := range gen.Specs {
+				if ts, ok1 := spec.(*ast.TypeSpec); ok1 {
+					var isStruct bool
+					structType, _ := pkg.TypesInfo.Defs[ts.Name]
+					if _, isStruct = structType.Type().Underlying().(*types.Struct); !isStruct {
+						// not a struct type
+						continue
+					}
+					ptr := types.NewPointer(structType.Type())
+					if types.Implements(ptr, implemented) {
+						f(structType, ts)
 					}
 				}
 			}
 		}
-	}
+	})
 }
 
 func findAllDeclaredTypeOfType[T *types.Interface | *types.Struct](pkg *packages.Package, f func(objectType types.Object, t T)) {
-	for _, fileSyntax := range pkg.Syntax {
-		for _, decl := range fileSyntax.Decls {
-			if gen, ok := decl.(*ast.GenDecl); ok && gen.Tok == token.TYPE {
-				for _, spec := range gen.Specs {
-					if ts, ok1 := spec.(*ast.TypeSpec); ok1 {
-						objectType, _ := pkg.TypesInfo.Defs[ts.Name]
-						if t, ok2 := objectType.Type().Underlying().(T); !ok2 {
-							continue
-						} else {
-							f(objectType, t)
-						}
+	iterateDeclaresInPackage(pkg, func(gen *ast.GenDecl) {
+		if gen.Tok == token.TYPE {
+			for _, spec := range gen.Specs {
+				if ts, ok1 := spec.(*ast.TypeSpec); ok1 {
+					objectType, _ := pkg.TypesInfo.Defs[ts.Name]
+					if t, ok2 := objectType.Type().Underlying().(T); ok2 {
+						f(objectType, t)
 					}
 				}
 			}
 		}
-	}
+	})
 }

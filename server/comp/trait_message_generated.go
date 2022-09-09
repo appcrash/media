@@ -5,8 +5,8 @@ import "github.com/appcrash/media/server/event"
 
 // Message Trait Enum
 const (
-	MrCloneable = iota
-	MrUserTraitBegin
+	MrCloneable             = uint64(1) << 0
+	UserTraitEnumShiftBegin = 1
 )
 
 // Message Type Enum

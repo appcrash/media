@@ -23,6 +23,12 @@ package {{ .Name }}
 	msgTempEnumValue = template.Must(template.New("enum").Parse(
 		`    {{.Name}}
 `))
+	msgTempTraitValue = template.Must(template.New("trait_enum").Parse(
+		`    {{.Name}} = uint64(1) << {{.Shift}}
+`))
+	msgTempTraitShiftValue = template.Must(template.New("trait_shift").Parse(
+		`    {{.Name}} = {{.Value}}
+`))
 	msgTempConvertableInterface = template.Must(template.New("convertable_interface").Parse(
 		`type {{ .InterfaceName }} interface {
     {{ .MethodName }}() *{{ .MessageTypeName }}
@@ -109,17 +115,27 @@ func msgEmitTraitEnum(w *bufio.Writer) {
 	if len(emitMriis) == 0 {
 		return
 	}
-	start := "iota"
+	start := 0
 	if isGenForUser() {
-		start = _V(msgTraitEnumEnd)
+		start = findConstInPackage[int](rootPackage, msgTraitEnumShiftEnd)
 	}
-	w.Write([]byte("// Message Trait Enum\n"))
-	msgTempEnumStart.Execute(w, struct{ Name, Start string }{emitMriis[0].enumName(), start})
-	for _, i := range emitMriis[1:] {
-		msgTempEnumValue.Execute(w, templateName{i.enumName()})
+	w.Write([]byte("// Message Trait Enum\nconst (\n"))
+	for _, traitInfo := range emitMriis {
+		msgTempTraitValue.Execute(w, struct {
+			Name  string
+			Shift int
+		}{
+			traitInfo.enumName(), start,
+		})
+		start++
 	}
 	if !isGenForUser() {
-		msgTempEnumValue.Execute(w, templateName{msgTraitEnumEnd})
+		msgTempTraitShiftValue.Execute(w, struct {
+			Name  string
+			Value int
+		}{
+			msgTraitEnumShiftEnd, start,
+		})
 	}
 	w.Write([]byte(")\n\n")) // finish const block
 }
