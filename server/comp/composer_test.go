@@ -24,10 +24,10 @@ package comp_test
 //	switch e.GetCmd() {
 //	case comp.MtRawByte, comp.Generic:
 //		msg := e.GetObj()
-//		fmt.Printf("%v print %v\n", p.Name, msg)
+//		fmt.Printf("%v print %v\n", p.NodeType, msg)
 //	case comp.CtrlCall:
 //		msg := e.GetObj().(*comp.CtrlMessage)
-//		reply := comp.WithOk(p.Name)
+//		reply := comp.WithOk(p.NodeType)
 //		msg.C <- reply
 //	case comp.CtrlCast:
 //		msg := e.GetObj().(*comp.CtrlMessage)

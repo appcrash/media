@@ -51,7 +51,7 @@ func (s *SessionNode) GetNodeScope() string {
 }
 
 func (s *SessionNode) GetNodeTypeName() string {
-	return s.Trait.Name
+	return s.Trait.NodeType
 }
 
 func (s *SessionNode) OnEnter(delegate *event.NodeDelegate) {
@@ -269,7 +269,7 @@ func MakeSessionNode(nodeType string, sessionId string, props []*nmd.NodeProp) S
 	if trait, ok := NodeTraitOfType(nodeType); !ok {
 		return nil
 	} else {
-		node := trait.NewFunc()
+		node := trait.FactoryFunc()
 		if node != nil {
 			props = setNodeProperties(node, props)
 		}
@@ -277,7 +277,7 @@ func MakeSessionNode(nodeType string, sessionId string, props []*nmd.NodeProp) S
 	}
 }
 
-// setNodeProperties use reflection to set fields by Name, it is cornerstone of config by scripting
+// setNodeProperties use reflection to set fields by NodeType, it is cornerstone of config by scripting
 func setNodeProperties(node event.Node, props []*nmd.NodeProp) (newProps []*nmd.NodeProp) {
 	ns := reflect.ValueOf(node).Elem()
 	for _, p := range props {

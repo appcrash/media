@@ -41,8 +41,8 @@ const (
 // NodeTrait record factory method, negotiation infos
 type NodeTrait struct {
 	utils.Flag[uint64]
-	Name          string
-	NewFunc       func() SessionAware // new function only alloc node, not initialize it
+	NodeType      string
+	FactoryFunc   func() SessionAware
 	Accept        []*MessageTrait
 	Offer         []*MessageTrait
 	PtrType, Type reflect.Type
@@ -51,8 +51,8 @@ type NodeTrait struct {
 func (nt *NodeTrait) Clone() (cloned *NodeTrait) {
 	cloned = new(NodeTrait)
 	cloned.Flag = nt.Flag
-	cloned.Name = nt.Name
-	cloned.NewFunc = nt.NewFunc
+	cloned.NodeType = nt.NodeType
+	cloned.FactoryFunc = nt.FactoryFunc
 	cloned.PtrType = nt.PtrType
 	cloned.Type = nt.Type
 	for _, mt := range nt.Accept {
@@ -79,7 +79,7 @@ func (nt *NodeTrait) IsPostComposer() bool {
 var nodeTraitRegistry = make(map[string]*NodeTrait)
 
 // NT is a template method to make node trait
-func NT[T any]() *NodeTrait {
+func NT[T any](typeName string, factoryFunc func() SessionAware) *NodeTrait {
 	ptrType := reflect.TypeOf(new(T))
 	structType := ptrType.Elem()
 	if structType.Kind() != reflect.Struct {
@@ -116,8 +116,8 @@ func NT[T any]() *NodeTrait {
 			offer = append(offer, tr)
 		}
 	}
-	trait.Name = name
-	trait.NewFunc = newFunc
+	trait.NodeType = name
+	trait.FactoryFunc = newFunc
 	trait.Accept = accept
 	trait.Offer = offer
 	trait.PtrType = ptrType
@@ -141,14 +141,14 @@ func NT[T any]() *NodeTrait {
 func RegisterNodeTrait(traits ...*NodeTrait) error {
 	// sanity check at start-up time to avoid runtime checking
 	for _, trait := range traits {
-		name := trait.Name
+		name := trait.NodeType
 		if name == "" {
 			return errors.New("empty trait name")
 		}
 		if _, ok := nodeTraitRegistry[name]; ok {
 			return fmt.Errorf("node traiit(%v) already registered", name)
 		}
-		if trait.NewFunc == nil {
+		if trait.FactoryFunc == nil {
 			return fmt.Errorf("node trait(%v) has no factory method", name)
 		}
 

@@ -3,6 +3,13 @@ package comp
 
 import "github.com/appcrash/media/server/event"
 
+var (
+	ndtChanSink  = NT("chan_sink", newChanSink)
+	ndtEntryNode = NT("entry_node", newEntryNode)
+	ndtPubsub    = NT("pubsub", newPubsub)
+	ndtRtpSrc    = NT("rtp_src", newRtpSrc)
+)
+
 func (n *RtpSrc) ConfigHandler() {
 	n.SetHandler(MtRawByte, n._convertRawByteMessage)
 }
@@ -12,3 +19,31 @@ func (n *RtpSrc) _convertRawByteMessage(evt *event.Event) {
 		n.handleA(msg)
 	}
 }
+
+// Node Factory Method Begin
+
+func newChanSink() SessionAware {
+	node := &ChanSink{}
+	node.Trait, _ = NodeTraitOfType("chan_sink")
+	return node
+}
+
+func newEntryNode() SessionAware {
+	node := &EntryNode{}
+	node.Trait, _ = NodeTraitOfType("entry_node")
+	return node
+}
+
+func newPubsub() SessionAware {
+	node := &Pubsub{}
+	node.Trait, _ = NodeTraitOfType("pubsub")
+	return node
+}
+
+func newRtpSrc() SessionAware {
+	node := &RtpSrc{}
+	node.Trait, _ = NodeTraitOfType("rtp_src")
+	return node
+}
+
+// Node Factory Method End

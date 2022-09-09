@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/appcrash/media/server/utils"
 	"go/ast"
 	"go/types"
 	"golang.org/x/tools/go/packages"
@@ -11,6 +12,7 @@ const (
 	nodeSessionNodeStructName     = "SessionNode"
 	nodeStubHandlerFunctionPrefix = "_convert"
 	nodeHandleMessageMethodPrefix = "handle"
+	nodeTraitNamePrefix           = "ndt"
 )
 
 var (
@@ -38,6 +40,14 @@ func (i *nodeTypeInfo) isConcrete() bool {
 
 func (i *nodeTypeInfo) typeName() string {
 	return i.structType.Name()
+}
+
+func (i *nodeTypeInfo) snakeTypeName() string {
+	return utils.CamelCaseToSnake(i.typeName())
+}
+
+func (i *nodeTypeInfo) traitName() string {
+	return nodeTraitNamePrefix + i.typeName()
 }
 
 func (i *nodeTypeInfo) stubHandlerName(index int) string {

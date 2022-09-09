@@ -17,13 +17,6 @@ type EntryNode struct {
 
 //---------------------------------- api & implementation -------------------------------------------
 
-func newEntryNode() SessionAware {
-	node := &EntryNode{}
-	//node.Name = TypeENTRY
-
-	return node
-}
-
 func (e *EntryNode) Init() error {
 	if len(e.payloadType) == 0 {
 		return fmt.Errorf("entry node without payload type")

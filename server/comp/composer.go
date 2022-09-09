@@ -101,7 +101,7 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 	// create node instances, collect message providers if any
 	for _, n := range nodeDefs {
 		n.Props = append(n.Props, &nmd.NodeProp{
-			Key:   "Name",
+			Key:   "NodeType",
 			Type:  "str",
 			Value: n.Name,
 		})

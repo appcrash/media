@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"go/format"
 	"io"
 	"os"
 	"text/template"
@@ -80,8 +82,16 @@ func msgEmitAll() {
 	if err != nil {
 		panic(err)
 	}
-	w := bufio.NewWriter(file)
-	defer func() { w.Flush() }()
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	defer func() {
+		w.Flush()
+		if formatted, err1 := format.Source(b.Bytes()); err1 != nil {
+			panic(err1)
+		} else {
+			file.Write(formatted)
+		}
+	}()
 
 	emitPackage(w)
 
