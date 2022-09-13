@@ -10,6 +10,15 @@ var (
 	ndtRtpSrc    = NT("rtp_src", newRtpSrc)
 )
 
+func initNodeTraits() {
+	RegisterNodeTrait(
+		ndtChanSink,
+		ndtEntryNode,
+		ndtPubsub,
+		ndtRtpSrc,
+	)
+}
+
 func (n *RtpSrc) ConfigHandler() {
 	n.SetHandler(MtRawByte, n._convertRawByteMessage)
 }
@@ -47,3 +56,7 @@ func newRtpSrc() SessionAware {
 }
 
 // Node Factory Method End
+
+func init() {
+	initNodeTraits()
+}

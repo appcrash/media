@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"go/format"
 	"os"
 	"text/template"
@@ -40,6 +41,10 @@ var (
 	nodeTempTraitVar = template.Must(template.New("node_trait_var").Parse(
 		`    {{.VarName}} = {{.NT}}("{{.NodeSnakeName}}",{{.FuncName}})
 `))
+	nodeTempInitTraitFunc = template.Must(template.New("node_trait_init_func").Parse(
+		`func initNodeTraits () {
+{{.Name}} (
+`))
 )
 
 var emitNtis []*nodeTypeInfo
@@ -55,10 +60,10 @@ func nodeEmitAll() {
 	}
 
 	file, err := os.Create(genFile)
-	defer func() { file.Close() }()
 	if err != nil {
 		panic(err)
 	}
+	defer func() { file.Close() }()
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -75,20 +80,34 @@ func nodeEmitAll() {
 
 	nodeEmitTraitDefs(w)
 	nodeEmitMessageHandler(w)
-	nodeEmitNewFunc(w)
+	nodeEmitFactoryFunc(w)
+	nodeEmitInitFunc(w)
+}
+
+func nodeEmitInitFunc(w *bufio.Writer) {
+	w.Write([]byte(`
+func init() {
+initNodeTraits()
+}`))
 }
 
 func nodeEmitTraitDefs(w *bufio.Writer) {
 	w.Write([]byte("var (\n"))
 	for _, ni := range emitNtis {
 		nodeTempTraitVar.Execute(w, struct{ VarName, NT, NodeSnakeName, FuncName string }{
-			ni.traitName(), _V("NT"), ni.snakeTypeName(), "new" + ni.typeName(),
+			ni.traitVarName(), _V("NT"), ni.snakeTypeName(), "new" + ni.typeName(),
 		})
 	}
 	w.Write([]byte(")\n\n")) // close var define
+
+	nodeTempInitTraitFunc.Execute(w, templateName{_V("RegisterNodeTrait")})
+	for _, ni := range emitNtis {
+		w.Write([]byte(fmt.Sprintf("%v,\n", ni.traitVarName())))
+	}
+	w.Write([]byte(")}\n\n")) // close func block
 }
 
-func nodeEmitNewFunc(w *bufio.Writer) {
+func nodeEmitFactoryFunc(w *bufio.Writer) {
 	w.Write([]byte("// Node Factory Method Begin\n\n"))
 	for _, n := range emitNtis {
 		nodeTempNewFunc.Execute(w, struct{ NodeType, NodeSnakeName, SessionAware, TraitOf string }{

@@ -12,13 +12,17 @@ const (
 	nodeSessionNodeStructName     = "SessionNode"
 	nodeStubHandlerFunctionPrefix = "_convert"
 	nodeHandleMessageMethodPrefix = "handle"
-	nodeTraitNamePrefix           = "ndt"
+	nodeTraitVarNamePrefix        = "ndt"
+	nodeTraitEnumPrefix           = "Nr"
 )
 
 var (
 	nodeTypeInfos        []*nodeTypeInfo
 	concreteNodeTypeInfo []*nodeTypeInfo // only concrete node type
 	userNodeTypeInfo     []*nodeTypeInfo // only concrete node type within user package (exclude root package)
+
+	nodeIdGen      uint16
+	nodeTraitIdGen uint16
 )
 
 type nodeTypeInfo struct {
@@ -46,8 +50,8 @@ func (i *nodeTypeInfo) snakeTypeName() string {
 	return utils.CamelCaseToSnake(i.typeName())
 }
 
-func (i *nodeTypeInfo) traitName() string {
-	return nodeTraitNamePrefix + i.typeName()
+func (i *nodeTypeInfo) traitVarName() string {
+	return nodeTraitVarNamePrefix + i.typeName()
 }
 
 func (i *nodeTypeInfo) stubHandlerName(index int) string {
@@ -61,6 +65,16 @@ func (i *nodeTypeInfo) handlerName(index int) string {
 
 func (i *nodeTypeInfo) messageFullTypeName(index int) string {
 	return i.acceptMessageTypes[index].fullTypeName()
+}
+
+type nodeTraitInterfaceInfo struct {
+	id            uint16
+	objectType    types.Object
+	interfaceType *types.Interface
+}
+
+func (i *nodeTraitInterfaceInfo) enumName() string {
+	return nodeTraitEnumPrefix + i.objectType.Name()
 }
 
 func generateNodeTrait() {
@@ -167,13 +181,12 @@ func nodePassCollectConcreteClass(p *packages.Package) {
 }
 
 func nodePassFindImplementer(p *packages.Package) {
-	var idGen uint16
 	findClassImplements(p, sessionAwareInterfaceType, func(object types.Object, ts *ast.TypeSpec) {
 		nodeTypeInfos = append(nodeTypeInfos, &nodeTypeInfo{
-			id:         idGen,
+			id:         nodeIdGen,
 			structType: object,
 			spec:       ts,
 		})
-		idGen++
+		nodeIdGen++
 	})
 }

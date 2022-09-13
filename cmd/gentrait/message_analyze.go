@@ -15,7 +15,7 @@ const (
 	msgConvertInterfacePostfix = "Convertable"
 	msgConvertMethodPrefix     = "As"
 	msgTraitEnumPrefix         = "Mr"
-	msgTraitEnumShiftEnd       = "UserTraitEnumShiftBegin"
+	msgTraitEnumShiftEnd       = "UserMessageTraitEnumShiftBegin"
 )
 
 var (
@@ -26,6 +26,9 @@ var (
 
 	msgTraitInfInfos     []*messageTraitInterfaceInfo // all trait interface
 	msgUserTraitInfInfos []*messageTraitInterfaceInfo // only trait interface within user package (exclude root package)
+
+	msgIdGen      uint16
+	msgTraitIdGen uint16
 )
 
 type messageTypeInfo struct {
@@ -118,14 +121,13 @@ func inspectPackageForMessage(pkg *packages.Package) {
 }
 
 func msgPassFindImplementer(pkg *packages.Package) {
-	var idGen uint16
 	findClassImplements(pkg, messageInterfaceType, func(object types.Object, ts *ast.TypeSpec) {
 		msgTypeInfos = append(msgTypeInfos, &messageTypeInfo{
-			id:         idGen,
+			id:         msgIdGen,
 			structType: object,
 			spec:       ts,
 		})
-		idGen++
+		msgIdGen++
 	})
 }
 
@@ -142,7 +144,6 @@ func msgPassCollectConcreteClass() {
 
 // find all interfaces embedding MessageTraitTag
 func msgPassFindTraitInterface(pkg *packages.Package) {
-	var idGen uint16
 	findAllDeclaredTypeOfType(pkg, func(objectType types.Object, inf *types.Interface) {
 		n := inf.NumEmbeddeds() - 1
 		for n >= 0 {
@@ -150,15 +151,16 @@ func msgPassFindTraitInterface(pkg *packages.Package) {
 			// CAVEAT: use Underlying when comparing type
 			if types.Identical(messageTraitTagInterfaceType, typ.Underlying()) {
 				info := &messageTraitInterfaceInfo{
-					id:            idGen,
+					id:            msgTraitIdGen,
 					objectType:    objectType,
 					interfaceType: inf,
 				}
 				msgTraitInfInfos = append(msgTraitInfInfos, info)
-				idGen++
+				msgTraitIdGen++
 				if info.objectType.Pkg().Path() != rootPackageName {
 					msgUserTraitInfInfos = append(msgUserTraitInfInfos, info)
 				}
+				return
 			}
 			n--
 		}

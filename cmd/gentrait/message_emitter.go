@@ -15,6 +15,9 @@ var (
 package {{ .Name }}
 
 `))
+	tempTraitValue = template.Must(template.New("trait_enum").Parse(
+		`    {{.Name}} = uint64(1) << {{.Shift}}
+`))
 	msgTempImport = template.Must(template.New("import").Parse(`import "{{.Import}}"
 
 `))
@@ -24,9 +27,6 @@ package {{ .Name }}
 `))
 	msgTempEnumValue = template.Must(template.New("enum").Parse(
 		`    {{.Name}}
-`))
-	msgTempTraitValue = template.Must(template.New("trait_enum").Parse(
-		`    {{.Name}} = uint64(1) << {{.Shift}}
 `))
 	msgTempTraitShiftValue = template.Must(template.New("trait_shift").Parse(
 		`    {{.Name}} = {{.Value}}
@@ -131,7 +131,7 @@ func msgEmitTraitEnum(w *bufio.Writer) {
 	}
 	w.Write([]byte("// Message Trait Enum\nconst (\n"))
 	for _, traitInfo := range emitMriis {
-		msgTempTraitValue.Execute(w, struct {
+		tempTraitValue.Execute(w, struct {
 			Name  string
 			Shift int
 		}{

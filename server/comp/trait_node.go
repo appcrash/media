@@ -3,54 +3,54 @@ package comp
 import (
 	"errors"
 	"fmt"
-	"github.com/appcrash/media/server/utils"
 	"reflect"
 )
 
-// NodeTraitTag is a tag interface, its main use is to notify gentrait tool that the parent interface who embeds it
-// requires being treated as a node trait interface, so generate code for it
+var (
+	sessionAwareMetaType = MetaType[SessionAware]()
+
+	nodeTraitRegistry = make(map[string]*NodeTrait)
+)
+
+// NodeTraitTag is a tag interface, if an interface is used only for extend node's behaviour, embed it, then
+// use NodeTo() to quickly convert it
 type NodeTraitTag interface{}
 
 type Channelable[T any] interface {
+	NodeTraitTag
 	ChannelLink(c chan T)
 }
 
 type PreComposer interface {
+	NodeTraitTag
 	// BeforeCompose is called after nodes initialized but not added to graph yet
 	BeforeCompose(c *Composer) error
 }
 
 type PostComposer interface {
+	NodeTraitTag
 	// AfterCompose is called after nodes are negotiated and connected
 	AfterCompose(c *Composer) error
 }
 
-var (
-	sessionAwareMetaType = MetaType[SessionAware]()
-	channelableMetaType  = MetaType[Channelable[[]byte]]() // this can be more generic if golang improves
-	preComposerMetaType  = MetaType[PreComposer]()
-	postComposerMetaType = MetaType[PostComposer]()
-)
+// NodeTo convert session node to node with specific trait object
+func NodeTo[T NodeTraitTag](n SessionAware) T {
+	if node, ok := n.(T); ok {
+		return node
+	}
+	return nil
+}
 
-const (
-	nodeTraitChannelable  = uint64(1) << 0
-	nodeTraitPreComposer  = uint64(1) << 1
-	nodeTraitPostComposer = uint64(1) << 2
-)
-
-// NodeTrait record factory method, negotiation infos
+// NodeTrait record static information of node such as factory method, negotiation acceptance
 type NodeTrait struct {
-	utils.Flag[uint64]
 	NodeType      string
 	FactoryFunc   func() SessionAware
 	Accept        []*MessageTrait
-	Offer         []*MessageTrait
 	PtrType, Type reflect.Type
 }
 
 func (nt *NodeTrait) Clone() (cloned *NodeTrait) {
 	cloned = new(NodeTrait)
-	cloned.Flag = nt.Flag
 	cloned.NodeType = nt.NodeType
 	cloned.FactoryFunc = nt.FactoryFunc
 	cloned.PtrType = nt.PtrType
@@ -58,25 +58,8 @@ func (nt *NodeTrait) Clone() (cloned *NodeTrait) {
 	for _, mt := range nt.Accept {
 		cloned.Accept = append(cloned.Accept, mt.Clone())
 	}
-	for _, mt := range nt.Offer {
-		cloned.Offer = append(cloned.Offer, mt.Clone())
-	}
 	return
 }
-
-func (nt *NodeTrait) IsChannelable() bool {
-	return nt.HasFlag(nodeTraitChannelable)
-}
-
-func (nt *NodeTrait) IsPreComposer() bool {
-	return nt.HasFlag(nodeTraitPreComposer)
-}
-
-func (nt *NodeTrait) IsPostComposer() bool {
-	return nt.HasFlag(nodeTraitPostComposer)
-}
-
-var nodeTraitRegistry = make(map[string]*NodeTrait)
 
 // NT is a template method to make node trait
 func NT[T any](typeName string, factoryFunc func() SessionAware) *NodeTrait {
@@ -89,50 +72,33 @@ func NT[T any](typeName string, factoryFunc func() SessionAware) *NodeTrait {
 		panic(fmt.Errorf("node type %v doesn't implements session aware", ptrType.String()))
 	}
 
-	name := utils.CamelCaseToSnake(structType.Name())
-	var accept, offer []*MessageTrait
+	var accept []*MessageTrait
+	//name := utils.CamelCaseToSnake(structType.Name())
 	trait := &NodeTrait{}
-	newFunc := func() SessionAware {
-		node := reflect.New(structType).Interface()
-		// this is SessionNode specific hack, other session aware implementation must define these fields to
-		// proceed successfully
-		nodeValue := reflect.ValueOf(node).Elem()
-		nodeValue.FieldByName("Trait").Set(reflect.ValueOf(trait.Clone()))
-		return node.(SessionAware)
-	}
-	nodeObj := newFunc()
+	//newFunc := func() SessionAware {
+	//	node := reflect.New(structType).Interface()
+	//	// this is SessionNode specific hack, other session aware implementation must define these fields to
+	//	// proceed successfully
+	//	nodeValue := reflect.ValueOf(node).Elem()
+	//	nodeValue.FieldByName("Trait").Set(reflect.ValueOf(trait.Clone()))
+	//	return node.(SessionAware)
+	//}
+	nodeObj := factoryFunc()
 
 	for _, messageType := range nodeObj.Accept() {
 		if tr, ok := MessageTraitOfType(messageType); !ok {
-			panic(fmt.Errorf("node type(%v) accept unknown message type %v", name, messageType))
+			panic(fmt.Errorf("node type(%v) accept unknown message type %v", typeName, messageType))
 		} else {
 			accept = append(accept, tr)
 		}
 	}
-	for _, messageType := range nodeObj.Offer() {
-		if tr, ok := MessageTraitOfType(messageType); !ok {
-			panic(fmt.Errorf("node type(%v) offer unknown message type %v", name, messageType))
-		} else {
-			offer = append(offer, tr)
-		}
-	}
-	trait.NodeType = name
-	trait.FactoryFunc = newFunc
+
+	trait.NodeType = typeName
+	trait.FactoryFunc = factoryFunc
 	trait.Accept = accept
-	trait.Offer = offer
 	trait.PtrType = ptrType
 	trait.Type = structType
 
-	// inspect interface trait
-	if ptrType.Implements(channelableMetaType) {
-		trait.SetFlag(nodeTraitChannelable)
-	}
-	if ptrType.Implements(preComposerMetaType) {
-		trait.SetFlag(nodeTraitPreComposer)
-	}
-	if ptrType.Implements(postComposerMetaType) {
-		trait.SetFlag(nodeTraitPostComposer)
-	}
 	return trait
 }
 
