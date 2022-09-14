@@ -41,18 +41,16 @@ func (c *Composer) Connect(sender, receiver SessionAware) (lp LinkPoint, err err
 
 func (c *Composer) preConnectNodes() {
 	for _, node := range c.nodeSortedList {
-		trait, _ := NodeTraitOfType(node.GetNodeTypeName())
-		if trait.IsPreComposer() {
-			node.(PreComposer).BeforeCompose(c)
+		if preN := NodeTo[PreComposer](node); preN != nil {
+			preN.BeforeCompose(c)
 		}
 	}
 }
 
 func (c *Composer) postConnectNodes() {
 	for _, node := range c.nodeSortedList {
-		trait, _ := NodeTraitOfType(node.GetNodeTypeName())
-		if trait.IsPostComposer() {
-			node.(PostComposer).AfterCompose(c)
+		if preN := NodeTo[PostComposer](node); preN != nil {
+			preN.AfterCompose(c)
 		}
 	}
 }
@@ -71,7 +69,7 @@ func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error)
 	// message type of their link. however, for some types of node (pubsub), what message type they output depends on
 	// their input message type, which means message types propagate from senders(at the end of sorted list) to
 	// receivers(at the start of sorted list), so iterate the sorted list reversely until all message types are
-	// determined as required to link creation
+	// determined as required by link creation
 	for i := len(c.nodeSortedList) - 1; i >= 0; i-- {
 		sender := c.nodeSortedList[i]
 		for _, receiverDef := range nodeDefs[i].Deps {
@@ -111,8 +109,14 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 			err = fmt.Errorf("can not make unknown node: %v", n.Type)
 			return
 		}
+		if preN := NodeTo[PreInitializer](sn); preN != nil {
+			preN.PreInit()
+		}
 		if err = sn.Init(); err != nil {
 			return
+		}
+		if postN := NodeTo[PostInitializer](sn); postN != nil {
+			postN.PostInit()
 		}
 		c.nodeSortedList = append(c.nodeSortedList, sn)
 		c.nodeMap[sn.GetNodeName()] = sn

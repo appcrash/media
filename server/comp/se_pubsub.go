@@ -17,6 +17,8 @@ import (
 
 const PubsubDefaultDeliveryTimeout = 20 * time.Millisecond
 
+var cloneableMetaType = MetaType[Cloneable]()
+
 type Pubsub struct {
 	SessionNode
 	event.NodeProperty
@@ -24,50 +26,67 @@ type Pubsub struct {
 	messageTrait *MessageTrait // all of input&output use this message trait
 }
 
-func (p *Pubsub) OnEnter(delegate *event.NodeDelegate) {
-	p.SessionNode.OnEnter(delegate)
-	//p.SetHandler(MtNewLinkPoint, p.handleLinkPoint)
-}
-
-func (p *Pubsub) handleLinkPoint(evt *event.Event) {
-	msg, ok := ToMessage[*LinkPointMessage](evt)
-	if !ok {
-		return
-	}
+// override default negotiation handler, use the first successfully connecting node's trait as pubub's offer
+// succession of connecting nodes must use the same trait as the first one or would be rejected
+// NOTE: no message conversion service is provided by pubsub
+func (p *Pubsub) handleLinkPoint(msg *LinkPointMessage) {
+	agreedTrait := p.messageTrait
 	defer func() {
-		msg.C <- p.messageTrait
+		msg.C <- agreedTrait
 	}()
 	if len(msg.OfferedTrait) == 0 {
 		logger.Errorf("pubsub(%v) get empty offer", p)
 		return
 	}
+	if p.messageTrait != nil {
+		// not the first visitor
+		for _, trait := range msg.OfferedTrait {
+			if p.messageTrait.Match(trait) {
+				logger.Infof("pubsub(%v) accept more then one nodes of the same message trait", p)
+				return
+			}
+		}
+		agreedTrait = nil
+		logger.Errorf("pubsub(%v) reject new comer as it already has incompatible input trait", p)
+		return
+	}
 
 	// find the first eligible trait
 	for _, trait := range msg.OfferedTrait {
-		//if trait.IsCloneable() {
-		p.messageTrait = trait.Clone()
-		//}
+		if trait.PtrType.Implements(cloneableMetaType) {
+			p.messageTrait = trait.Clone()
+			break
+		}
 	}
 	if p.messageTrait == nil {
 		logger.Errorf("pubsub(%v) reject the offer as none of them(%v) is cloneable", p, msg.OfferedTrait)
 		return
 	}
-	p.SetHandler(p.messageTrait.TypeId, p.handleInputStream)
+	agreedTrait = p.messageTrait
+	p.SetMessageHandler(p.messageTrait.TypeId, ChainSetHandler(p.handleInputStream))
 	logger.Debugf("pubsub(%v) accept message type: %v", p, p.messageTrait)
 	return
 }
 
 func (p *Pubsub) handleInputStream(evt *event.Event) {
-	msg, ok := ToMessage[Message](evt)
+	msg, ok := EventToMessage[Message](evt)
 	if !ok {
 		return
 	}
 	// no cast check, as in negotiation phase we have inspected message trait, if sender doesn't obey the rule,
 	// panic is waiting for you ...
-	cloneableMessage := msg.(Cloneable)
+	cloneableMessage := MessageTo[Cloneable](msg)
 	for _, lp := range p.linkPoint {
 		cloned := cloneableMessage.Clone()
 		lp.SendMessage(cloned.(Message))
+	}
+}
+
+func (p *Pubsub) Offer() []MessageType {
+	if p.messageTrait != nil {
+		return []MessageType{p.messageTrait.TypeId}
+	} else {
+		return nil
 	}
 }
 

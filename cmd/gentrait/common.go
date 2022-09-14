@@ -29,7 +29,7 @@ var (
 	messageInterfaceType         *types.Interface
 	messageTypeInterfaceType     *types.Named
 	sessionAwareInterfaceType    *types.Interface
-	toMessageFunc                *types.Func
+	eventToMessageFunc           *types.Func
 
 	rootPackage              *packages.Package
 	userPackage              []*packages.Package
@@ -64,7 +64,7 @@ func initPackage() {
 				messageInterfaceType = scope.Lookup("Message").Type().Underlying().(*types.Interface)
 				messageTypeInterfaceType = scope.Lookup("MessageType").Type().(*types.Named)
 				sessionAwareInterfaceType = scope.Lookup("SessionAware").Type().Underlying().(*types.Interface)
-				toMessageFunc = scope.Lookup("ToMessage").(*types.Func)
+				eventToMessageFunc = scope.Lookup("EventToMessage").(*types.Func)
 			} else {
 				userPackage = append(userPackage, p)
 			}

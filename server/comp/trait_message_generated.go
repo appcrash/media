@@ -6,7 +6,12 @@ import "github.com/appcrash/media/server/event"
 // Message Trait Enum
 const (
 	MrCloneable                    = uint64(1) << 0
-	UserMessageTraitEnumShiftBegin = 1
+	MrChannelable                  = uint64(1) << 1
+	MrPreInitializer               = uint64(1) << 2
+	MrPostInitializer              = uint64(1) << 3
+	MrPreComposer                  = uint64(1) << 4
+	MrPostComposer                 = uint64(1) << 5
+	UserMessageTraitEnumShiftBegin = 6
 )
 
 // Message Type Enum

@@ -81,9 +81,6 @@ type SessionAware interface {
 	// GetNodeTypeName return the node trait name
 	GetNodeTypeName() string
 
-	// ConfigHandler setup message handler
-	ConfigHandler()
-
 	// Init do initialization after node is allocated and configured
 	Init() error
 

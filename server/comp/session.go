@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/appcrash/media/server/comp/nmd"
 	"github.com/appcrash/media/server/event"
+	"github.com/appcrash/media/server/utils"
 	"reflect"
 	"sync"
 	"time"
@@ -20,10 +21,29 @@ func (id *Id) String() string {
 	return id.SessionId + "_" + id.Name
 }
 
-type MessageHandler func(evt *event.Event)
-
 func NewId(sessionId, name string) *Id {
 	return &Id{SessionId: sessionId, Name: name}
+}
+
+type MessageHandler func(evt *event.Event)
+type MessageHandlerChainer func(previous MessageHandler) MessageHandler // AOP ...
+
+func ChainSetHandler(m MessageHandler) MessageHandlerChainer {
+	return func(_ MessageHandler) MessageHandler {
+		// replace previous handler any way
+		return m
+	}
+}
+
+func ChainDefaultHandler(m MessageHandler) MessageHandlerChainer {
+	return func(previous MessageHandler) MessageHandler {
+		if previous != nil {
+			// already set a handler, don't override it
+			return previous
+		} else {
+			return m
+		}
+	}
 }
 
 // SessionNode is the base class of all nodes that provide capability in an RTP session
@@ -55,17 +75,22 @@ func (s *SessionNode) GetNodeTypeName() string {
 }
 
 func (s *SessionNode) OnEnter(delegate *event.NodeDelegate) {
-	logger.Debugf("node(%v) enters graph", s.GetNodeName())
+	logger.Debugf("node(%v) enters graph", s)
 	s.delegate = delegate
-	s.SetHandler(MtLinkPoint, s.handleLinkPoint)
-	s.SetHandler(MtConnectNode, s.handleConnectNode)
+
+	// provide default negotiation behaviour handlers
+	s.SetMessageHandler(MtLinkPoint, ChainDefaultHandler(s._handleLinkPoint))
+	s.SetMessageHandler(MtConnectNode, ChainDefaultHandler(s._handleConnectNode))
 }
 
 func (s *SessionNode) OnExit() {
-	logger.Debugf("node(%v) exits graph", s.GetNodeName())
+	logger.Debugf("node(%v) exits graph", s)
 }
 
 func (s *SessionNode) OnEvent(evt *event.Event) {
+	// this function is in the hotspot execution path
+	// as each kind of node can accept limited type of message, linear search doesn't add much overhead
+	// if this is not true, use fixed-size of handler array for constant time
 	msgType := MessageType(evt.GetCmd())
 	for i, typ := range s.messageTypeMatch {
 		if msgType == typ {
@@ -77,33 +102,85 @@ func (s *SessionNode) OnEvent(evt *event.Event) {
 
 func (s *SessionNode) OnLinkDown(linkId int, scope string, nodeName string) {
 	logger.Debugf("node got link down (%v:%v) => (%v:%v) ", s.GetNodeScope(), s.GetNodeName(), scope, nodeName)
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	for i, l := range s.linkPoint {
+		if l.LinkId() == linkId {
+			logger.Debugf("node (%v) delete link id %v", s, linkId)
+			if newlp, err := utils.RemoveElementFromArray(s.linkPoint, i); err != nil {
+				logger.Errorf("node %v remove link point with index %v failed", s, linkId)
+			} else {
+				s.linkPoint = newlp
+			}
+			return
+		}
+	}
 }
 
 //--------------------------- Base SessionAware Implementation --------------------------------
 
-func (s *SessionNode) handleLinkPoint(evt *event.Event) {
-	msg, ok := ToMessage[*LinkPointMessage](evt)
+// this is where negotiation happens, for each offered traits:
+// 1. check it can match any accepted trait of this node,
+// 2. if none of them matched, test if message can be converted from offered to accepted type
+// 3. if no conversion is possible, go to first step with next candidate offer type
+func (s *SessionNode) _handleLinkPoint(evt *event.Event) {
+	linkPointMessage, ok := EventToMessage[*LinkPointMessage](evt)
 	if !ok {
 		return
 	}
-	for _, offer := range msg.OfferedTrait {
+	for _, offer := range linkPointMessage.OfferedTrait {
+		// try direct match
 		for _, answer := range s.Trait.Accept {
 			if offer.Match(answer) {
-				msg.C <- answer
+				linkPointMessage.C <- answer
+				return
+			}
+		}
+
+		// not match any one, see if conversion is possible
+		for _, answer := range s.Trait.Accept {
+			if CanConvertMessage(offer.TypeId, answer.TypeId) {
+				// found a conversion path, setup handler for this message type
+				// sanity check: ensure a handler for answered message type already exist
+				if handler := s.GetMessageHandler(answer.TypeId); handler == nil {
+					logger.Errorf("(%v) has a nil handler for message type %v, conversion is impossible",
+						s, answer.TypeId)
+					linkPointMessage.C <- nil
+					return
+				}
+				// really setup handler for offered message type
+				answer = answer.Clone()
+				s.SetMessageHandler(offer.TypeId, func(_ MessageHandler) MessageHandler {
+					// create message conversion function
+					return func(evt *event.Event) {
+						msg, ok := EventToMessage[Message](evt)
+						if !ok {
+							return
+						}
+						convertedMsg, err := answer.ConvertFrom(msg)
+						if err != nil {
+							return
+						}
+						// always retrieve the latest handler, as previous-checked handler may differ at runtime
+						handler := s.GetMessageHandler(answer.TypeId)
+						handler(convertedMsg.AsEvent())
+					}
+				})
+				linkPointMessage.C <- answer
 				return
 			}
 		}
 	}
-	msg.C <- nil
+	linkPointMessage.C <- nil
 	return
 }
 
 // DESIGN DRAWBACK: connect to the other node may cause jitter when stream flow is under heavy load,
 // because this is a sync operation
 // ALTERNATIVE: put the StreamTo to other goroutine?
-func (s *SessionNode) handleConnectNode(evt *event.Event) {
+func (s *SessionNode) _handleConnectNode(evt *event.Event) {
 	var connected bool
-	msg, ok := ToMessage[*ConnectNodeMessage](evt)
+	msg, ok := EventToMessage[*ConnectNodeMessage](evt)
 	if !ok {
 		return
 	}
@@ -124,10 +201,6 @@ func (s *SessionNode) ExitGraph() {
 	if s.delegate != nil {
 		_ = s.delegate.RequestNodeExit()
 	}
-}
-
-func (s *SessionNode) ConfigHandler() {
-
 }
 
 func (s *SessionNode) Init() error {
@@ -182,14 +255,22 @@ func (s *SessionNode) GetLinkPointOfType(messageType MessageType) (lp LinkPoint)
 // 2. within the node's event goroutine after node has started working
 func (s *SessionNode) StreamTo(session, name string) (lp LinkPoint, err error) {
 	var linkId int
+	var offeredTraits []*MessageTrait
 
 	defer func() {
 		if err != nil && linkId >= 0 {
 			s.delegate.RequestLinkDown(linkId)
 		}
 	}()
-	offer := s.Trait.Offer
-	if len(offer) == 0 {
+	for _, o := range s.Offer() {
+		if mt, ok := MessageTraitOfType(o); !ok {
+			err = fmt.Errorf("message type %v not exist", o)
+			return
+		} else {
+			offeredTraits = append(offeredTraits, mt)
+		}
+	}
+	if len(offeredTraits) == 0 {
 		err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to sender has no offer",
 			s.SessionId, s.Name, session, name)
 		return
@@ -208,7 +289,7 @@ func (s *SessionNode) StreamTo(session, name string) (lp LinkPoint, err error) {
 	}
 	linkIdentity := MakeLinkIdentity(session, name, linkId)
 	newLinkCmd := &LinkPointMessage{
-		OfferedTrait: offer,
+		OfferedTrait: offeredTraits,
 		LinkIdentity: linkIdentity,
 	}
 	newLinkCmd.C = make(chan *MessageTrait, 1)
@@ -238,16 +319,36 @@ func (s *SessionNode) StreamTo(session, name string) (lp LinkPoint, err error) {
 
 //--------------------------- Facility methods --------------------------------
 
-func (s *SessionNode) SetHandler(msgType MessageType, handler MessageHandler) {
-	for i := 0; i < len(s.messageTypeMatch); i++ {
+// SetMessageHandler calls chainer to get the new handler and replace the previous one if exists
+func (s *SessionNode) SetMessageHandler(msgType MessageType, chain MessageHandlerChainer) {
+	var i int
+	var previousHandler MessageHandler
+	for i = 0; i < len(s.messageTypeMatch); i++ {
 		if s.messageTypeMatch[i] == msgType {
-			s.messageHandler[i] = handler
-			return
+			previousHandler = s.messageHandler[i]
+			break
 		}
 	}
-	// not found, prepend to head of array
-	s.messageTypeMatch = append([]MessageType{msgType}, s.messageTypeMatch...)
-	s.messageHandler = append([]MessageHandler{handler}, s.messageHandler...)
+	newHandler := chain(previousHandler)
+	if newHandler == nil {
+		panic("session node chain handler error")
+	}
+	if previousHandler == nil {
+		// not found, prepend to head of array
+		s.messageTypeMatch = append([]MessageType{msgType}, s.messageTypeMatch...)
+		s.messageHandler = append([]MessageHandler{newHandler}, s.messageHandler...)
+	} else {
+		s.messageHandler[i] = newHandler
+	}
+}
+
+func (s *SessionNode) GetMessageHandler(msgType MessageType) MessageHandler {
+	for i := 0; i < len(s.messageTypeMatch); i++ {
+		if s.messageTypeMatch[i] == msgType {
+			return s.messageHandler[i]
+		}
+	}
+	return nil
 }
 
 // DeliverToStream put message to stream, don't call it in stream event goroutine or deadlock!
@@ -271,7 +372,9 @@ func MakeSessionNode(nodeType string, sessionId string, props []*nmd.NodeProp) S
 	} else {
 		node := trait.FactoryFunc()
 		if node != nil {
-			props = setNodeProperties(node, props)
+			for _, p := range setNodeProperties(node, props) {
+				logger.Warnf("node(%v) doesn't handle property: %v", node, p.Key)
+			}
 		}
 		return node
 	}
@@ -281,14 +384,15 @@ func MakeSessionNode(nodeType string, sessionId string, props []*nmd.NodeProp) S
 func setNodeProperties(node event.Node, props []*nmd.NodeProp) (newProps []*nmd.NodeProp) {
 	ns := reflect.ValueOf(node).Elem()
 	for _, p := range props {
+		var rvCopy reflect.Value
 		k, value := p.Key, p.Value
 		field := ns.FieldByName(k)
 		rv := reflect.ValueOf(value)
-		if !field.IsValid() {
-			continue
-		}
 		rvt := rv.Type()
-		var rvCopy reflect.Value
+		if !field.IsValid() {
+			goto notHandled
+		}
+
 		if rvt.AssignableTo(field.Type()) {
 			rvCopy = rv
 		} else if rvt.ConvertibleTo(field.Type()) {

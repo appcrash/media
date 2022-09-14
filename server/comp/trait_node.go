@@ -21,6 +21,18 @@ type Channelable[T any] interface {
 	ChannelLink(c chan T)
 }
 
+// PreInitializer is called before node's Init()
+type PreInitializer interface {
+	NodeTraitTag
+	PreInit()
+}
+
+// PostInitializer is called after node's Init()
+type PostInitializer interface {
+	NodeTraitTag
+	PostInit()
+}
+
 type PreComposer interface {
 	NodeTraitTag
 	// BeforeCompose is called after nodes initialized but not added to graph yet

@@ -2,20 +2,27 @@ package comp
 
 import (
 	"fmt"
-	"github.com/appcrash/media/server/utils"
 	"reflect"
 )
 
 // trait is the means of class meta-info bookkeeping that props up runtime polymorphism
 // it is a workaround because of limitation of golang runtime feature
 
-// MessageTraitTag is a tag interface, its main use is to notify gentrait tool that the parent interface who embeds it
-// requires being treated as a message trait interface, so generate code for it
+// MessageTraitTag is a tag interface, if an interface is used only for extend message's behaviour, embed it, then
+// use MessageTo() to quickly convert it
 type MessageTraitTag interface{}
 
 type Cloneable interface {
 	MessageTraitTag
 	Clone() Cloneable
+}
+
+// MessageTo convert message to specific trait object
+func MessageTo[T MessageTraitTag](m Message) T {
+	if msg, ok := m.(T); ok {
+		return msg
+	}
+	return nil
 }
 
 const (
@@ -32,19 +39,17 @@ var (
 // MessageTrait is used to record all possible message kinds that flow among nodes of known types, ensure node links
 // are compatible, that is Node A output is accepted by Node B input if there would be a link.
 type MessageTrait struct {
-	utils.Flag[uint32]
 	TypeId MessageType
 
 	// For FooBarMessage struct
 	// PtrType: *FooBarMessage
 	// Type: FooBarMessage
-	// ConvertType: a meta-type, that is the type of interface "FoobarMessageConvertable"
+	// ConvertType: a meta-type, the type of interface "FoobarMessageConvertable"
 	PtrType, Type, ConvertType reflect.Type
 }
 
 func (m *MessageTrait) Clone() (cloned *MessageTrait) {
 	cloned = new(MessageTrait)
-	cloned.Flag = m.Flag
 	cloned.TypeId = m.TypeId
 	cloned.PtrType = m.PtrType
 	cloned.Type = m.Type
@@ -99,10 +104,6 @@ func MT[T any](convertType reflect.Type) *MessageTrait {
 		ConvertType: convertType,
 	}
 
-	// inspect interface trait
-	//if ptrType.Implements(cloneableMetaType) {
-	//	trait.SetFlag(messageTraitCloneable)
-	//}
 	return trait
 }
 

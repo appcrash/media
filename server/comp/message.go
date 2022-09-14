@@ -43,8 +43,8 @@ func (m *MessageBase) AsEvent() *event.Event {
 	panic("message AsEvent not implemented")
 }
 
-// ToMessage convert event object back to concrete message
-func ToMessage[M Message](evt *event.Event) (msg M, ok bool) {
+// EventToMessage convert event object back to concrete message
+func EventToMessage[M Message](evt *event.Event) (msg M, ok bool) {
 	obj := evt.GetObj()
 	if obj == nil {
 		return

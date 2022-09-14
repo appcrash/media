@@ -11,10 +11,10 @@ import (
 
 var (
 	nodeTempMethodStart = template.Must(template.New("method_start").Parse(
-		`func (n *{{ .Name }}) {{.FuncName}}() {{.ReturnType}}{
-`))
+		`func (n *{{ .Name }}) {{.FuncName}}() {{.ReturnType}}{`))
+
 	nodeTempConfigHandlerValue = template.Must(template.New("config_handler_value").Parse(
-		`    n.SetHandler({{.EnumName}},n.{{.HandlerName}})
+		`n.SetMessageHandler({{.EnumName}},func(_ {{.MessageHandler}}) {{.MessageHandler}} { return n.{{.HandlerName}} })
 `))
 	nodeTempAcceptStart = template.Must(template.New("accept_start").Parse(
 		`    return {{.Name}}{
@@ -32,9 +32,13 @@ var (
 `))
 	nodeTempNewFunc = template.Must(template.New("new_node").Parse(
 		`func new{{.NodeType}}() {{.SessionAware}} {
-    node := &{{.NodeType}}{}
-    node.Trait,_ = {{.TraitOf}}("{{.NodeSnakeName}}")
-    return node
+var exist bool
+node := &{{.NodeType}}{}
+if node.Trait,exist = {{.TraitOf}}("{{.NodeSnakeName}}"); !exist {
+  panic("node type {{.NodeType}} not exist")
+}
+{{.ConfigHandler}}
+return node
 }
 
 `))
@@ -50,6 +54,7 @@ var (
 var emitNtis []*nodeTypeInfo
 
 func nodeEmitAll() {
+	enableFormat := true
 	if isGenForUser() {
 		emitNtis = userNodeTypeInfo
 	} else {
@@ -69,11 +74,18 @@ func nodeEmitAll() {
 	w := bufio.NewWriter(&b)
 	defer func() {
 		w.Flush()
-		if formatted, err1 := format.Source(b.Bytes()); err1 != nil {
-			panic(err1)
+		if enableFormat {
+			if formatted, err1 := format.Source(b.Bytes()); err1 != nil {
+				panic(err1)
+			} else {
+				if enableFormat {
+					file.Write(formatted)
+				}
+			}
 		} else {
-			file.Write(formatted)
+			file.Write(b.Bytes())
 		}
+
 	}()
 
 	emitPackage(w)
@@ -110,8 +122,13 @@ func nodeEmitTraitDefs(w *bufio.Writer) {
 func nodeEmitFactoryFunc(w *bufio.Writer) {
 	w.Write([]byte("// Node Factory Method Begin\n\n"))
 	for _, n := range emitNtis {
-		nodeTempNewFunc.Execute(w, struct{ NodeType, NodeSnakeName, SessionAware, TraitOf string }{
-			n.typeName(), n.snakeTypeName(), _V("SessionAware"), _V("NodeTraitOfType"),
+		var configHandler string
+		if len(n.acceptMessageTypes) > 0 {
+			configHandler = "node.configHandler()"
+		}
+		nodeTempNewFunc.Execute(w, struct{ NodeType, NodeSnakeName, SessionAware, TraitOf, ConfigHandler string }{
+			n.typeName(), n.snakeTypeName(), _V("SessionAware"),
+			_V("NodeTraitOfType"), configHandler,
 		})
 	}
 	w.Write([]byte("// Node Factory Method End\n\n"))
@@ -120,13 +137,13 @@ func nodeEmitFactoryFunc(w *bufio.Writer) {
 func nodeEmitMessageHandler(w *bufio.Writer) {
 	for _, n := range emitNtis {
 		if len(n.acceptMessageTypes) == 0 {
-			log.Errorf("node %v has not any message handler", n.typeName())
+			log.Warnf("node %v has not any message handler", n.typeName())
 			continue
 		}
-		nodeTempMethodStart.Execute(w, struct{ Name, FuncName, ReturnType string }{n.typeName(), "ConfigHandler", ""})
+		nodeTempMethodStart.Execute(w, struct{ Name, FuncName, ReturnType string }{n.typeName(), "configHandler", ""})
 		for i, mi := range n.acceptMessageTypes {
-			nodeTempConfigHandlerValue.Execute(w, struct{ EnumName, HandlerName string }{
-				_V(mi.enumName()), n.stubHandlerName(i),
+			nodeTempConfigHandlerValue.Execute(w, struct{ EnumName, MessageHandler, HandlerName string }{
+				_V(mi.enumName()), _V("MessageHandler"), n.stubHandlerName(i),
 			})
 		}
 		w.Write([]byte("}\n\n")) // finish function block
@@ -134,7 +151,7 @@ func nodeEmitMessageHandler(w *bufio.Writer) {
 		for i, _ := range n.acceptMessageTypes {
 			nodeTempMessageHandler.Execute(w, struct{ Name, StubHandlerName, HandlerName, ToMessage, MessageType string }{
 				n.typeName(), n.stubHandlerName(i), n.handlerName(i),
-				_T(toMessageFunc), n.messageFullTypeName(i),
+				_T(eventToMessageFunc), n.messageFullTypeName(i),
 			})
 		}
 

@@ -2,6 +2,8 @@ package comp
 
 import "fmt"
 
+// all messages below is effectively commands for nodes
+
 type LinkPointMessage struct {
 	InBandCommandCall[*MessageTrait]
 	OfferedTrait []*MessageTrait

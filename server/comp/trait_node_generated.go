@@ -19,12 +19,52 @@ func initNodeTraits() {
 	)
 }
 
-func (n *RtpSrc) ConfigHandler() {
-	n.SetHandler(MtRawByte, n._convertRawByteMessage)
+func (n *ChanSink) configHandler() {
+	n.SetMessageHandler(MtRawByte, func(_ MessageHandler) MessageHandler { return n._convertRawByteMessage })
+	n.SetMessageHandler(MtChannelLink, func(_ MessageHandler) MessageHandler { return n._convertChannelLinkMessage })
+}
+
+func (n *ChanSink) _convertRawByteMessage(evt *event.Event) {
+	if msg, ok := EventToMessage[*RawByteMessage](evt); ok {
+		n.handleRawByte(msg)
+	}
+}
+
+func (n *ChanSink) _convertChannelLinkMessage(evt *event.Event) {
+	if msg, ok := EventToMessage[*ChannelLinkMessage](evt); ok {
+		n.handleChannelLink(msg)
+	}
+}
+
+func (n *ChanSink) Accept() []MessageType {
+	return []MessageType{
+		MtRawByte,
+		MtChannelLink,
+	}
+}
+
+func (n *Pubsub) configHandler() {
+	n.SetMessageHandler(MtLinkPoint, func(_ MessageHandler) MessageHandler { return n._convertLinkPointMessage })
+}
+
+func (n *Pubsub) _convertLinkPointMessage(evt *event.Event) {
+	if msg, ok := EventToMessage[*LinkPointMessage](evt); ok {
+		n.handleLinkPoint(msg)
+	}
+}
+
+func (n *Pubsub) Accept() []MessageType {
+	return []MessageType{
+		MtLinkPoint,
+	}
+}
+
+func (n *RtpSrc) configHandler() {
+	n.SetMessageHandler(MtRawByte, func(_ MessageHandler) MessageHandler { return n._convertRawByteMessage })
 }
 
 func (n *RtpSrc) _convertRawByteMessage(evt *event.Event) {
-	if msg, ok := ToMessage[*RawByteMessage](evt); ok {
+	if msg, ok := EventToMessage[*RawByteMessage](evt); ok {
 		n.handleA(msg)
 	}
 }
@@ -32,26 +72,42 @@ func (n *RtpSrc) _convertRawByteMessage(evt *event.Event) {
 // Node Factory Method Begin
 
 func newChanSink() SessionAware {
+	var exist bool
 	node := &ChanSink{}
-	node.Trait, _ = NodeTraitOfType("chan_sink")
+	if node.Trait, exist = NodeTraitOfType("chan_sink"); !exist {
+		panic("node type ChanSink not exist")
+	}
+	node.configHandler()
 	return node
 }
 
 func newEntryNode() SessionAware {
+	var exist bool
 	node := &EntryNode{}
-	node.Trait, _ = NodeTraitOfType("entry_node")
+	if node.Trait, exist = NodeTraitOfType("entry_node"); !exist {
+		panic("node type EntryNode not exist")
+	}
+
 	return node
 }
 
 func newPubsub() SessionAware {
+	var exist bool
 	node := &Pubsub{}
-	node.Trait, _ = NodeTraitOfType("pubsub")
+	if node.Trait, exist = NodeTraitOfType("pubsub"); !exist {
+		panic("node type Pubsub not exist")
+	}
+	node.configHandler()
 	return node
 }
 
 func newRtpSrc() SessionAware {
+	var exist bool
 	node := &RtpSrc{}
-	node.Trait, _ = NodeTraitOfType("rtp_src")
+	if node.Trait, exist = NodeTraitOfType("rtp_src"); !exist {
+		panic("node type RtpSrc not exist")
+	}
+	node.configHandler()
 	return node
 }
 

@@ -140,7 +140,7 @@ func nodePassFindMessageHandler(p *packages.Package) {
 		decls := findClassMethodsLike(p, info.typeName(), true, handlerPattern)
 		for _, d := range decls {
 			st := d.Type
-			// handler function should be: no type param, no return value, only one parameter of ptr type
+			// handler function should be: no type param, no return value, only one parameter of ptr message type
 			if st.TypeParams.NumFields() != 0 || st.Results.NumFields() != 0 || st.Params.NumFields() != 1 {
 				continue
 			}
@@ -159,6 +159,7 @@ func nodePassFindMessageHandler(p *packages.Package) {
 							// partially initialized msgTypeInfo, only use it to get kinds of message names
 							msgTypeInfo := &messageTypeInfo{structType: paramType}
 							// TODO: check duplicated handler (with same type of message)
+							//log.Debugf("%v --- %v", info.typeName(), paramType)
 							info.acceptMessageTypes = append(info.acceptMessageTypes, msgTypeInfo)
 							info.handlers = append(info.handlers, d.Name.Name)
 						}
