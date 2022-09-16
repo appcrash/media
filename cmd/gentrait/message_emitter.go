@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"go/format"
 	"io"
 	"os"
@@ -38,7 +39,6 @@ package {{ .Name }}
 
 `))
 	msgTempConvertableMappingStart = template.Must(template.New("convertable_mapping_start").Parse(`func initMessageConversion() {
-    m := {{.Name}}     
 `))
 	msgTempConvertableMappingValue = template.Must(template.New("convertable_mapping_value").Parse(
 		`    m({{.From}},{{.To}})
@@ -193,7 +193,17 @@ func msgEmitConvertableInterface(w io.Writer) {
 }
 
 func msgEmitConvertableMappingFunc(w *bufio.Writer) {
-	msgTempConvertableMappingStart.Execute(w, templateName{_V("SetMessageConvertable")})
+	var nbConversion int
+	msgTempConvertableMappingStart.Execute(w, nil)
+	defer func() { w.Write([]byte("}\n\n")) }() // finish function block}()
+	for _, i := range emitMtis {
+		nbConversion += len(i.convertedTo)
+	}
+	if nbConversion > 0 {
+		w.Write([]byte(fmt.Sprintf("m := %v", _V("SetMessageConvertable"))))
+	} else {
+		return
+	}
 	for _, i := range emitMtis {
 		for _, to := range i.convertedTo {
 			msgTempConvertableMappingValue.Execute(w, struct{ From, To string }{
@@ -201,12 +211,11 @@ func msgEmitConvertableMappingFunc(w *bufio.Writer) {
 			})
 		}
 	}
-	w.Write([]byte("}\n\n")) // finish function block
 }
 
 func msgEmitInitFunc(w *bufio.Writer) {
 	w.Write([]byte(`
-func init() {
+func initMessage() {
     initMessageTraits()
     initMessageConversion()
 }`))

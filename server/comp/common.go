@@ -16,6 +16,11 @@ func InitLogger(gl *logrus.Logger) {
 	logger = gl.WithFields(logrus.Fields{"module": "comp"})
 }
 
+func InitBuiltIn() {
+	initMessage()
+	initNode()
+}
+
 // MetaType return the type of type/interface object
 func MetaType[T any]() reflect.Type {
 	typ := reflect.TypeOf((*T)(nil)).Elem()
@@ -65,7 +70,7 @@ type CommandReceiver interface {
 type Streamable interface {
 	Accept() []MessageType
 	Offer() []MessageType
-	StreamTo(session, name string) (LinkPoint, error)
+	StreamTo(session, name string, preferredOffer []MessageType) (LinkPoint, error)
 }
 
 // SessionAware enables node to:

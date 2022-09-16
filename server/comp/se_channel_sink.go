@@ -15,7 +15,7 @@ func (n *ChanSink) handleRawByte(msg *RawByteMessage) {
 	}
 }
 
-func (n *ChanSink) handleChannelLink(msg *ChannelLinkMessage) {
+func (n *ChanSink) handleChannelLink(msg *ChannelLinkRequestMessage) {
 	defer func() { msg.C <- nil }()
 
 	if msg.LinkChannel != nil {
@@ -24,7 +24,7 @@ func (n *ChanSink) handleChannelLink(msg *ChannelLinkMessage) {
 }
 
 func (n *ChanSink) LinkMe(c chan []byte) {
-	msg := &ChannelLinkMessage{
+	msg := &ChannelLinkRequestMessage{
 		LinkChannel: c,
 	}
 	msg.C = make(chan interface{})

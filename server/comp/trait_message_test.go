@@ -2,11 +2,25 @@ package comp_test
 
 import (
 	"github.com/appcrash/media/server/comp"
+	"github.com/sirupsen/logrus"
+	"os"
 	"testing"
 )
 
+func setupComp() {
+	logger := &logrus.Logger{
+		Out:   os.Stdout,
+		Level: logrus.DebugLevel,
+		Formatter: &logrus.TextFormatter{
+			TimestampFormat: "15:04:05",
+		},
+	}
+	comp.InitLogger(logger)
+	comp.InitBuiltIn()
+}
+
 func TestMessageTrait(t *testing.T) {
-	cm := &comp.ChannelLinkMessage{}
+	cm := &comp.ChannelLinkRequestMessage{}
 	trait, ok := comp.MessageTraitOfObject(&comp.RawByteMessage{})
 	if !ok {
 		t.Fatal("not found")
@@ -16,4 +30,9 @@ func TestMessageTrait(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("converted is %v\n", converted)
+}
+
+func TestMain(m *testing.M) {
+	setupComp()
+	os.Exit(m.Run())
 }

@@ -92,7 +92,7 @@ func StartServer(c *Config) (err error) {
 		return
 	}
 	server.init(ip, rtpStartPort, rtpEndPort)
-	server.registerCommandExecutor(&ScriptCommandHandler{}) // built-in script executor
+	server.registerCommandExecutor(&BuiltinCommandHandler{}) // built-in script executor
 	for _, e := range c.ExecutorList {
 		server.registerCommandExecutor(e)
 	}

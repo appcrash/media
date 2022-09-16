@@ -24,7 +24,7 @@ type Pubsub struct {
 // override default negotiation handler, use the first successfully connecting node's trait as pubub's offer
 // succession of connecting nodes must use the same trait as the first one or would be rejected
 // NOTE: no message conversion service is provided by pubsub
-func (p *Pubsub) handleLinkPoint(msg *LinkPointMessage) {
+func (p *Pubsub) handleLinkPoint(msg *LinkPointRequestMessage) {
 	agreedTrait := p.messageTrait
 	defer func() {
 		msg.C <- agreedTrait

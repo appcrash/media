@@ -46,11 +46,11 @@ type PostComposer interface {
 }
 
 // NodeTo convert session node to node with specific trait object
-func NodeTo[T NodeTraitTag](n SessionAware) T {
+func NodeTo[T NodeTraitTag](n SessionAware) (v T) {
 	if node, ok := n.(T); ok {
-		return node
+		v = node
 	}
-	return nil
+	return
 }
 
 // NodeTrait record static information of node such as factory method, negotiation acceptance
@@ -95,7 +95,7 @@ func NT[T any](typeName string, factoryFunc func() SessionAware) *NodeTrait {
 	//	nodeValue.FieldByName("Trait").Set(reflect.ValueOf(trait.Clone()))
 	//	return node.(SessionAware)
 	//}
-	nodeObj := factoryFunc()
+	nodeObj := reflect.New(structType).Interface().(SessionAware)
 
 	for _, messageType := range nodeObj.Accept() {
 		if tr, ok := MessageTraitOfType(messageType); !ok {
@@ -130,7 +130,14 @@ func RegisterNodeTrait(traits ...*NodeTrait) error {
 			return fmt.Errorf("node trait(%v) has no factory method", name)
 		}
 
-		logger.Infof("register node trait: name: %v, type: %v", name, trait.Type.String())
+		var acceptMsg string
+		for _, accept := range trait.Accept {
+			acceptMsg += accept.Name() + ","
+
+		}
+		logger.Infof("[NODE TRAIT]: name: %v, type: %v || ACCEPT: %v",
+			name, trait.Type.String(), acceptMsg)
+
 		nodeTraitRegistry[name] = trait
 	}
 	return nil

@@ -1,29 +1,23 @@
 package comp
 
-import "fmt"
-
 // all messages below is effectively commands for nodes
 
-type LinkPointMessage struct {
+// LinkPointRequestMessage received when another node wants connecting to me
+type LinkPointRequestMessage struct {
 	InBandCommandCall[*MessageTrait]
 	OfferedTrait []*MessageTrait
 	LinkIdentity LinkIdentityType
 }
 
-type ConnectNodeMessage struct {
+// ConnectNodeRequestMessage received when being ask to connect to another node
+type ConnectNodeRequestMessage struct {
 	InBandCommandCall[bool]
-	Session, NodeName string
+	Session, NodeName    string
+	PreferredMessageName []string // offer
 }
 
-type ChannelLinkMessage struct {
+// ChannelLinkRequestMessage received when being ask to link to a provided channel
+type ChannelLinkRequestMessage struct {
 	InBandCommandCall[interface{}]
 	LinkChannel chan []byte
-}
-
-func (m *ChannelLinkMessage) AsRawByteMessage() (r *RawByteMessage) {
-	fmt.Printf("As....\n")
-	r = &RawByteMessage{
-		Data: []byte("hello"),
-	}
-	return
 }

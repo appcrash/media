@@ -18,9 +18,9 @@ const (
 const (
 	MtRawByte = iota
 	MtRtpPacket
-	MtLinkPoint
-	MtConnectNode
-	MtChannelLink
+	MtLinkPointRequest
+	MtConnectNodeRequest
+	MtChannelLinkRequest
 	MtUserMessageBegin
 )
 
@@ -32,16 +32,16 @@ type RtpPacketConvertable interface {
 	AsRtpPacketMessage() *RtpPacketMessage
 }
 
-type LinkPointConvertable interface {
-	AsLinkPointMessage() *LinkPointMessage
+type LinkPointRequestConvertable interface {
+	AsLinkPointRequestMessage() *LinkPointRequestMessage
 }
 
-type ConnectNodeConvertable interface {
-	AsConnectNodeMessage() *ConnectNodeMessage
+type ConnectNodeRequestConvertable interface {
+	AsConnectNodeRequestMessage() *ConnectNodeRequestMessage
 }
 
-type ChannelLinkConvertable interface {
-	AsChannelLinkMessage() *ChannelLinkMessage
+type ChannelLinkRequestConvertable interface {
+	AsChannelLinkRequestMessage() *ChannelLinkRequestMessage
 }
 
 // --------Message Implementation Begin--------
@@ -61,28 +61,28 @@ func (m *RtpPacketMessage) AsEvent() *event.Event {
 	return event.NewEvent(MtRtpPacket, m)
 }
 
-func (m *LinkPointMessage) Type() MessageType {
-	return MtLinkPoint
+func (m *LinkPointRequestMessage) Type() MessageType {
+	return MtLinkPointRequest
 }
 
-func (m *LinkPointMessage) AsEvent() *event.Event {
-	return event.NewEvent(MtLinkPoint, m)
+func (m *LinkPointRequestMessage) AsEvent() *event.Event {
+	return event.NewEvent(MtLinkPointRequest, m)
 }
 
-func (m *ConnectNodeMessage) Type() MessageType {
-	return MtConnectNode
+func (m *ConnectNodeRequestMessage) Type() MessageType {
+	return MtConnectNodeRequest
 }
 
-func (m *ConnectNodeMessage) AsEvent() *event.Event {
-	return event.NewEvent(MtConnectNode, m)
+func (m *ConnectNodeRequestMessage) AsEvent() *event.Event {
+	return event.NewEvent(MtConnectNodeRequest, m)
 }
 
-func (m *ChannelLinkMessage) Type() MessageType {
-	return MtChannelLink
+func (m *ChannelLinkRequestMessage) Type() MessageType {
+	return MtChannelLinkRequest
 }
 
-func (m *ChannelLinkMessage) AsEvent() *event.Event {
-	return event.NewEvent(MtChannelLink, m)
+func (m *ChannelLinkRequestMessage) AsEvent() *event.Event {
+	return event.NewEvent(MtChannelLinkRequest, m)
 }
 
 // --------Message Implementation End--------
@@ -91,18 +91,16 @@ func initMessageTraits() {
 	AddMessageTrait(
 		MT[RawByteMessage](MetaType[RawByteConvertable]()),
 		MT[RtpPacketMessage](MetaType[RtpPacketConvertable]()),
-		MT[LinkPointMessage](MetaType[LinkPointConvertable]()),
-		MT[ConnectNodeMessage](MetaType[ConnectNodeConvertable]()),
-		MT[ChannelLinkMessage](MetaType[ChannelLinkConvertable]()),
+		MT[LinkPointRequestMessage](MetaType[LinkPointRequestConvertable]()),
+		MT[ConnectNodeRequestMessage](MetaType[ConnectNodeRequestConvertable]()),
+		MT[ChannelLinkRequestMessage](MetaType[ChannelLinkRequestConvertable]()),
 	)
 }
 
 func initMessageConversion() {
-	m := SetMessageConvertable
-	m(MtChannelLink, MtRawByte)
 }
 
-func init() {
+func initMessage() {
 	initMessageTraits()
 	initMessageConversion()
 }

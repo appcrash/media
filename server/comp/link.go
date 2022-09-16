@@ -34,8 +34,8 @@ func (l *LinkPad) SendMessage(msg Message) (err error) {
 		return nil
 	}
 	if err = l.sendFunc(msg); err != nil {
-		logger.Debugf("disable linkpoint %v of %v as send message failed", l.identity, l.owner)
-		l.SetEnabled(false)
+		//logger.Debugf("disable linkpoint %v of %v as send message failed", l.identity, l.owner)
+		//l.SetEnabled(false)
 	}
 	return
 }

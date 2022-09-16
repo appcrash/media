@@ -3,27 +3,19 @@ package comp
 
 import "github.com/appcrash/media/server/event"
 
-var (
-	ndtChanSink = NT("chan_sink", newChanSink)
-	ndtChanSrc  = NT("chan_src", newChanSrc)
-	ndtPubsub   = NT("pubsub", newPubsub)
-	ndtRtpSink  = NT("rtp_sink", newRtpSink)
-	ndtRtpSrc   = NT("rtp_src", newRtpSrc)
-)
-
 func initNodeTraits() {
 	RegisterNodeTrait(
-		ndtChanSink,
-		ndtChanSrc,
-		ndtPubsub,
-		ndtRtpSink,
-		ndtRtpSrc,
+		NT[ChanSink]("chan_sink", newChanSink),
+		NT[ChanSrc]("chan_src", newChanSrc),
+		NT[Pubsub]("pubsub", newPubsub),
+		NT[RtpSink]("rtp_sink", newRtpSink),
+		NT[RtpSrc]("rtp_src", newRtpSrc),
 	)
 }
 
 func (n *ChanSink) configHandler() {
 	n.SetMessageHandler(MtRawByte, func(_ MessageHandler) MessageHandler { return n._convertRawByteMessage })
-	n.SetMessageHandler(MtChannelLink, func(_ MessageHandler) MessageHandler { return n._convertChannelLinkMessage })
+	n.SetMessageHandler(MtChannelLinkRequest, func(_ MessageHandler) MessageHandler { return n._convertChannelLinkRequestMessage })
 }
 
 func (n *ChanSink) _convertRawByteMessage(evt *event.Event) {
@@ -32,8 +24,8 @@ func (n *ChanSink) _convertRawByteMessage(evt *event.Event) {
 	}
 }
 
-func (n *ChanSink) _convertChannelLinkMessage(evt *event.Event) {
-	if msg, ok := EventToMessage[*ChannelLinkMessage](evt); ok {
+func (n *ChanSink) _convertChannelLinkRequestMessage(evt *event.Event) {
+	if msg, ok := EventToMessage[*ChannelLinkRequestMessage](evt); ok {
 		n.handleChannelLink(msg)
 	}
 }
@@ -41,39 +33,39 @@ func (n *ChanSink) _convertChannelLinkMessage(evt *event.Event) {
 func (n *ChanSink) Accept() []MessageType {
 	return []MessageType{
 		MtRawByte,
-		MtChannelLink,
+		MtChannelLinkRequest,
 	}
 }
 
 func (n *ChanSrc) configHandler() {
-	n.SetMessageHandler(MtChannelLink, func(_ MessageHandler) MessageHandler { return n._convertChannelLinkMessage })
+	n.SetMessageHandler(MtChannelLinkRequest, func(_ MessageHandler) MessageHandler { return n._convertChannelLinkRequestMessage })
 }
 
-func (n *ChanSrc) _convertChannelLinkMessage(evt *event.Event) {
-	if msg, ok := EventToMessage[*ChannelLinkMessage](evt); ok {
+func (n *ChanSrc) _convertChannelLinkRequestMessage(evt *event.Event) {
+	if msg, ok := EventToMessage[*ChannelLinkRequestMessage](evt); ok {
 		n.handleChannelLink(msg)
 	}
 }
 
 func (n *ChanSrc) Accept() []MessageType {
 	return []MessageType{
-		MtChannelLink,
+		MtChannelLinkRequest,
 	}
 }
 
 func (n *Pubsub) configHandler() {
-	n.SetMessageHandler(MtLinkPoint, func(_ MessageHandler) MessageHandler { return n._convertLinkPointMessage })
+	n.SetMessageHandler(MtLinkPointRequest, func(_ MessageHandler) MessageHandler { return n._convertLinkPointRequestMessage })
 }
 
-func (n *Pubsub) _convertLinkPointMessage(evt *event.Event) {
-	if msg, ok := EventToMessage[*LinkPointMessage](evt); ok {
+func (n *Pubsub) _convertLinkPointRequestMessage(evt *event.Event) {
+	if msg, ok := EventToMessage[*LinkPointRequestMessage](evt); ok {
 		n.handleLinkPoint(msg)
 	}
 }
 
 func (n *Pubsub) Accept() []MessageType {
 	return []MessageType{
-		MtLinkPoint,
+		MtLinkPointRequest,
 	}
 }
 
@@ -147,6 +139,6 @@ func newRtpSrc() SessionAware {
 
 // Node Factory Method End
 
-func init() {
+func initNode() {
 	initNodeTraits()
 }

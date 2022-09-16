@@ -23,7 +23,7 @@ func (n *ChanSrc) OnExit() {
 	n.cancelF()
 }
 
-func (n *ChanSrc) handleChannelLink(msg *ChannelLinkMessage) {
+func (n *ChanSrc) handleChannelLink(msg *ChannelLinkRequestMessage) {
 	defer func() { msg.C <- nil }()
 
 	if n.C != nil {

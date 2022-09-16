@@ -17,10 +17,6 @@ type Id struct {
 	SessionId string
 }
 
-func (id *Id) String() string {
-	return id.SessionId + "_" + id.Name
-}
-
 func NewId(sessionId, name string) *Id {
 	return &Id{SessionId: sessionId, Name: name}
 }
@@ -62,6 +58,10 @@ type SessionNode struct {
 
 //------------------- Base Node Implementation -------------------------
 
+func (s *SessionNode) String() string {
+	return fmt.Sprintf("[%v{%v}@%v]", s.GetNodeName(), s.GetNodeTypeName(), s.GetNodeScope())
+}
+
 func (s *SessionNode) GetNodeName() string {
 	return s.Name
 }
@@ -79,12 +79,12 @@ func (s *SessionNode) OnEnter(delegate *event.NodeDelegate) {
 	s.delegate = delegate
 
 	// provide default negotiation behaviour handlers
-	s.SetMessageHandler(MtLinkPoint, ChainDefaultHandler(s._handleLinkPoint))
-	s.SetMessageHandler(MtConnectNode, ChainDefaultHandler(s._handleConnectNode))
+	s.SetMessageHandler(MtLinkPointRequest, ChainDefaultHandler(s._handleLinkPointRequest))
+	s.SetMessageHandler(MtConnectNodeRequest, ChainDefaultHandler(s._handleConnectNodeRequest))
 }
 
 func (s *SessionNode) OnExit() {
-	logger.Debugf("node(%v) exits graph", s)
+	logger.Debugf("node %v exits graph", s)
 }
 
 func (s *SessionNode) OnEvent(evt *event.Event) {
@@ -106,7 +106,7 @@ func (s *SessionNode) OnLinkDown(linkId int, scope string, nodeName string) {
 	defer s.mutex.Unlock()
 	for i, l := range s.linkPoint {
 		if l.LinkId() == linkId {
-			logger.Debugf("node (%v) delete link id %v", s, linkId)
+			logger.Debugf("node %v delete link id %v", s, linkId)
 			if newlp, err := utils.RemoveElementFromArray(s.linkPoint, i); err != nil {
 				logger.Errorf("node %v remove link point with index %v failed", s, linkId)
 			} else {
@@ -123,8 +123,8 @@ func (s *SessionNode) OnLinkDown(linkId int, scope string, nodeName string) {
 // 1. check it can match any accepted trait of this node,
 // 2. if none of them matched, test if message can be converted from offered to accepted type
 // 3. if no conversion is possible, go to first step with next candidate offer type
-func (s *SessionNode) _handleLinkPoint(evt *event.Event) {
-	linkPointMessage, ok := EventToMessage[*LinkPointMessage](evt)
+func (s *SessionNode) _handleLinkPointRequest(evt *event.Event) {
+	linkPointMessage, ok := EventToMessage[*LinkPointRequestMessage](evt)
 	if !ok {
 		return
 	}
@@ -178,18 +178,27 @@ func (s *SessionNode) _handleLinkPoint(evt *event.Event) {
 // DESIGN DRAWBACK: connect to the other node may cause jitter when stream flow is under heavy load,
 // because this is a sync operation
 // ALTERNATIVE: put the StreamTo to other goroutine?
-func (s *SessionNode) _handleConnectNode(evt *event.Event) {
+func (s *SessionNode) _handleConnectNodeRequest(evt *event.Event) {
 	var connected bool
-	msg, ok := EventToMessage[*ConnectNodeMessage](evt)
+	msg, ok := EventToMessage[*ConnectNodeRequestMessage](evt)
 	if !ok {
 		return
 	}
 	defer func() { msg.C <- connected }()
 	if len(msg.Session) == 0 || len(msg.NodeName) == 0 {
-		logger.Errorf("node(%v) got invalid connect node request %v", s, msg)
+		logger.Errorf("node %v got invalid connect node request %v", s, msg)
 		return
 	}
-	if lp, err := s.StreamTo(msg.Session, msg.NodeName); err != nil {
+	var preferredOffer []MessageType
+	for _, name := range msg.PreferredMessageName {
+		if trait, exist := MessageTraitOfName(name); !exist {
+			logger.Errorf("node %v got connect node request with invalid message name %v", s, name)
+			return
+		} else {
+			preferredOffer = append(preferredOffer, trait.TypeId)
+		}
+	}
+	if lp, err := s.StreamTo(msg.Session, msg.NodeName, preferredOffer); err != nil {
 		return
 	} else {
 		connected = true
@@ -253,7 +262,7 @@ func (s *SessionNode) GetLinkPointOfType(messageType MessageType) (lp LinkPoint)
 // it at:
 // 1. node initialized but not in work state(i.e. no stream is flowing), such as in composer phase
 // 2. within the node's event goroutine after node has started working
-func (s *SessionNode) StreamTo(session, name string) (lp LinkPoint, err error) {
+func (s *SessionNode) StreamTo(session, name string, preferredOffer []MessageType) (lp LinkPoint, err error) {
 	var linkId int
 	var offeredTraits []*MessageTrait
 
@@ -262,7 +271,10 @@ func (s *SessionNode) StreamTo(session, name string) (lp LinkPoint, err error) {
 			s.delegate.RequestLinkDown(linkId)
 		}
 	}()
-	for _, o := range s.Offer() {
+	if preferredOffer == nil {
+		preferredOffer = s.Offer()
+	}
+	for _, o := range preferredOffer {
 		if mt, ok := MessageTraitOfType(o); !ok {
 			err = fmt.Errorf("message type %v not exist", o)
 			return
@@ -288,7 +300,7 @@ func (s *SessionNode) StreamTo(session, name string) (lp LinkPoint, err error) {
 		return nil
 	}
 	linkIdentity := MakeLinkIdentity(session, name, linkId)
-	newLinkCmd := &LinkPointMessage{
+	newLinkCmd := &LinkPointRequestMessage{
 		OfferedTrait: offeredTraits,
 		LinkIdentity: linkIdentity,
 	}
@@ -309,7 +321,7 @@ func (s *SessionNode) StreamTo(session, name string) (lp LinkPoint, err error) {
 		lp = NewLinkPad(s, linkId, linkIdentity, agreedTrait, sendFunc)
 		s.AddLinkPoint(lp)
 		logger.Infof("new stream connection (%v|%v){%x} --->[%v]---> (%v|%v)",
-			s.GetNodeScope(), s.GetNodeName(), linkIdentity, agreedTrait.Type.String(), session, name)
+			s.GetNodeScope(), s.GetNodeName(), linkIdentity, agreedTrait.Name(), session, name)
 	case <-time.After(2 * time.Second):
 		err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to link point not retrieved",
 			s.SessionId, s.Name, session, name)

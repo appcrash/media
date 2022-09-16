@@ -2,6 +2,7 @@ package comp
 
 import (
 	"fmt"
+	"github.com/appcrash/media/server/utils"
 	"reflect"
 )
 
@@ -18,21 +19,23 @@ type Cloneable interface {
 }
 
 // MessageTo convert message to specific trait object
-func MessageTo[T MessageTraitTag](m Message) T {
+func MessageTo[T MessageTraitTag](m Message) (v T) {
 	if msg, ok := m.(T); ok {
-		return msg
+		v = msg
 	}
-	return nil
+	return
 }
 
 const (
 	maxMessageType = 512
+	MessagePostfix = "Message"
 )
 
 var (
 	// initialized by generated code when package loaded
 	nbMessageTrait                int
 	messageTraitRegistry          = make([]*MessageTrait, maxMessageType)
+	messageNameQuery              = make(map[string]*MessageTrait)
 	messageConvertibilityRegistry = make([]bool, maxMessageType*maxMessageType)
 )
 
@@ -89,6 +92,13 @@ func (m *MessageTrait) Match(peer *MessageTrait) bool {
 	return m.TypeId == peer.TypeId || CanConvertMessage(m.TypeId, peer.TypeId)
 }
 
+// Name is a string that used in nmd language to identify this trait
+func (m *MessageTrait) Name() string {
+	typeName := m.Type.Name()
+	baseName := typeName[:len(typeName)-len(MessagePostfix)]
+	return utils.CamelCaseToSnake(baseName)
+}
+
 func MT[T any](convertType reflect.Type) *MessageTrait {
 	ptrType := reflect.TypeOf(new(T))
 	structType := ptrType.Elem()
@@ -125,6 +135,14 @@ func MessageTraitOfType(typeId MessageType) (mt *MessageTrait, exist bool) {
 	return
 }
 
+func MessageTraitOfName(name string) (mt *MessageTrait, exist bool) {
+	if trait, ok := messageNameQuery[name]; ok {
+		mt = trait.Clone()
+		exist = true
+	}
+	return
+}
+
 func AddMessageTrait(traits ...*MessageTrait) {
 	for _, t := range traits {
 		if int(t.TypeId) != nbMessageTrait {
@@ -132,6 +150,12 @@ func AddMessageTrait(traits ...*MessageTrait) {
 				t.Type.Name(), t.TypeId, nbMessageTrait))
 
 		}
+		if _, exist := MessageTraitOfName(t.Name()); exist {
+			panic(fmt.Errorf("add message trait of type:%v with duplicated trait name", t.Type.Name()))
+		}
+		logger.Infof("[MESSAGE TRAIT]: name:%v, type_id:%v, type:%v",
+			t.Name(), t.TypeId, t.Type.String())
+		messageNameQuery[t.Name()] = t
 		messageTraitRegistry[nbMessageTrait] = t
 		nbMessageTrait++
 	}

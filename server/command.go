@@ -6,10 +6,10 @@ import (
 	"github.com/appcrash/media/server/event"
 )
 
-// ScriptCommandHandler provides built-in command to execute nmd script
-type ScriptCommandHandler struct{}
+// BuiltinCommandHandler provides built-in command to execute nmd script
+type BuiltinCommandHandler struct{}
 
-func (sc *ScriptCommandHandler) Execute(s *MediaSession, _ string, args string) (result []string) {
+func (sc *BuiltinCommandHandler) Execute(s *MediaSession, _ string, args string) (result []string) {
 	if args == "" {
 		return
 	}
@@ -46,7 +46,7 @@ func (sc *ScriptCommandHandler) Execute(s *MediaSession, _ string, args string) 
 	return
 }
 
-func (sc *ScriptCommandHandler) ExecuteWithNotify(s *MediaSession, cmd string, args string, ctrlIn ExecuteCtrlChan, ctrlOut ExecuteCtrlChan) {
+func (sc *BuiltinCommandHandler) ExecuteWithNotify(s *MediaSession, cmd string, args string, ctrlIn ExecuteCtrlChan, ctrlOut ExecuteCtrlChan) {
 	defer func() { close(ctrlOut) }()
 	if args == "" {
 		return
@@ -96,7 +96,7 @@ func (sc *ScriptCommandHandler) ExecuteWithNotify(s *MediaSession, cmd string, a
 	}
 }
 
-func (sc *ScriptCommandHandler) ExecuteWithPush(s *MediaSession, dataIn ExecuteDataChan) {
+func (sc *BuiltinCommandHandler) ExecuteWithPush(s *MediaSession, dataIn ExecuteDataChan) {
 	controller := s.GetController()
 	for {
 		select {
@@ -115,7 +115,7 @@ func (sc *ScriptCommandHandler) ExecuteWithPush(s *MediaSession, dataIn ExecuteD
 	}
 }
 
-func (sc *ScriptCommandHandler) GetCommandTrait() []CommandTrait {
+func (sc *BuiltinCommandHandler) GetCommandTrait() []CommandTrait {
 	return []CommandTrait{
 		{
 			"exec",
