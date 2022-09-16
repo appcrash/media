@@ -132,9 +132,9 @@ func (s *MediaSession) sendRtpLoop(ctx context.Context) {
 				continue
 			}
 
-			// send all packets based on PacketList
+			// send all packets based on RtpPacketList
 			// for video, a frame can have more than one packet with same timestamp
-			packetList.Iterate(func(p *utils.PacketList) {
+			packetList.Iterate(func(p *utils.RtpPacketList) {
 				payload, ptype, pts, mark := p.Payload, p.PayloadType, p.Pts, p.Marker
 				if payload != nil {
 					packet := s.rtpSession.NewDataPacket(pts)

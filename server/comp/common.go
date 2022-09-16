@@ -87,11 +87,3 @@ type SessionAware interface {
 	// ExitGraph is used when initialization failed or session terminated
 	ExitGraph()
 }
-
-// MessageProvider can push data message to event-graph
-type MessageProvider interface {
-	GetName() string
-	PushMessage(data Message) error
-	CanHandlePayloadType(pt uint8) bool
-	Priority() uint32 // multiple message providers can be ordered by priority
-}

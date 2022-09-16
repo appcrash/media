@@ -108,7 +108,6 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (s *MediaSession,
 	}
 	if s.avPayloadNumber == 0 {
 		err = errors.New("create session without any audio/video codec info")
-		return
 	}
 
 	return
@@ -117,6 +116,31 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (s *MediaSession,
 func (s *MediaSession) setupGraph() error {
 	if err := s.composer.ComposeNodes(s.server.graph); err != nil {
 		return err
+	}
+	// search rtp packet provider and consumer, this is the edge of rtp stack and graph
+	s.composer.IterateNode(func(name string, node comp.SessionAware) {
+		if s.pullC != nil && s.handleC != nil {
+			return
+		}
+		if provider := comp.NodeTo[RtpPacketProvider](node); provider != nil {
+			if s.pullC != nil {
+				logger.Errorf("session(%v) has more than one rtp packet provider", s.GetSessionId())
+			} else {
+				s.pullC = provider.PullPacketChannel()
+			}
+		}
+
+		if consumer := comp.NodeTo[RtpPacketConsumer](node); consumer != nil {
+			if s.handleC != nil {
+				logger.Errorf("session(%v) has more than one rtp packet consumer", s.GetSessionId())
+			} else {
+				s.handleC = consumer.HandlePacketChannel()
+			}
+		}
+	})
+	if s.pullC == nil || s.handleC == nil {
+		return fmt.Errorf("session(%v) missing rtp provider ch:(%v) or consumer ch:(%v)",
+			s.GetSessionId(), s.pullC, s.handleC)
 	}
 	return nil
 }

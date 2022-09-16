@@ -2,6 +2,7 @@ package comp
 
 import (
 	"github.com/appcrash/media/server/event"
+	"github.com/appcrash/media/server/utils"
 )
 
 type MessageType int
@@ -68,6 +69,23 @@ func (m *RawByteMessage) Clone() Cloneable {
 	}
 	//copy(clone.Data, m.Data)
 	return clone
+}
+
+type RtpPacketMessage struct {
+	MessageBase
+	Packet *utils.RtpPacketList
+}
+
+func (m *RtpPacketMessage) Clone() Cloneable {
+	cloned := &RtpPacketMessage{}
+	if m.Meta != nil {
+		cloned.Meta = make([]byte, len(m.Meta))
+		copy(cloned.Meta, m.Meta)
+	}
+	if m.Packet != nil {
+		cloned.Packet = m.Packet.Clone()
+	}
+	return cloned
 }
 
 //func deepClone(obj interface{}) interface{} {

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/appcrash/media/server/comp"
 	"github.com/appcrash/media/server/rpc"
 	"github.com/appcrash/media/server/utils"
 )
@@ -29,22 +30,24 @@ type CommandExecute interface {
 
 // RtpPacketProvider provides data for RTP session
 // either generates data by it own or append/change data from previous provider by
-// modifying PacketList object, once it is passed through all sources, RTP send loop
-// ultimately create new packet from PacketList then send it.
+// modifying RtpPacketList object, once it is passed through all sources, RTP send loop
+// ultimately create new packet from RtpPacketList then send it.
 // so be careful the order of providers
 type RtpPacketProvider interface {
-	PullChannel() <-chan *utils.PacketList
+	comp.NodeTrait
+	PullPacketChannel() <-chan *utils.RtpPacketList
 }
 
 // RtpPacketConsumer consumes data from RTP session
 // receive loop fetches rtp data packet and feeds it to all consumers in consumer-list
 type RtpPacketConsumer interface {
-	HandleChannel() chan<- *utils.PacketList
+	comp.NodeTrait
+	HandlePacketChannel() chan<- *utils.RtpPacketList
 }
 
 // RtpPacketInterceptor can intercept packets bidirectional, that is on the way of graph -> socket or socket -> graph
 type RtpPacketInterceptor interface {
-	InterceptRtpPacket(pl *utils.PacketList)
+	InterceptRtpPacket(pl *utils.RtpPacketList)
 }
 
 type SourceFactory interface {

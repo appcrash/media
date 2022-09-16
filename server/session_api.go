@@ -44,8 +44,8 @@ type MediaSession struct {
 	cancelFunc           context.CancelFunc
 	doneC                chan string // notify this channel when loop is done
 
-	pullC        <-chan *utils.PacketList
-	handleC      chan<- *utils.PacketList
+	pullC        <-chan *utils.RtpPacketList
+	handleC      chan<- *utils.RtpPacketList
 	interceptors []RtpPacketInterceptor
 	composer     *comp.Composer
 }

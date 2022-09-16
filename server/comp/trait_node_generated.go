@@ -4,17 +4,19 @@ package comp
 import "github.com/appcrash/media/server/event"
 
 var (
-	ndtChanSink  = NT("chan_sink", newChanSink)
-	ndtEntryNode = NT("entry_node", newEntryNode)
-	ndtPubsub    = NT("pubsub", newPubsub)
-	ndtRtpSrc    = NT("rtp_src", newRtpSrc)
+	ndtChanSink = NT("chan_sink", newChanSink)
+	ndtChanSrc  = NT("chan_src", newChanSrc)
+	ndtPubsub   = NT("pubsub", newPubsub)
+	ndtRtpSink  = NT("rtp_sink", newRtpSink)
+	ndtRtpSrc   = NT("rtp_src", newRtpSrc)
 )
 
 func initNodeTraits() {
 	RegisterNodeTrait(
 		ndtChanSink,
-		ndtEntryNode,
+		ndtChanSrc,
 		ndtPubsub,
+		ndtRtpSink,
 		ndtRtpSrc,
 	)
 }
@@ -43,6 +45,22 @@ func (n *ChanSink) Accept() []MessageType {
 	}
 }
 
+func (n *ChanSrc) configHandler() {
+	n.SetMessageHandler(MtChannelLink, func(_ MessageHandler) MessageHandler { return n._convertChannelLinkMessage })
+}
+
+func (n *ChanSrc) _convertChannelLinkMessage(evt *event.Event) {
+	if msg, ok := EventToMessage[*ChannelLinkMessage](evt); ok {
+		n.handleChannelLink(msg)
+	}
+}
+
+func (n *ChanSrc) Accept() []MessageType {
+	return []MessageType{
+		MtChannelLink,
+	}
+}
+
 func (n *Pubsub) configHandler() {
 	n.SetMessageHandler(MtLinkPoint, func(_ MessageHandler) MessageHandler { return n._convertLinkPointMessage })
 }
@@ -59,13 +77,19 @@ func (n *Pubsub) Accept() []MessageType {
 	}
 }
 
-func (n *RtpSrc) configHandler() {
-	n.SetMessageHandler(MtRawByte, func(_ MessageHandler) MessageHandler { return n._convertRawByteMessage })
+func (n *RtpSink) configHandler() {
+	n.SetMessageHandler(MtRtpPacket, func(_ MessageHandler) MessageHandler { return n._convertRtpPacketMessage })
 }
 
-func (n *RtpSrc) _convertRawByteMessage(evt *event.Event) {
-	if msg, ok := EventToMessage[*RawByteMessage](evt); ok {
-		n.handleA(msg)
+func (n *RtpSink) _convertRtpPacketMessage(evt *event.Event) {
+	if msg, ok := EventToMessage[*RtpPacketMessage](evt); ok {
+		n.handleRtpPacket(msg)
+	}
+}
+
+func (n *RtpSink) Accept() []MessageType {
+	return []MessageType{
+		MtRtpPacket,
 	}
 }
 
@@ -81,13 +105,13 @@ func newChanSink() SessionAware {
 	return node
 }
 
-func newEntryNode() SessionAware {
+func newChanSrc() SessionAware {
 	var exist bool
-	node := &EntryNode{}
-	if node.Trait, exist = NodeTraitOfType("entry_node"); !exist {
-		panic("node type EntryNode not exist")
+	node := &ChanSrc{}
+	if node.Trait, exist = NodeTraitOfType("chan_src"); !exist {
+		panic("node type ChanSrc not exist")
 	}
-
+	node.configHandler()
 	return node
 }
 
@@ -101,13 +125,23 @@ func newPubsub() SessionAware {
 	return node
 }
 
+func newRtpSink() SessionAware {
+	var exist bool
+	node := &RtpSink{}
+	if node.Trait, exist = NodeTraitOfType("rtp_sink"); !exist {
+		panic("node type RtpSink not exist")
+	}
+	node.configHandler()
+	return node
+}
+
 func newRtpSrc() SessionAware {
 	var exist bool
 	node := &RtpSrc{}
 	if node.Trait, exist = NodeTraitOfType("rtp_src"); !exist {
 		panic("node type RtpSrc not exist")
 	}
-	node.configHandler()
+
 	return node
 }
 

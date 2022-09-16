@@ -2,7 +2,6 @@ package comp
 
 import (
 	"github.com/appcrash/media/server/event"
-	"time"
 )
 
 // this node accepts input data (from pub, one or many), make multiple copy of it then send them to
@@ -12,10 +11,6 @@ import (
 // the input message type is used as output type when node negotiation, if multiple inputs available, they MUST
 // offer the same message type or all of them except the first one would be rejected
 //
-// the pubsub node is the only one that explicitly implement 'conn' command provided by framework, which means
-// if cross scope interaction is demanded, a pubsub node must kick in
-
-const PubsubDefaultDeliveryTimeout = 20 * time.Millisecond
 
 var cloneableMetaType = MetaType[Cloneable]()
 

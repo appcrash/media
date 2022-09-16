@@ -24,6 +24,12 @@ func NewSessionComposer(sessionId string) *Composer {
 	return sc
 }
 
+func (c *Composer) IterateNode(iter func(name string, node SessionAware)) {
+	for name, node := range c.nodeMap {
+		iter(name, node)
+	}
+}
+
 func (c *Composer) ParseGraphDescription(desc string) (err error) {
 	gt := nmd.NewGraphTopology()
 	err = gt.ParseGraph(c.sessionId, desc)

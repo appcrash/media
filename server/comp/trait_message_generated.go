@@ -17,6 +17,7 @@ const (
 // Message Type Enum
 const (
 	MtRawByte = iota
+	MtRtpPacket
 	MtLinkPoint
 	MtConnectNode
 	MtChannelLink
@@ -25,6 +26,10 @@ const (
 
 type RawByteConvertable interface {
 	AsRawByteMessage() *RawByteMessage
+}
+
+type RtpPacketConvertable interface {
+	AsRtpPacketMessage() *RtpPacketMessage
 }
 
 type LinkPointConvertable interface {
@@ -46,6 +51,14 @@ func (m *RawByteMessage) Type() MessageType {
 
 func (m *RawByteMessage) AsEvent() *event.Event {
 	return event.NewEvent(MtRawByte, m)
+}
+
+func (m *RtpPacketMessage) Type() MessageType {
+	return MtRtpPacket
+}
+
+func (m *RtpPacketMessage) AsEvent() *event.Event {
+	return event.NewEvent(MtRtpPacket, m)
 }
 
 func (m *LinkPointMessage) Type() MessageType {
@@ -77,6 +90,7 @@ func (m *ChannelLinkMessage) AsEvent() *event.Event {
 func initMessageTraits() {
 	AddMessageTrait(
 		MT[RawByteMessage](MetaType[RawByteConvertable]()),
+		MT[RtpPacketMessage](MetaType[RtpPacketConvertable]()),
 		MT[LinkPointMessage](MetaType[LinkPointConvertable]()),
 		MT[ConnectNodeMessage](MetaType[ConnectNodeConvertable]()),
 		MT[ChannelLinkMessage](MetaType[ChannelLinkConvertable]()),

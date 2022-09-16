@@ -8,30 +8,33 @@ type ChanSink struct {
 	C chan []byte
 }
 
-func (cs *ChanSink) handleRawByte(msg *RawByteMessage) {
+func (n *ChanSink) handleRawByte(msg *RawByteMessage) {
 	select {
-	case cs.C <- msg.Data:
+	case n.C <- msg.Data:
 	default:
 	}
 }
 
-func (cs *ChanSink) handleChannelLink(msg *ChannelLinkMessage) {
+func (n *ChanSink) handleChannelLink(msg *ChannelLinkMessage) {
 	defer func() { msg.C <- nil }()
 
 	if msg.LinkChannel != nil {
-		cs.C = msg.LinkChannel
+		n.C = msg.LinkChannel
 	}
 }
 
-func (cs *ChanSink) ChannelLink(c chan []byte) {
+func (n *ChanSink) LinkMe(c chan []byte) {
 	msg := &ChannelLinkMessage{
 		LinkChannel: c,
 	}
 	msg.C = make(chan interface{})
-	cs.DeliverToStream(msg)
+	n.DeliverToStream(msg)
 }
 
-func (cs *ChanSink) OnExit() {
-	close(cs.C)
-	cs.C = nil
+func (n *ChanSink) OnExit() {
+	if n.C == nil {
+		return
+	}
+	close(n.C)
+	n.C = nil
 }
