@@ -8,6 +8,7 @@ import (
 // RtpSrc is an entry node of graph as well as a rtp packet consumer, it connects rtp stack and graph
 type RtpSrc struct {
 	SessionNode
+	InitiatorNode
 
 	cancelF context.CancelFunc
 	handleC chan *utils.RtpPacketList

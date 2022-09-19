@@ -83,7 +83,7 @@ func (s *MediaSession) GetEventGraph() *event.Graph {
 }
 
 func (s *MediaSession) GetController() comp.CommandInitiator {
-	return s.composer.GetController()
+	return s.composer.GetCommandInitiator()
 }
 
 func (s *MediaSession) Start() (err error) {

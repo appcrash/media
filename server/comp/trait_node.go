@@ -8,8 +8,7 @@ import (
 
 var (
 	sessionAwareMetaType = MetaType[SessionAware]()
-
-	nodeTraitRegistry = make(map[string]*NodeTrait)
+	nodeTraitRegistry    = make(map[string]*NodeTrait)
 )
 
 // NodeTraitTag is a tag interface, if an interface is used only for extend node's behaviour, embed it, then
@@ -36,13 +35,13 @@ type PostInitializer interface {
 type PreComposer interface {
 	NodeTraitTag
 	// BeforeCompose is called after nodes initialized but not added to graph yet
-	BeforeCompose(c *Composer) error
+	BeforeCompose(c *Composer, node SessionAware) error
 }
 
 type PostComposer interface {
 	NodeTraitTag
 	// AfterCompose is called after nodes are negotiated and connected
-	AfterCompose(c *Composer) error
+	AfterCompose(c *Composer, node SessionAware) error
 }
 
 // NodeTo convert session node to node with specific trait object

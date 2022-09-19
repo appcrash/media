@@ -3,7 +3,6 @@ package nmd
 import (
 	"fmt"
 	"github.com/appcrash/media/server/utils"
-	"regexp"
 )
 
 // TODO: every statement should have sequence id
@@ -12,10 +11,6 @@ type NodeProp struct {
 	Key, Type string
 	Value     interface{}
 }
-
-const regCamelCasePattern = `_+[a-z]`
-
-var regCamelCase = regexp.MustCompile(regCamelCasePattern)
 
 func (np *NodeProp) FormalizeKey() {
 	// normal keys with camel case remain intact
@@ -51,5 +46,5 @@ type CastActionDefs struct {
 }
 
 type SinkActionDefs struct {
-	ChannelName string
+	NodeName string
 }

@@ -8,7 +8,6 @@ import (
 	"github.com/appcrash/media/server/prom"
 	"github.com/appcrash/media/server/rpc"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/log"
 	"io"
 	"runtime/debug"
 	"strings"
@@ -105,14 +104,14 @@ func (srv *MediaServer) ExecuteActionWithNotify(action *rpc.Action, stream rpc.M
 		arg := action.GetCmdArg()
 		exec, exist := srv.streamExecutorMap[cmd]
 		if exist {
-			ctrlIn := make(ExecuteCtrlChan)
+			ctx, cancel := context.WithCancel(context.Background())
 			ctrlOut := make(ExecuteCtrlChan, 32)
 			defer func() {
 				prom.SessionAction.With(prometheus.Labels{"cmd": cmd, "type": "pull_stream"}).Inc()
 				// notify executor loop to exit
-				close(ctrlIn)
+				cancel()
 			}()
-			go exec.ExecuteWithNotify(session, cmd, arg, ctrlIn, ctrlOut)
+			go exec.ExecuteWithNotify(session, arg, ctx, ctrlOut)
 
 		outLoop:
 			for {
@@ -158,11 +157,10 @@ func (srv *MediaServer) ExecuteActionWithPush(stream rpc.MediaApi_ExecuteActionW
 		if !ok {
 			return fmt.Errorf("push action with session(%v) that is not exist", sessionId)
 		}
-		// hardcode :(
-		exec := srv.streamExecutorMap["push_stream"]
+		exec := srv.streamExecutorMap[data.Cmd]
 		if exec == nil {
-			log.Error("no push executor registered")
-			return fmt.Errorf("doesn't support push now")
+			logger.Errorf("no push executor cmd: %v registered", data.Cmd)
+			return fmt.Errorf("push cmd %v not found", data.Cmd)
 		}
 		dataIn = make(chan *rpc.PushData, 32)
 		go exec.ExecuteWithPush(session, dataIn)

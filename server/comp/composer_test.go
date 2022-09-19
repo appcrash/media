@@ -180,7 +180,7 @@ package comp_test
 //		fmt.Println("prepare node failed, ", err)
 //		return
 //	}
-//	ctrl := c.GetController()
+//	ctrl := c.GetCommandInitiator()
 //	ctrl.Cast("", "p1", []string{"foobar"})
 //	reply := ctrl.Call("", "p1", []string{})
 //	fmt.Printf("%v: %v\n", reply[0], reply[1])
@@ -206,7 +206,7 @@ package comp_test
 //		return
 //	}
 //	mp1, mp2 := c1.GetMessageProvider("entry"), c2.GetMessageProvider("entry")
-//	ctrl1 := c1.GetController()
+//	ctrl1 := c1.GetCommandInitiator()
 //	mp1.PushMessage(comp.NewRawByteMessage("from_session_1"))
 //	mp2.PushMessage(comp.NewRawByteMessage("from_session_2"))
 //	connCmd := comp.WithConnect("test1", "p2")
@@ -239,7 +239,7 @@ package comp_test
 //		return
 //	}
 //	mp := c.GetMessageProvider("e1")
-//	ctrl := c.GetController()
+//	ctrl := c.GetCommandInitiator()
 //	mp.PushMessage(comp.NewRawByteMessage("foo"))
 //	ctrl.Call("", "pubsub", comp.With("disable", "node", "test_session", "p1"))
 //	mp.PushMessage(comp.NewRawByteMessage("bar"))
@@ -269,7 +269,7 @@ package comp_test
 //		fmt.Println("prepare node failed")
 //		return
 //	}
-//	ctrl := c.GetController()
+//	ctrl := c.GetCommandInitiator()
 //	ctrl.PushData("p1", "", []byte("abc"))
 //	ctrl.PushData("p2", "", []byte("cba"))
 //	time.Sleep(50 * time.Millisecond)

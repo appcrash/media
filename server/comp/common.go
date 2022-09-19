@@ -74,9 +74,9 @@ type Streamable interface {
 }
 
 // SessionAware enables node to:
-// 1. config its static properties before any event flows
-// 2. react to commands
-// 3. stream data
+// 1. config its static properties before any event starts to flow
+// 2. react to commands when event flowing
+// 3. stream data to any other nodes after negotiation
 // 4. exit the graph when session ends
 type SessionAware interface {
 	event.Node

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"github.com/appcrash/media/server/comp"
 	"github.com/appcrash/media/server/rpc"
 	"github.com/appcrash/media/server/utils"
@@ -23,7 +24,7 @@ type CommandTrait struct {
 
 type CommandExecute interface {
 	Execute(s *MediaSession, cmd string, args string) (result []string)
-	ExecuteWithNotify(s *MediaSession, cmd string, args string, ctrlIn ExecuteCtrlChan, ctrlOut ExecuteCtrlChan)
+	ExecuteWithNotify(s *MediaSession, args string, ctx context.Context, ctrlOut ExecuteCtrlChan)
 	ExecuteWithPush(s *MediaSession, dataIn ExecuteDataChan)
 	GetCommandTrait() []CommandTrait
 }

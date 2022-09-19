@@ -46,14 +46,14 @@ func ChainDefaultHandler(m MessageHandler) MessageHandlerChainer {
 type SessionNode struct {
 	Id
 	delegate *event.NodeDelegate
-	ctrl     CommandInitiator
 	mutex    sync.Mutex
 
 	messageTypeMatch []MessageType
 	messageHandler   []MessageHandler
 	linkPoint        []LinkPoint // grow only array
 
-	Trait *NodeTrait
+	Trait     *NodeTrait       // initialized by gentrait
+	Initiator CommandInitiator // initialized by composer
 }
 
 //------------------- Base Node Implementation -------------------------
@@ -107,10 +107,10 @@ func (s *SessionNode) OnLinkDown(linkId int, scope string, nodeName string) {
 	for i, l := range s.linkPoint {
 		if l.LinkId() == linkId {
 			logger.Debugf("node %v delete link id %v", s, linkId)
-			if newlp, err := utils.RemoveElementFromArray(s.linkPoint, i); err != nil {
+			if newLp, err := utils.RemoveElementFromArray(s.linkPoint, i); err != nil {
 				logger.Errorf("node %v remove link point with index %v failed", s, linkId)
 			} else {
-				s.linkPoint = newlp
+				s.linkPoint = newLp
 			}
 			return
 		}
@@ -232,7 +232,7 @@ func (s *SessionNode) Offer() []MessageType {
 	return nil
 }
 
-func (s *SessionNode) AddLinkPoint(lp LinkPoint) {
+func (s *SessionNode) addLinkPoint(lp LinkPoint) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.linkPoint = append(s.linkPoint, lp)
@@ -261,7 +261,7 @@ func (s *SessionNode) GetLinkPointOfType(messageType MessageType) (lp LinkPoint)
 // StreamTo sync connect to the other node if negotiation is successful, as it will change the node's state, only call
 // it at:
 // 1. node initialized but not in work state(i.e. no stream is flowing), such as in composer phase
-// 2. within the node's event goroutine after node has started working
+// 2. outside the node's event goroutine after node has started working
 func (s *SessionNode) StreamTo(session, name string, preferredOffer []MessageType) (lp LinkPoint, err error) {
 	var linkId int
 	var offeredTraits []*MessageTrait
@@ -319,7 +319,7 @@ func (s *SessionNode) StreamTo(session, name string, preferredOffer []MessageTyp
 			return
 		}
 		lp = NewLinkPad(s, linkId, linkIdentity, agreedTrait, sendFunc)
-		s.AddLinkPoint(lp)
+		s.addLinkPoint(lp)
 		logger.Infof("new stream connection (%v|%v){%x} --->[%v]---> (%v|%v)",
 			s.GetNodeScope(), s.GetNodeName(), linkIdentity, agreedTrait.Name(), session, name)
 	case <-time.After(2 * time.Second):
@@ -385,7 +385,7 @@ func MakeSessionNode(nodeType string, sessionId string, props []*nmd.NodeProp) S
 		node := trait.FactoryFunc()
 		if node != nil {
 			for _, p := range setNodeProperties(node, props) {
-				logger.Warnf("node(%v) doesn't handle property: %v", node, p.Key)
+				logger.Warnf("node %v doesn't handle property: %v", node, p.Key)
 			}
 		}
 		return node

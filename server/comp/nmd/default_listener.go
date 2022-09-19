@@ -182,5 +182,5 @@ func (l *Listener) ExitCast_stmt(ctx *Cast_stmtContext) {
 }
 
 func (l *Listener) ExitSink_stmt(ctx *Sink_stmtContext) {
-	l.SinkDefs = append(l.SinkDefs, &SinkActionDefs{ctx.channel.GetText()})
+	l.SinkDefs = append(l.SinkDefs, &SinkActionDefs{ctx.node.GetText()})
 }

@@ -945,11 +945,11 @@ type ISink_stmtContext interface {
 	// GetParser returns the parser.
 	GetParser() antlr.Parser
 
-	// GetChannel returns the channel token.
-	GetChannel() antlr.Token
+	// GetNode returns the node token.
+	GetNode() antlr.Token
 
-	// SetChannel sets the channel token.
-	SetChannel(antlr.Token)
+	// SetNode sets the node token.
+	SetNode(antlr.Token)
 
 	// IsSink_stmtContext differentiates from other interfaces.
 	IsSink_stmtContext()
@@ -957,8 +957,8 @@ type ISink_stmtContext interface {
 
 type Sink_stmtContext struct {
 	*antlr.BaseParserRuleContext
-	parser  antlr.Parser
-	channel antlr.Token
+	parser antlr.Parser
+	node   antlr.Token
 }
 
 func NewEmptySink_stmtContext() *Sink_stmtContext {
@@ -983,9 +983,9 @@ func NewSink_stmtContext(parser antlr.Parser, parent antlr.ParserRuleContext, in
 
 func (s *Sink_stmtContext) GetParser() antlr.Parser { return s.parser }
 
-func (s *Sink_stmtContext) GetChannel() antlr.Token { return s.channel }
+func (s *Sink_stmtContext) GetNode() antlr.Token { return s.node }
 
-func (s *Sink_stmtContext) SetChannel(v antlr.Token) { s.channel = v }
+func (s *Sink_stmtContext) SetNode(v antlr.Token) { s.node = v }
 
 func (s *Sink_stmtContext) ID() antlr.TerminalNode {
 	return s.GetToken(nmdParserID, 0)
@@ -1041,7 +1041,7 @@ func (p *nmdParser) Sink_stmt() (localctx ISink_stmtContext) {
 
 		var _m = p.Match(nmdParserID)
 
-		localctx.(*Sink_stmtContext).channel = _m
+		localctx.(*Sink_stmtContext).node = _m
 	}
 
 	return localctx

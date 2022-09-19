@@ -4,16 +4,24 @@ import (
 	"fmt"
 	"github.com/appcrash/media/server/comp/nmd"
 	"github.com/appcrash/media/server/event"
+	"github.com/appcrash/media/server/utils"
 )
+
+var preInitializerMetaType = MetaType[PreInitializer]()
+var postInitializerMetaType = MetaType[PostInitializer]()
+var preComposerMetaType = MetaType[PreComposer]()
+var postComposerMetaType = MetaType[PostComposer]()
 
 // Composer creates every node and config their properties based on the collected info, then
 // link and negotiate for them to put them into working state.
 type Composer struct {
-	sessionId      string
+	sessionId string
+
 	gt             *nmd.GraphTopology
 	nodeSortedList []SessionAware // topographical sorted nodes
 	nodeMap        map[string]SessionAware
 
+	initiator  CommandInitiator
 	linkPoints []LinkPoint
 }
 
@@ -21,6 +29,7 @@ func NewSessionComposer(sessionId string) *Composer {
 	sc := &Composer{
 		sessionId: sessionId,
 	}
+	sc.initiator = &graphCommandInitiator{composer: sc}
 	return sc
 }
 
@@ -30,6 +39,10 @@ func (c *Composer) IterateNode(iter func(name string, node SessionAware)) {
 	}
 }
 
+func (c *Composer) GetNode(name string) SessionAware {
+	return c.nodeMap[name]
+}
+
 func (c *Composer) ParseGraphDescription(desc string) (err error) {
 	gt := nmd.NewGraphTopology()
 	err = gt.ParseGraph(c.sessionId, desc)
@@ -37,28 +50,26 @@ func (c *Composer) ParseGraphDescription(desc string) (err error) {
 	return
 }
 
-func (c *Composer) Connect(sender, receiver SessionAware) (lp LinkPoint, err error) {
+func (c *Composer) Connect(sender, receiver SessionAware, preferredOffer []MessageType) (lp LinkPoint, err error) {
 	receiverSession := receiver.GetNodeScope()
 	receiverName := receiver.GetNodeName()
 
-	lp, err = sender.StreamTo(receiverSession, receiverName)
+	lp, err = sender.StreamTo(receiverSession, receiverName, preferredOffer)
 	return
 }
 
-func (c *Composer) preConnectNodes() {
+func (c *Composer) preConnectNodes() error {
 	for _, node := range c.nodeSortedList {
-		if preN := NodeTo[PreComposer](node); preN != nil {
-			preN.BeforeCompose(c)
-		}
+		utils.AopCall(node, []interface{}{c, node}, preComposerMetaType, "BeforeCompose")
 	}
+	return nil
 }
 
-func (c *Composer) postConnectNodes() {
+func (c *Composer) postConnectNodes() error {
 	for _, node := range c.nodeSortedList {
-		if preN := NodeTo[PostComposer](node); preN != nil {
-			preN.AfterCompose(c)
-		}
+		utils.AopCall(node, []interface{}{c, node}, postComposerMetaType, "AfterCompose")
 	}
+	return nil
 }
 
 func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error) {
@@ -80,7 +91,9 @@ func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error)
 		sender := c.nodeSortedList[i]
 		for _, receiverDef := range nodeDefs[i].Deps {
 			receiver := c.nodeMap[receiverDef.Name]
-			if lp, err = c.Connect(sender, receiver); err != nil {
+			// TODO: nmd language add support for specifying preferred offer
+			// TODO: use ssa to analyze Offer() of every node, check the message type is statically or dynamically defined
+			if lp, err = c.Connect(sender, receiver, nil); err != nil {
 				return
 			} else {
 				lps = append(lps, lp)
@@ -115,27 +128,27 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 			err = fmt.Errorf("can not make unknown node: %v", n.Type)
 			return
 		}
-		if preN := NodeTo[PreInitializer](sn); preN != nil {
-			preN.PreInit()
-		}
+		utils.AopCall(sn, nil, preInitializerMetaType, "PreInit")
 		if err = sn.Init(); err != nil {
 			return
 		}
-		if postN := NodeTo[PostInitializer](sn); postN != nil {
-			postN.PostInit()
-		}
+		utils.AopCall(sn, nil, postInitializerMetaType, "PostInit")
+
 		c.nodeSortedList = append(c.nodeSortedList, sn)
 		c.nodeMap[sn.GetNodeName()] = sn
-
 		id := NewId(sn.GetNodeScope(), sn.GetNodeName())
 		nodeIds = append(nodeIds, id)
 	}
 
-	c.preConnectNodes()
+	if err = c.preConnectNodes(); err != nil {
+		return
+	}
 	if c.linkPoints, err = c.connectNodes(graph); err != nil {
 		return
 	}
-	c.postConnectNodes()
+	if err = c.postConnectNodes(); err != nil {
+		return
+	}
 
 	return
 }
@@ -144,27 +157,12 @@ func (c *Composer) GetSortedNodes() (ni []*nmd.NodeDef) {
 	return c.gt.GetSortedNodeDefs()
 }
 
-func (c *Composer) GetController() CommandInitiator {
-	return c
+func (c *Composer) GetCommandInitiator() CommandInitiator {
+	return c.initiator
 }
 
 func (c *Composer) ExitGraph() {
 	for _, n := range c.nodeSortedList {
 		n.ExitGraph()
-	}
-}
-
-func (c *Composer) Call(fromNode, toNode string, args []string) (resp []string) {
-	if to, ok := c.nodeMap[toNode]; ok {
-		resp = to.OnCall(fromNode, args)
-	} else {
-		resp = WithError("no such node")
-	}
-	return
-}
-
-func (c *Composer) Cast(fromNode, toNode string, args []string) {
-	if to, ok := c.nodeMap[toNode]; ok {
-		to.OnCast(fromNode, args)
 	}
 }
