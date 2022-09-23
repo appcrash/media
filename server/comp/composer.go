@@ -18,7 +18,7 @@ type Composer struct {
 	sessionId string
 
 	gt             *nmd.GraphTopology
-	nodeSortedList []SessionAware // topographical sorted nodes
+	nodeSortedList []SessionAware // topographical sorted nodes, first one has no receiver
 	nodeMap        map[string]SessionAware
 
 	initiator  CommandInitiator
@@ -28,6 +28,7 @@ type Composer struct {
 func NewSessionComposer(sessionId string) *Composer {
 	sc := &Composer{
 		sessionId: sessionId,
+		nodeMap:   make(map[string]SessionAware),
 	}
 	sc.initiator = &graphCommandInitiator{composer: sc}
 	return sc
@@ -53,6 +54,10 @@ func (c *Composer) ParseGraphDescription(desc string) (err error) {
 func (c *Composer) Connect(sender, receiver SessionAware, preferredOffer []MessageType) (lp LinkPoint, err error) {
 	receiverSession := receiver.GetNodeScope()
 	receiverName := receiver.GetNodeName()
+
+	if preferredOffer == nil {
+		preferredOffer = sender.Offer()
+	}
 
 	lp, err = sender.StreamTo(receiverSession, receiverName, preferredOffer)
 	return
@@ -118,7 +123,7 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 	// create node instances, collect message providers if any
 	for _, n := range nodeDefs {
 		n.Props = append(n.Props, &nmd.NodeProp{
-			Key:   "NodeType",
+			Key:   "Name",
 			Type:  "str",
 			Value: n.Name,
 		})

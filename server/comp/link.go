@@ -56,6 +56,7 @@ func NewLinkPad(owner SessionAware, linkId int, identity LinkIdentityType, messa
 		messageTrait: messageTrait,
 		sendFunc:     sendFunc,
 	}
+	pad.enabled.Store(true)
 	return pad
 }
 

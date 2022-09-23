@@ -1,171 +1,190 @@
 package comp_test
 
-//type printNode struct {
-//	comp.SessionNode
-//}
-//
-//type cloneableObj struct {
-//	data string
-//}
-//
-//func (c *cloneableObj) Clone() comp.Cloneable {
-//	return &cloneableObj{c.data}
-//}
-//
-//func (c *cloneableObj) String() string {
-//	return c.data
-//}
-//
-//func newPrintNode() comp.SessionAware {
-//	return &printNode{}
-//}
-//
-//func (p *printNode) OnEvent(e *event.Event) {
-//	switch e.GetCmd() {
-//	case comp.MtRawByte, comp.Generic:
-//		msg := e.GetObj()
-//		fmt.Printf("%v print %v\n", p.NodeType, msg)
-//	case comp.CtrlCall:
-//		msg := e.GetObj().(*comp.CtrlMessage)
-//		reply := comp.WithOk(p.NodeType)
-//		msg.C <- reply
-//	case comp.CtrlCast:
-//		msg := e.GetObj().(*comp.CtrlMessage)
-//		data := msg.M[0]
-//		p.SendMessage(comp.NewRawByteMessage(data))
-//	}
-//}
-//
-//func TestComposerBasic(t *testing.T) {
-//	gd := `[entry payload_type='1'] -> [pubsub channel='src1,src2'];`
-//	c := comp.NewSessionComposer("test_session")
-//	graph := event.NewEventGraph()
-//	if err := c.ParseGraphDescription(gd); err != nil {
-//		t.Fatal("parse graph failed")
-//	}
-//	ch1 := make(chan *event.Event, 2)
-//	ch2 := make(chan *event.Event, 2)
-//	if err := c.ComposeNodes(graph); err != nil {
-//		t.Fatal("prepare node failed", err)
-//	}
-//	c.LinkChannel("src1", ch1)
-//	mp := c.GetMessageProvider(comp.TypeENTRY)
-//	mp.PushMessage(comp.NewRawByteMessage("hello"))
-//	evt := <-ch1
-//	if evt.GetObj().(comp.RawByteMessage).String() != "hello" {
-//		t.Fatal("send/recv message not equal for src1")
-//	}
-//	c.LinkChannel("src2", ch2)
-//	mp.PushMessage(comp.NewRawByteMessage("hello again"))
-//	evt = <-ch2
-//	if evt.GetObj().(comp.RawByteMessage).String() != "hello again" {
-//		t.Fatal("send/recv message not equal for src2")
-//	}
-//	evt = <-ch1
-//	if evt.GetObj().(comp.RawByteMessage).String() != "hello again" {
-//		t.Fatal("send/recv message not equal for src1 (again)")
-//	}
-//}
-//
-//func TestComposerWrongNodeType(t *testing.T) {
-//	gd := "[aaa] -> [bbb]"
-//	c := comp.NewSessionComposer("test_session")
-//	if err := c.ParseGraphDescription(gd); err != nil {
-//		t.Fatal("parse graph failed")
-//	}
-//	if err := c.ComposeNodes(event.NewEventGraph()); err == nil {
-//		t.Fatal("should fail to prepare wrong type nodes")
-//	}
-//}
-//
-//func ExampleComposerPubSub() {
-//	gd := `[entry payload_type='1'] -> [pubsub channel='src'] -> {[p1:print], [ps:pubsub]};
-//           [ps] -> {[p2:print], [p3:print]}`
-//	comp.RegisterNodeFactory("print", newPrintNode)
-//	c := comp.NewSessionComposer("test_session")
-//	graph := event.NewEventGraph()
-//	if err := c.ParseGraphDescription(gd); err != nil {
-//		fmt.Println("parse graph failed")
-//		return
-//	}
-//	ch := make(chan *event.Event, 2)
-//	if err := c.ComposeNodes(graph); err != nil {
-//		fmt.Println("prepare node failed")
-//		return
-//	}
-//	c.LinkChannel("src", ch)
-//	mp := c.GetMessageProvider(comp.TypeENTRY)
-//	mp.PushMessage(comp.NewRawByteMessage("foobar"))
-//	evt := <-ch
-//	msg := evt.GetObj().(comp.RawByteMessage).String()
-//	fmt.Printf("channel got %v\n", msg)
-//	time.Sleep(50 * time.Millisecond)
-//
-//	// Unordered OUTPUT:
-//	// p1 print foobar
-//	// p2 print foobar
-//	// p3 print foobar
-//	// channel got foobar
-//}
-//
-//func ExampleComposerGenericMessage() {
-//	gd := `[entry payload_type='1'] -> [pubsub channel='out'] -> [p1:print];`
-//
-//	comp.RegisterNodeFactory("print", newPrintNode)
-//	c := comp.NewSessionComposer("test_session")
-//	graph := event.NewEventGraph()
-//	if err := c.ParseGraphDescription(gd); err != nil {
-//		fmt.Println("parse graph failed")
-//		return
-//	}
-//	ch := make(chan *event.Event, 2)
-//	if err := c.ComposeNodes(graph); err != nil {
-//		fmt.Println("prepare node failed")
-//		return
-//	}
-//	c.LinkChannel("out", ch)
-//	msg := &comp.GenericMessage{
-//		Subtype: "cloneable",
-//		Obj:     &cloneableObj{data: "cloneMe"},
-//	}
-//	mp := c.GetMessageProvider(comp.TypeENTRY)
-//	mp.PushMessage(msg)
-//	evt := <-ch
-//	obj := evt.GetObj()
-//	fmt.Printf("channel got %v\n", obj)
-//	time.Sleep(50 * time.Millisecond)
-//
-//	// Unordered OUTPUT:
-//	// p1 print GenericMessage type:cloneable value:cloneMe
-//	// channel got GenericMessage type:cloneable value:cloneMe
-//}
-//
-//func ExampleComposerMultipleEntry() {
-//	gd := `[e1:entry payload_type='1'] -> [pubsub] -> {[p1:print],[p2:print]};
-//           [e2:entry payload_type='1'] -> [ps:pubsub] -> {[p2:print],[p3:print]}`
-//	comp.RegisterNodeFactory("print", newPrintNode)
-//	c := comp.NewSessionComposer("test_session")
-//	graph := event.NewEventGraph()
-//	if err := c.ParseGraphDescription(gd); err != nil {
-//		fmt.Println("parse graph failed")
-//		return
-//	}
-//	if err := c.ComposeNodes(graph); err != nil {
-//		fmt.Println("prepare node failed")
-//		return
-//	}
-//	mp1 := c.GetMessageProvider("e1")
-//	mp2 := c.GetMessageProvider("e2")
-//	mp1.PushMessage(comp.NewRawByteMessage("foo"))
-//	mp2.PushMessage(comp.NewRawByteMessage("bar"))
-//	time.Sleep(50 * time.Millisecond)
-//
-//	// Unordered OUTPUT:
-//	// p1 print foo
-//	// p2 print foo
-//	// p2 print bar
-//	// p3 print bar
-//}
+import (
+	"bytes"
+	"fmt"
+	"github.com/appcrash/media/server/comp"
+	"github.com/appcrash/media/server/event"
+	"testing"
+	"time"
+)
+
+const mtCustom = comp.MtUserMessageBegin
+
+func (m *customMessage) Type() comp.MessageType {
+	return mtCustom
+}
+
+func (m *customMessage) AsEvent() *event.Event {
+	return event.NewEvent(mtCustom, m)
+}
+
+func (m *customMessage) Clone() comp.Cloneable {
+	return &customMessage{Value: m.Value}
+}
+
+type customMessageConvertable interface {
+	AscustomMessage() *customMessage
+}
+
+type customMessage struct {
+	comp.MessageBase
+	Value string
+}
+
+func (m *customMessage) AsRawByteMessage() *comp.RawByteMessage {
+	return &comp.RawByteMessage{
+		Data: []byte(m.Value),
+	}
+}
+
+type fireNode struct {
+	comp.SessionNode
+	comp.InitiatorNode
+}
+
+func (n *fireNode) Offer() []comp.MessageType {
+	return []comp.MessageType{mtCustom}
+}
+
+func (n *fireNode) OnCall(fromNode string, args []string) (resp []string) {
+	msg := &customMessage{
+		Value: args[0],
+	}
+	fmt.Printf("fire call from %v\n", fromNode)
+	n.GetLinkPoint(0).SendMessage(msg)
+	return comp.WithOk()
+}
+
+func (n *fireNode) OnCast(fromNode string, args []string) {
+	msg := &customMessage{
+		Value: args[0],
+	}
+	fmt.Printf("fire cast from %v\n", fromNode)
+	n.GetLinkPoint(0).SendMessage(msg)
+}
+
+func newFireNode() comp.SessionAware {
+	n := &fireNode{}
+	n.Trait, _ = comp.NodeTraitOfType("fire")
+	return n
+}
+
+type printNode struct {
+	comp.SessionNode
+}
+
+func (n *printNode) Accept() []comp.MessageType {
+	return []comp.MessageType{
+		comp.MtRawByte,
+	}
+}
+
+func (n *printNode) handleRawByteEvent(evt *event.Event) {
+	if msg, ok := comp.EventToMessage[*comp.RawByteMessage](evt); ok {
+		fmt.Printf("%v print %v\n", n.GetNodeName(), string(msg.Data))
+	}
+}
+
+func newPrintNode() comp.SessionAware {
+	p := &printNode{}
+	p.Trait, _ = comp.NodeTraitOfType("print")
+	p.SetMessageHandler(comp.MtRawByte, comp.ChainSetHandler(p.handleRawByteEvent))
+	return p
+}
+
+func initComposer() {
+	comp.AddMessageTrait(comp.MT[customMessage](comp.MetaType[customMessageConvertable]()))
+	comp.SetMessageConvertable(mtCustom, comp.MtRawByte)
+	comp.RegisterNodeTrait(comp.NT[printNode]("print", newPrintNode))
+	comp.RegisterNodeTrait(comp.NT[fireNode]("fire", newFireNode))
+}
+
+func composeIt(session, gd string) (*comp.Composer, error) {
+	c := comp.NewSessionComposer(session)
+	if err := c.ParseGraphDescription(gd); err != nil {
+		return nil, fmt.Errorf("parse graph failed: %v", gd)
+	}
+	graph := event.NewEventGraph()
+	if err := c.ComposeNodes(graph); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+func TestComposerBasic(t *testing.T) {
+	gd := `[input:chan_src] -> [pubsub] -> {[output1:chan_sink],[output2:chan_sink]};`
+	c, err := composeIt("test_session", gd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inputC := make(chan []byte)
+	outputC1, outputC2 := make(chan []byte, 2), make(chan []byte, 2)
+
+	c.GetNode("input").(*comp.ChanSrc).LinkMe(inputC)
+	c.GetNode("output1").(*comp.ChanSink).LinkMe(outputC1)
+	c.GetNode("output2").(*comp.ChanSink).LinkMe(outputC2)
+	testBytes := []byte("test chan_src,pubsub,chan_sink")
+	inputC <- testBytes
+	if bytes.Compare(<-outputC1, testBytes) != 0 {
+		t.Fatal("send/recv message not equal for output1")
+	}
+	d := <-outputC2
+	if bytes.Compare(d, testBytes) != 0 {
+		t.Fatal("send/recv message not equal for output2")
+	}
+}
+
+func TestComposerWrongNodeType(t *testing.T) {
+	gd := "[aaa] -> [bbb]"
+	if _, err := composeIt("test_session", gd); err == nil {
+		t.Fatal("should fail to prepare wrong type nodes")
+	}
+}
+
+func ExampleComposerPubSub() {
+	gd := `[input:chan_src] -> [pubsub] -> {[p1:print], [ps:pubsub]};
+          [ps] -> {[p2:print], [p3:print],[output:chan_sink]}`
+	c, err := composeIt("test_session", gd)
+	if err != nil {
+		panic(err)
+	}
+
+	inputC, outputC := make(chan []byte), make(chan []byte, 1)
+	c.GetNode("input").(*comp.ChanSrc).LinkMe(inputC)
+	c.GetNode("output").(*comp.ChanSink).LinkMe(outputC)
+	inputC <- []byte("foobar")
+	msg := <-outputC
+	fmt.Printf("channel got %v\n", string(msg))
+	time.Sleep(50 * time.Millisecond)
+
+	// Unordered OUTPUT:
+	// p1 print foobar
+	// p2 print foobar
+	// p3 print foobar
+	// channel got foobar
+}
+
+func ExampleComposerMessageConvert() {
+	gd := `[fire] -> [pubsub] -> [p1:print];[fire1:fire]`
+	c, err := composeIt("test_session", gd)
+	if err != nil {
+		panic(err)
+	}
+
+	fire := c.GetNode("fire1").(*fireNode)
+	fire.Call("fire", comp.With("call_action"))
+	fire.Cast("fire", comp.With("cast_action"))
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Unordered OUTPUT:
+	// fire call from fire1
+	// fire cast from fire1
+	// p1 print call_action
+	// p1 print cast_action
+}
+
 //
 //func ExampleComposerController() {
 //	gd := `[entry payload_type='1'] -> [p1:print] -> [p2:print]`

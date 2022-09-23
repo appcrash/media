@@ -24,46 +24,46 @@ type Pubsub struct {
 // override default negotiation handler, use the first successfully connecting node's trait as pubub's offer
 // succession of connecting nodes must use the same trait as the first one or would be rejected
 // NOTE: no message conversion service is provided by pubsub
-func (p *Pubsub) handleLinkPoint(msg *LinkPointRequestMessage) {
-	agreedTrait := p.messageTrait
+func (n *Pubsub) handleLinkPoint(msg *LinkPointRequestMessage) {
+	agreedTrait := n.messageTrait
 	defer func() {
 		msg.C <- agreedTrait
 	}()
 	if len(msg.OfferedTrait) == 0 {
-		logger.Errorf("pubsub(%v) get empty offer", p)
+		logger.Errorf("pubsub(%v) get empty offer", n)
 		return
 	}
-	if p.messageTrait != nil {
+	if n.messageTrait != nil {
 		// not the first visitor
 		for _, trait := range msg.OfferedTrait {
-			if p.messageTrait.Match(trait) {
-				logger.Infof("pubsub(%v) accept more then one nodes of the same message trait", p)
+			if n.messageTrait.Match(trait) {
+				logger.Infof("pubsub(%v) accept more then one nodes of the same message trait", n)
 				return
 			}
 		}
 		agreedTrait = nil
-		logger.Errorf("pubsub(%v) reject new comer as it already has incompatible input trait", p)
+		logger.Errorf("pubsub(%v) reject new comer as it already has incompatible input trait", n)
 		return
 	}
 
 	// find the first eligible trait
 	for _, trait := range msg.OfferedTrait {
 		if trait.PtrType.Implements(cloneableMetaType) {
-			p.messageTrait = trait.Clone()
+			n.messageTrait = trait.Clone()
 			break
 		}
 	}
-	if p.messageTrait == nil {
-		logger.Errorf("pubsub(%v) reject the offer as none of them(%v) is cloneable", p, msg.OfferedTrait)
+	if n.messageTrait == nil {
+		logger.Errorf("pubsub(%v) reject the offer as none of them(%v) is cloneable", n, msg.OfferedTrait)
 		return
 	}
-	agreedTrait = p.messageTrait
-	p.SetMessageHandler(p.messageTrait.TypeId, ChainSetHandler(p.handleInputStream))
-	logger.Debugf("pubsub(%v) accept message type: %v", p, p.messageTrait)
+	agreedTrait = n.messageTrait
+	n.SetMessageHandler(n.messageTrait.TypeId, ChainSetHandler(n.handleInputStream))
+	logger.Debugf("pubsub(%v) accept message type: %v", n, n.messageTrait)
 	return
 }
 
-func (p *Pubsub) handleInputStream(evt *event.Event) {
+func (n *Pubsub) handleInputStream(evt *event.Event) {
 	msg, ok := EventToMessage[Message](evt)
 	if !ok {
 		return
@@ -71,15 +71,15 @@ func (p *Pubsub) handleInputStream(evt *event.Event) {
 	// no cast check, as in negotiation phase we have inspected message trait, if sender doesn't obey the rule,
 	// panic is waiting for you ...
 	cloneableMessage := MessageTo[Cloneable](msg)
-	for _, lp := range p.linkPoint {
+	for _, lp := range n.linkPoint {
 		cloned := cloneableMessage.Clone()
 		lp.SendMessage(cloned.(Message))
 	}
 }
 
-func (p *Pubsub) Offer() []MessageType {
-	if p.messageTrait != nil {
-		return []MessageType{p.messageTrait.TypeId}
+func (n *Pubsub) Offer() []MessageType {
+	if n.messageTrait != nil {
+		return []MessageType{n.messageTrait.TypeId}
 	} else {
 		return nil
 	}

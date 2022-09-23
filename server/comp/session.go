@@ -75,7 +75,7 @@ func (s *SessionNode) GetNodeTypeName() string {
 }
 
 func (s *SessionNode) OnEnter(delegate *event.NodeDelegate) {
-	logger.Debugf("node(%v) enters graph", s)
+	logger.Debugf("node %v enters graph", s.String())
 	s.delegate = delegate
 
 	// provide default negotiation behaviour handlers
@@ -143,10 +143,9 @@ func (s *SessionNode) _handleLinkPointRequest(evt *event.Event) {
 				// found a conversion path, setup handler for this message type
 				// sanity check: ensure a handler for answered message type already exist
 				if handler := s.GetMessageHandler(answer.TypeId); handler == nil {
-					logger.Errorf("(%v) has a nil handler for message type %v, conversion is impossible",
-						s, answer.TypeId)
-					linkPointMessage.C <- nil
-					return
+					logger.Errorf("%v has a nil handler for message type %v, conversion is impossible from %v",
+						s, answer, offer)
+					continue
 				}
 				// really setup handler for offered message type
 				answer = answer.Clone()
@@ -166,7 +165,7 @@ func (s *SessionNode) _handleLinkPointRequest(evt *event.Event) {
 						handler(convertedMsg.AsEvent())
 					}
 				})
-				linkPointMessage.C <- answer
+				linkPointMessage.C <- offer
 				return
 			}
 		}
@@ -271,9 +270,7 @@ func (s *SessionNode) StreamTo(session, name string, preferredOffer []MessageTyp
 			s.delegate.RequestLinkDown(linkId)
 		}
 	}()
-	if preferredOffer == nil {
-		preferredOffer = s.Offer()
-	}
+
 	for _, o := range preferredOffer {
 		if mt, ok := MessageTraitOfType(o); !ok {
 			err = fmt.Errorf("message type %v not exist", o)
@@ -320,8 +317,8 @@ func (s *SessionNode) StreamTo(session, name string, preferredOffer []MessageTyp
 		}
 		lp = NewLinkPad(s, linkId, linkIdentity, agreedTrait, sendFunc)
 		s.addLinkPoint(lp)
-		logger.Infof("new stream connection (%v|%v){%x} --->[%v]---> (%v|%v)",
-			s.GetNodeScope(), s.GetNodeName(), linkIdentity, agreedTrait.Name(), session, name)
+		logger.Infof("new stream connection %v{link:%x} --->[%v]---> (%v@%v)",
+			s, linkIdentity, agreedTrait.Name(), name, session)
 	case <-time.After(2 * time.Second):
 		err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to link point not retrieved",
 			s.SessionId, s.Name, session, name)

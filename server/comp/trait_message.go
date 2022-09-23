@@ -89,7 +89,7 @@ func (m *MessageTrait) String() string {
 }
 
 func (m *MessageTrait) Match(peer *MessageTrait) bool {
-	return m.TypeId == peer.TypeId || CanConvertMessage(m.TypeId, peer.TypeId)
+	return m.TypeId == peer.TypeId
 }
 
 // Name is a string that used in nmd language to identify this trait
