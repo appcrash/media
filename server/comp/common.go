@@ -8,7 +8,7 @@ import (
 
 // CAVEAT: always generate message trait first, as node analysis depends on message types
 //go:generate go run ../../cmd/gentrait -t message -o trait_message_generated.go
-//go:generate go run ../../cmd/gentrait -t node -o trait_node_generated.go  -v
+//go:generate go run ../../cmd/gentrait -t node -o trait_node_generated.go
 
 var logger *logrus.Entry
 
@@ -71,6 +71,8 @@ type Streamable interface {
 	Accept() []MessageType
 	Offer() []MessageType
 	StreamTo(session, name string, preferredOffer []MessageType) (LinkPoint, error)
+	GetLinkPoint(index int) (lp LinkPoint)
+	GetLinkPointOfType(messageType MessageType) (lp LinkPoint)
 }
 
 // SessionAware enables node to:

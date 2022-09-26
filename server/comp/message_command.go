@@ -9,13 +9,6 @@ type LinkPointRequestMessage struct {
 	LinkIdentity LinkIdentityType
 }
 
-// ConnectNodeRequestMessage received when being ask to connect to another node
-type ConnectNodeRequestMessage struct {
-	InBandCommandCall[bool]
-	Session, NodeName    string
-	PreferredMessageName []string // offer
-}
-
 // ChannelLinkRequestMessage received when being ask to link to a provided channel
 type ChannelLinkRequestMessage struct {
 	InBandCommandCall[interface{}]

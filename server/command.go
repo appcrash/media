@@ -19,6 +19,8 @@ func (sc *BuiltinCommandHandler) Execute(s *MediaSession, _ string, args string)
 		return
 	}
 	ctrl := s.GetController()
+
+	// parse rpc command and call/cast to corresponding node, fromNode arg is set to empty string
 	for _, call := range gt.GetCallActions() {
 		cmd, node := call.Cmd, call.Node
 		cmds, err := comp.WithString(cmd)
@@ -27,7 +29,7 @@ func (sc *BuiltinCommandHandler) Execute(s *MediaSession, _ string, args string)
 			continue
 		}
 		logger.Infof("session:%v execute call: node %v with %v", sessionId, node, cmds)
-		re := ctrl.Call(node.Scope, node.Name, cmds)
+		re := ctrl.Call("", node.Name, cmds)
 		if len(result) != 0 {
 			result = append(result, "\n")
 		}
@@ -41,7 +43,7 @@ func (sc *BuiltinCommandHandler) Execute(s *MediaSession, _ string, args string)
 			continue
 		}
 		logger.Infof("session:%v execute cast: node(%v) with %v", sessionId, node, cmds)
-		ctrl.Cast(node.Scope, node.Name, cmds)
+		ctrl.Cast("", node.Name, cmds)
 	}
 	return
 }

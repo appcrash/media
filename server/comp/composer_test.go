@@ -142,6 +142,29 @@ func TestComposerWrongNodeType(t *testing.T) {
 	}
 }
 
+func TestChanSrcSink(t *testing.T) {
+	gd := "[src:chan_src] -> [sink:chan_sink]"
+	if c, e := composeIt("test_session", gd); e != nil {
+		t.Fatal(e)
+	} else {
+		inputC, outputC := make(chan []byte), make(chan []byte)
+		i := c.GetNode("src").(*comp.ChanSrc)
+		o := c.GetNode("sink").(*comp.ChanSink)
+		if err := i.LinkMe(inputC); err != nil {
+			t.Fatal(err)
+		}
+		if err := i.LinkMe(inputC); err == nil {
+			t.Fatal("should not link again")
+		}
+		if err := o.LinkMe(outputC); err != nil {
+			t.Fatal(err)
+		}
+		if err := o.LinkMe(outputC); err == nil {
+			t.Fatal("should not link again")
+		}
+	}
+}
+
 func ExampleComposerPubSub() {
 	gd := `[input:chan_src] -> [pubsub] -> {[p1:print], [ps:pubsub]};
           [ps] -> {[p2:print], [p3:print],[output:chan_sink]}`
@@ -185,115 +208,64 @@ func ExampleComposerMessageConvert() {
 	// p1 print cast_action
 }
 
-//
-//func ExampleComposerController() {
-//	gd := `[entry payload_type='1'] -> [p1:print] -> [p2:print]`
-//	comp.RegisterNodeFactory("print", newPrintNode)
-//	c := comp.NewSessionComposer("test_session")
-//	graph := event.NewEventGraph()
-//	if err := c.ParseGraphDescription(gd); err != nil {
-//		fmt.Println("parse graph failed, ", err)
-//		return
-//	}
-//	if err := c.ComposeNodes(graph); err != nil {
-//		fmt.Println("prepare node failed, ", err)
-//		return
-//	}
-//	ctrl := c.GetCommandInitiator()
-//	ctrl.Cast("", "p1", []string{"foobar"})
-//	reply := ctrl.Call("", "p1", []string{})
-//	fmt.Printf("%v: %v\n", reply[0], reply[1])
-//	time.Sleep(50 * time.Millisecond)
-//
-//	// Unordered OUTPUT:
-//	// p2 print foobar
-//	// ok: p1
-//}
-//
-//func ExampleComposerInterSession() {
-//	gd := `[entry payload_type='1'] -> [ps:pubsub] -> {[p1:print],[p2:print]}`
-//	comp.RegisterNodeFactory("print", newPrintNode)
-//	graph := event.NewEventGraph()
-//	c1 := comp.NewSessionComposer("test1")
-//	c2 := comp.NewSessionComposer("test2")
-//	if c1.ParseGraphDescription(gd) != nil || c2.ParseGraphDescription(gd) != nil {
-//		fmt.Println("parse graph failed")
-//		return
-//	}
-//	if c1.ComposeNodes(graph) != nil || c2.ComposeNodes(graph) != nil {
-//		fmt.Println("prepare node failed")
-//		return
-//	}
-//	mp1, mp2 := c1.GetMessageProvider("entry"), c2.GetMessageProvider("entry")
-//	ctrl1 := c1.GetCommandInitiator()
-//	mp1.PushMessage(comp.NewRawByteMessage("from_session_1"))
-//	mp2.PushMessage(comp.NewRawByteMessage("from_session_2"))
-//	connCmd := comp.WithConnect("test1", "p2")
-//	ctrl1.Call("test2", "ps", connCmd) // ask "test2:ps" to connect to "test1:p2"
-//	mp2.PushMessage(comp.NewRawByteMessage("from_session_2_again"))
-//
-//	time.Sleep(50 * time.Millisecond)
-//	// Unordered OUTPUT:
-//	// p1 print from_session_1
-//	// p2 print from_session_1
-//	// p1 print from_session_2
-//	// p2 print from_session_2
-//	// p1 print from_session_2_again
-//	// p2 print from_session_2_again
-//	// p2 print from_session_2_again
-//
-//}
-//
-//func ExamplePubSubEnableDisable() {
-//	gd := `[e1:entry payload_type='1'] -> [pubsub] -> {[p1:print],[p2:print]}`
-//	comp.RegisterNodeFactory("print", newPrintNode)
-//	c := comp.NewSessionComposer("test_session")
-//	graph := event.NewEventGraph()
-//	if err := c.ParseGraphDescription(gd); err != nil {
-//		fmt.Println("parse graph failed")
-//		return
-//	}
-//	if err := c.ComposeNodes(graph); err != nil {
-//		fmt.Println("prepare node failed")
-//		return
-//	}
-//	mp := c.GetMessageProvider("e1")
-//	ctrl := c.GetCommandInitiator()
-//	mp.PushMessage(comp.NewRawByteMessage("foo"))
-//	ctrl.Call("", "pubsub", comp.With("disable", "node", "test_session", "p1"))
-//	mp.PushMessage(comp.NewRawByteMessage("bar"))
-//	ctrl.Call("", "pubsub", comp.With("enable", "node", "test_session", "p1"))
-//	mp.PushMessage(comp.NewRawByteMessage("foobar"))
-//	time.Sleep(50 * time.Millisecond)
-//
-//	// Unordered OUTPUT:
-//	// p1 print foo
-//	// p2 print foo
-//	// p2 print bar
-//	// p1 print foobar
-//	// p2 print foobar
-//}
-//
-//func ExampleComposerPushDataMessage() {
-//	gd := `[p1:print]; [p2:print];`
-//
-//	comp.RegisterNodeFactory("print", newPrintNode)
-//	c := comp.NewSessionComposer("test_session")
-//	graph := event.NewEventGraph()
-//	if err := c.ParseGraphDescription(gd); err != nil {
-//		fmt.Println("parse graph failed")
-//		return
-//	}
-//	if err := c.ComposeNodes(graph); err != nil {
-//		fmt.Println("prepare node failed")
-//		return
-//	}
-//	ctrl := c.GetCommandInitiator()
-//	ctrl.PushData("p1", "", []byte("abc"))
-//	ctrl.PushData("p2", "", []byte("cba"))
-//	time.Sleep(50 * time.Millisecond)
-//
-//	// Unordered OUTPUT:
-//	// p1 print abc
-//	// p2 print cba
-//}
+func ExampleComposerBuiltInCommand() {
+	gd1 := `[fire] -> [pubsub] -> [p1:print];`
+	gd2 := `[src:chan_src] -> [pubsub] -> {[p2:print],[output:chan_sink]};`
+	c1 := comp.NewSessionComposer("session1")
+	c2 := comp.NewSessionComposer("session2")
+	graph := event.NewEventGraph()
+	if err := c1.ParseGraphDescription(gd1); err != nil {
+		panic(err)
+	}
+	if err := c2.ParseGraphDescription(gd2); err != nil {
+		panic(err)
+	}
+	if err := c1.ComposeNodes(graph); err != nil {
+		panic(err)
+	}
+	if err := c2.ComposeNodes(graph); err != nil {
+		panic(err)
+	}
+	inputC := make(chan []byte)
+	outputC := make(chan []byte, 2)
+	c2.GetNode("src").(*comp.ChanSrc).LinkMe(inputC)
+	c2.GetNode("output").(*comp.ChanSink).LinkMe(outputC)
+	initiator1 := c1.GetCommandInitiator()
+	initiator2 := c2.GetCommandInitiator()
+
+	inputC <- []byte("src before conn")
+	<-outputC // wait message passwd through pubsub
+	args, _ := comp.WithString("conn session1 p1")
+	resp := initiator2.Call("", "pubsub", args)
+	inputC <- []byte("src after conn")
+	<-outputC
+
+	args, _ = comp.WithString("disable_link " + resp[1])
+	initiator2.Call("", "pubsub", args)
+	inputC <- []byte("src after disable_link")
+	<-outputC
+
+	args, _ = comp.WithString("enable_link " + resp[1])
+	initiator2.Call("", "pubsub", args)
+	inputC <- []byte("src after enable_link")
+	<-outputC
+
+	args, _ = comp.WithString("conn session2 p2")
+	initiator1.Call("", "pubsub", args)
+	initiator1.Cast("rpc", "fire", []string{"fire in the hole"})
+
+	time.Sleep(50 * time.Millisecond)
+	c1.ExitGraph()
+	c2.ExitGraph()
+
+	// Unordered OUTPUT:
+	// p2 print src before conn
+	// p1 print src after conn
+	// p2 print src after conn
+	// p2 print src after disable_link
+	// p1 print src after enable_link
+	// p2 print src after enable_link
+	// fire cast from rpc
+	// p1 print fire in the hole
+	// p2 print fire in the hole
+}

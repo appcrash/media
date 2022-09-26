@@ -22,12 +22,17 @@ func (n *ChanSink) handleRawByte(msg *RawByteMessage) {
 }
 
 func (n *ChanSink) handleChannelLink(msg *ChannelLinkRequestMessage) {
+	if n.C != nil {
+		logger.Errorf("chan_sink %v already linked", n)
+		msg.C <- "all ready linked"
+		return
+	}
 
 	if msg.LinkChannel != nil {
 		n.C = msg.LinkChannel
 		msg.C <- nil
 	} else {
-		msg.C <- "all ready linked"
+		msg.C <- "linking channel is nil"
 	}
 }
 

@@ -80,7 +80,6 @@ func (s *SessionNode) OnEnter(delegate *event.NodeDelegate) {
 
 	// provide default negotiation behaviour handlers
 	s.SetMessageHandler(MtLinkPointRequest, ChainDefaultHandler(s._handleLinkPointRequest))
-	s.SetMessageHandler(MtConnectNodeRequest, ChainDefaultHandler(s._handleConnectNodeRequest))
 }
 
 func (s *SessionNode) OnExit() {
@@ -148,6 +147,7 @@ func (s *SessionNode) _handleLinkPointRequest(evt *event.Event) {
 					continue
 				}
 				// really setup handler for offered message type
+				logger.Debugf("node %v create message conversion function from %v -> %v", s, offer.Name(), answer.Name())
 				answer = answer.Clone()
 				s.SetMessageHandler(offer.TypeId, func(_ MessageHandler) MessageHandler {
 					// create message conversion function
@@ -172,37 +172,6 @@ func (s *SessionNode) _handleLinkPointRequest(evt *event.Event) {
 	}
 	linkPointMessage.C <- nil
 	return
-}
-
-// DESIGN DRAWBACK: connect to the other node may cause jitter when stream flow is under heavy load,
-// because this is a sync operation
-// ALTERNATIVE: put the StreamTo to other goroutine?
-func (s *SessionNode) _handleConnectNodeRequest(evt *event.Event) {
-	var connected bool
-	msg, ok := EventToMessage[*ConnectNodeRequestMessage](evt)
-	if !ok {
-		return
-	}
-	defer func() { msg.C <- connected }()
-	if len(msg.Session) == 0 || len(msg.NodeName) == 0 {
-		logger.Errorf("node %v got invalid connect node request %v", s, msg)
-		return
-	}
-	var preferredOffer []MessageType
-	for _, name := range msg.PreferredMessageName {
-		if trait, exist := MessageTraitOfName(name); !exist {
-			logger.Errorf("node %v got connect node request with invalid message name %v", s, name)
-			return
-		} else {
-			preferredOffer = append(preferredOffer, trait.TypeId)
-		}
-	}
-	if lp, err := s.StreamTo(msg.Session, msg.NodeName, preferredOffer); err != nil {
-		return
-	} else {
-		connected = true
-		s.linkPoint = append(s.linkPoint, lp)
-	}
 }
 
 func (s *SessionNode) ExitGraph() {
@@ -240,7 +209,7 @@ func (s *SessionNode) addLinkPoint(lp LinkPoint) {
 func (s *SessionNode) GetLinkPoint(index int) (lp LinkPoint) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	if index > len(s.linkPoint)-1 {
+	if index > len(s.linkPoint)-1 || index < 0 {
 		return
 	}
 	return s.linkPoint[index]

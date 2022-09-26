@@ -30,7 +30,7 @@ func NewSessionComposer(sessionId string) *Composer {
 		sessionId: sessionId,
 		nodeMap:   make(map[string]SessionAware),
 	}
-	sc.initiator = &graphCommandInitiator{composer: sc}
+	sc.initiator = &builtinCommandInitiator{composer: sc}
 	return sc
 }
 

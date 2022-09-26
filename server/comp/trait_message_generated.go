@@ -19,7 +19,6 @@ const (
 	MtRawByte = iota
 	MtRtpPacket
 	MtLinkPointRequest
-	MtConnectNodeRequest
 	MtChannelLinkRequest
 	MtUserMessageBegin
 )
@@ -34,10 +33,6 @@ type RtpPacketConvertable interface {
 
 type LinkPointRequestConvertable interface {
 	AsLinkPointRequestMessage() *LinkPointRequestMessage
-}
-
-type ConnectNodeRequestConvertable interface {
-	AsConnectNodeRequestMessage() *ConnectNodeRequestMessage
 }
 
 type ChannelLinkRequestConvertable interface {
@@ -69,14 +64,6 @@ func (m *LinkPointRequestMessage) AsEvent() *event.Event {
 	return event.NewEvent(MtLinkPointRequest, m)
 }
 
-func (m *ConnectNodeRequestMessage) Type() MessageType {
-	return MtConnectNodeRequest
-}
-
-func (m *ConnectNodeRequestMessage) AsEvent() *event.Event {
-	return event.NewEvent(MtConnectNodeRequest, m)
-}
-
 func (m *ChannelLinkRequestMessage) Type() MessageType {
 	return MtChannelLinkRequest
 }
@@ -92,7 +79,6 @@ func initMessageTraits() {
 		MT[RawByteMessage](MetaType[RawByteConvertable]()),
 		MT[RtpPacketMessage](MetaType[RtpPacketConvertable]()),
 		MT[LinkPointRequestMessage](MetaType[LinkPointRequestConvertable]()),
-		MT[ConnectNodeRequestMessage](MetaType[ConnectNodeRequestConvertable]()),
 		MT[ChannelLinkRequestMessage](MetaType[ChannelLinkRequestConvertable]()),
 	)
 }
