@@ -1,8 +1,8 @@
 package comp
 
 import (
+	"bytes"
 	"github.com/appcrash/media/server/event"
-	"github.com/appcrash/media/server/utils"
 )
 
 type MessageType int
@@ -10,10 +10,14 @@ type MessageType int
 // Message is the base interface of all kinds of message
 type Message interface {
 	AsEvent() *event.Event
-	GetMeta() []byte
+	GetHeader(name string) []byte
+	SetHeader(name string, data []byte)
 	Type() MessageType
 }
 
+// MessageBase provides basic header operations, all common properties of messages are set here, such as from which node
+// the message originates. it uses "key1=value1;key2=value2;..." to encapsulate infos, as each message may carry the
+// header info, its goal is to be fast and small footprint
 type MessageBase struct {
 	Meta []byte
 }
@@ -26,14 +30,55 @@ type InBandCommandCall[T any] struct {
 	C chan T
 }
 
-// TaggedMessage embed it when receiver needs to distinguish the sender's identity
-type TaggedMessage[T any] struct {
-	MessageBase
-	Tag T
+func (m *MessageBase) GetHeader(name string) []byte {
+	var searchStart int
+	if m.Meta == nil {
+		return nil
+	}
+	// manually crafted search method for performance
+	subBytes := []byte(name)
+	metaLen := len(m.Meta)
+	for searchStart < metaLen {
+		keyFound := false
+		i := searchStart
+		valueStart := searchStart
+		for i < metaLen {
+			if m.Meta[i] == '=' {
+				if bytes.Compare(subBytes, m.Meta[searchStart:i]) == 0 {
+					keyFound = true
+					valueStart = i + 1
+					if valueStart == metaLen {
+						// empty value
+						return nil
+					}
+				}
+				i++
+				goto searchSemiColon
+			}
+			i++
+		}
+	searchSemiColon:
+		for i < metaLen {
+			if m.Meta[i] == ';' {
+				if keyFound && i > valueStart {
+					return m.Meta[valueStart:i]
+				} else {
+					break
+				}
+			}
+			i++
+		}
+		searchStart = i + 1
+	}
+
+	return nil
 }
 
-func (m *MessageBase) GetMeta() []byte {
-	return m.Meta
+func (m *MessageBase) SetHeader(name string, data []byte) {
+	m.Meta = append(m.Meta, []byte(name)...)
+	m.Meta = append(m.Meta, '=')
+	m.Meta = append(m.Meta, data...)
+	m.Meta = append(m.Meta, ';')
 }
 
 func (m *MessageBase) Type() MessageType {
@@ -69,23 +114,6 @@ func (m *RawByteMessage) Clone() Cloneable {
 	}
 	//copy(clone.Data, m.Data)
 	return clone
-}
-
-type RtpPacketMessage struct {
-	MessageBase
-	Packet *utils.RtpPacketList
-}
-
-func (m *RtpPacketMessage) Clone() Cloneable {
-	cloned := &RtpPacketMessage{}
-	if m.Meta != nil {
-		cloned.Meta = make([]byte, len(m.Meta))
-		copy(cloned.Meta, m.Meta)
-	}
-	if m.Packet != nil {
-		cloned.Packet = m.Packet.Clone()
-	}
-	return cloned
 }
 
 //func deepClone(obj interface{}) interface{} {

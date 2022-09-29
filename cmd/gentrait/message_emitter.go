@@ -19,8 +19,7 @@ package {{ .Name }}
 	tempTraitValue = template.Must(template.New("trait_enum").Parse(
 		`    {{.Name}} = uint64(1) << {{.Shift}}
 `))
-	msgTempImport = template.Must(template.New("import").Parse(`import "{{.Import}}"
-
+	tempImport = template.Must(template.New("import").Parse(`import "{{.Import}}"
 `))
 	msgTempEnumStart = template.Must(template.New("enum_start").Parse(
 		`const (
@@ -93,7 +92,7 @@ func msgEmitAll() {
 		}
 	}()
 
-	emitPackage(w)
+	msgEmitPackage(w)
 
 	msgEmitTraitEnum(w)
 
@@ -107,7 +106,7 @@ func msgEmitAll() {
 
 }
 
-func emitPackage(w io.Writer) {
+func msgEmitPackage(w io.Writer) {
 	packageName := workingPackageName
 	if !isGenForUser() {
 		// generate for media project itself
@@ -116,9 +115,9 @@ func emitPackage(w io.Writer) {
 	tempPackage.Execute(w, templateName{packageName})
 	if packageName != "comp" {
 		// user package needs import the root package
-		msgTempImport.Execute(w, struct{ Import string }{rootPackageName})
+		tempImport.Execute(w, struct{ Import string }{rootPackageName})
 	}
-	msgTempImport.Execute(w, struct{ Import string }{"github.com/appcrash/media/server/event"})
+	tempImport.Execute(w, struct{ Import string }{"github.com/appcrash/media/server/event"})
 }
 
 func msgEmitTraitEnum(w *bufio.Writer) {

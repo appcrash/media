@@ -8,8 +8,6 @@ func initNodeTraits() {
 		NT[ChanSink]("chan_sink", newChanSink),
 		NT[ChanSrc]("chan_src", newChanSrc),
 		NT[Pubsub]("pubsub", newPubsub),
-		NT[RtpSink]("rtp_sink", newRtpSink),
-		NT[RtpSrc]("rtp_src", newRtpSrc),
 	)
 }
 
@@ -69,22 +67,6 @@ func (n *Pubsub) Accept() []MessageType {
 	}
 }
 
-func (n *RtpSink) configHandler() {
-	n.SetMessageHandler(MtRtpPacket, func(_ MessageHandler) MessageHandler { return n._convertRtpPacketMessage })
-}
-
-func (n *RtpSink) _convertRtpPacketMessage(evt *event.Event) {
-	if msg, ok := EventToMessage[*RtpPacketMessage](evt); ok {
-		n.handleRtpPacket(msg)
-	}
-}
-
-func (n *RtpSink) Accept() []MessageType {
-	return []MessageType{
-		MtRtpPacket,
-	}
-}
-
 // Node Factory Method Begin
 
 func newChanSink() SessionAware {
@@ -114,26 +96,6 @@ func newPubsub() SessionAware {
 		panic("node type Pubsub not exist")
 	}
 	node.configHandler()
-	return node
-}
-
-func newRtpSink() SessionAware {
-	var exist bool
-	node := &RtpSink{}
-	if node.Trait, exist = NodeTraitOfType("rtp_sink"); !exist {
-		panic("node type RtpSink not exist")
-	}
-	node.configHandler()
-	return node
-}
-
-func newRtpSrc() SessionAware {
-	var exist bool
-	node := &RtpSrc{}
-	if node.Trait, exist = NodeTraitOfType("rtp_src"); !exist {
-		panic("node type RtpSrc not exist")
-	}
-
 	return node
 }
 

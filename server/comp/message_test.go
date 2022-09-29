@@ -1,29 +1,37 @@
 package comp_test
 
 import (
+	"bytes"
 	"github.com/appcrash/media/server/comp"
-	"github.com/appcrash/media/server/utils"
 	"testing"
 )
 
-//func TestMessageTrait(t *testing.T) {
-//	cm := &comp.ChannelLinkRequestMessage{}
-//	trait, ok := comp.MessageTraitOfObject(&comp.RawByteMessage{})
-//	if !ok {
-//		t.Fatal("not found")
-//	}
-//	converted, err := trait.ConvertFrom(cm)
-//	if err != nil {
-//		t.Fatal(err)
-//	}
-//	t.Logf("converted is %v\n", converted)
-//}
+func TestMessageHeader(t *testing.T) {
+	m := &comp.RawByteMessage{}
+	m.SetHeader("key1", []byte("value1"))
+	m.SetHeader("key2", []byte("value2"))
+	if bytes.Compare(m.GetHeader("key1"), []byte("value1")) != 0 {
+		t.Fatal("set key wrong")
+	}
+	if bytes.Compare(m.GetHeader("key2"), []byte("value2")) != 0 {
+		t.Fatal("set key wrong")
+	}
 
-func TestNodeTrait(t *testing.T) {
-	node := comp.MakeSessionNode("rtp_src", "abc", nil)
-	composer := comp.NewSessionComposer("abc")
-	metaType := comp.MetaType[comp.PreComposer]()
+	m.Meta = []byte("abcd=abc;dabc=abc;zyxabcabc=abc/de;abc=/correct Value/;")
+	value := m.GetHeader("abc")
+	if bytes.Compare(value, []byte("/correct Value/")) != 0 {
+		t.Fatalf("get key wrong: %v", string(value))
+	}
 
-	utils.AopCall(node, nil, comp.MetaType[comp.PreInitializer](), "PreInit")
-	utils.AopCall(node, []interface{}{composer, node}, metaType, "BeforeCompose")
+	m.Meta = []byte("abc=;;;;cabc=x;")
+	value = m.GetHeader("abc")
+	if value != nil {
+		t.Fatalf("should not get the key: %v %v", string(value), len(value))
+	}
+
+	m.Meta = []byte("abc=;;abc=;abc=x;")
+	value = m.GetHeader("abc")
+	if len(value) != 1 || value[0] != 'x' {
+		t.Fatalf("get key wrong: %v", string(value))
+	}
 }

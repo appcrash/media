@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"go/format"
+	"io"
 	"os"
 	"text/template"
 )
@@ -87,12 +88,26 @@ func nodeEmitAll() {
 
 	}()
 
-	emitPackage(w)
+	nodeEmitPackage(w)
 
 	nodeEmitTraitDefs(w)
 	nodeEmitMessageHandler(w)
 	nodeEmitFactoryFunc(w)
 	nodeEmitInitFunc(w)
+}
+
+func nodeEmitPackage(w io.Writer) {
+	packageName := workingPackageName
+	if !isGenForUser() {
+		// generate for media project itself
+		packageName = "comp"
+	}
+	tempPackage.Execute(w, templateName{packageName})
+	if packageName != "comp" {
+		// user package needs import the root package
+		tempImport.Execute(w, struct{ Import string }{rootPackageName})
+	}
+	tempImport.Execute(w, struct{ Import string }{"github.com/appcrash/media/server/event"})
 }
 
 func nodeEmitInitFunc(w *bufio.Writer) {
@@ -106,7 +121,7 @@ func nodeEmitTraitDefs(w *bufio.Writer) {
 	nodeTempInitTraitFunc.Execute(w, templateName{_V("RegisterNodeTrait")})
 	for _, ni := range emitNtis {
 		nodeTempTraitVar.Execute(w, struct{ NT, TypeName, NodeSnakeName, FuncName string }{
-			_V("NT"), _V(ni.typeName()),
+			_V("NT"), ni.typeName(),
 			ni.snakeTypeName(), "new" + ni.typeName(),
 		})
 	}
@@ -137,7 +152,7 @@ func nodeEmitMessageHandler(w *bufio.Writer) {
 		nodeTempMethodStart.Execute(w, struct{ Name, FuncName, ReturnType string }{n.typeName(), "configHandler", ""})
 		for i, mi := range n.acceptMessageTypes {
 			nodeTempConfigHandlerValue.Execute(w, struct{ EnumName, MessageHandler, HandlerName string }{
-				_V(mi.enumName()), _V("MessageHandler"), n.stubHandlerName(i),
+				mi.enumName(), _V("MessageHandler"), n.stubHandlerName(i),
 			})
 		}
 		w.Write([]byte("}\n\n")) // finish function block
@@ -154,11 +169,18 @@ func nodeEmitMessageHandler(w *bufio.Writer) {
 		}
 		// Accept() is not explicitly overridden, generate for it
 
-		nodeTempMethodStart.Execute(w, struct{ Name, FuncName, ReturnType string }{
-			n.typeName(), "Accept", _V("[]MessageType")})
-		nodeTempAcceptStart.Execute(w, templateName{_V("[]MessageType")})
+		if isGenForUser() {
+			nodeTempMethodStart.Execute(w, struct{ Name, FuncName, ReturnType string }{
+				n.typeName(), "Accept", "[]comp.MessageType"})
+			nodeTempAcceptStart.Execute(w, templateName{"[]comp.MessageType"})
+		} else {
+			nodeTempMethodStart.Execute(w, struct{ Name, FuncName, ReturnType string }{
+				n.typeName(), "Accept", "[]MessageType"})
+			nodeTempAcceptStart.Execute(w, templateName{"[]MessageType"})
+		}
+
 		for _, mi := range n.acceptMessageTypes {
-			nodeTempAcceptValue.Execute(w, templateName{_V(mi.enumName())})
+			nodeTempAcceptValue.Execute(w, templateName{mi.enumName()})
 		}
 		w.Write([]byte("    }\n}\n\n")) // finish function block
 

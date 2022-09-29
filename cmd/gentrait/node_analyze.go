@@ -145,26 +145,35 @@ func nodePassFindMessageHandler(p *packages.Package) {
 				continue
 			}
 			paramExpr := st.Params.List[0].Type
+			var ident *ast.Ident
 			switch expr := paramExpr.(type) {
 			case *ast.StarExpr:
 				// paramExpr value type must be one-level ptr type
-				if ident, ok := expr.X.(*ast.Ident); ok {
-					// as message trait is generated before node trait, all message types must be found in scope
-					paramType := lookupTypeObject(ident.Name)
-					if paramType != nil {
-						// if the param type is resolved and its ptr type implements Message, we think the node
-						// can ACCEPT this kind of message type
-						ptrType := types.NewPointer(paramType.Type())
-						if types.Implements(ptrType, messageInterfaceType) {
-							// partially initialized msgTypeInfo, only use it to get kinds of message names
-							msgTypeInfo := &messageTypeInfo{structType: paramType}
-							// TODO: check duplicated handler (with same type of message)
-							//log.Debugf("%v --- %v", info.typeName(), paramType)
-							info.acceptMessageTypes = append(info.acceptMessageTypes, msgTypeInfo)
-							info.handlers = append(info.handlers, d.Name.Name)
-						}
-					}
+				switch typedExpr := expr.X.(type) {
+				case *ast.SelectorExpr: // in case of comp.X
+					ident = typedExpr.Sel
+				case *ast.Ident:
+					ident = typedExpr
 				}
+				// as message trait is generated before node trait, all message types must be found in scope
+				paramType := lookupTypeObject(ident.Name)
+				if paramType != nil {
+					// if the param type is resolved and its ptr type implements Message, we think the node
+					// can ACCEPT this kind of message type
+					ptrType := types.NewPointer(paramType.Type())
+					if types.Implements(ptrType, messageInterfaceType) {
+						// partially initialized msgTypeInfo, only use it to get kinds of message names
+						msgTypeInfo := &messageTypeInfo{structType: paramType}
+						// TODO: check duplicated handler (with same type of message)
+						//log.Debugf("%v --- %v", info.typeName(), paramType)
+						info.acceptMessageTypes = append(info.acceptMessageTypes, msgTypeInfo)
+						info.handlers = append(info.handlers, d.Name.Name)
+					}
+				} else {
+					log.Warnf("==> node %v method [%v]: cannot deal with parameter type %v",
+						info.typeName(), d.Name.Name, ident.Name)
+				}
+
 			}
 		}
 	}

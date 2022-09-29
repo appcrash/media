@@ -79,7 +79,12 @@ func (i *messageTypeInfo) fullTypeName() string {
 }
 
 func (i *messageTypeInfo) enumName() string {
-	return msgEnumPrefix + i.baseName()
+	if currentGeneratingPackage.PkgPath != i.packagePath() {
+		return "comp." + msgEnumPrefix + i.baseName()
+	} else {
+		return msgEnumPrefix + i.baseName()
+	}
+
 }
 
 func (i *messageTypeInfo) convertInterfaceName() string {
