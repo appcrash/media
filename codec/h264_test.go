@@ -3,7 +3,6 @@ package codec_test
 import (
 	"bytes"
 	"github.com/appcrash/media/codec"
-	"github.com/appcrash/media/server/comp"
 	"testing"
 )
 
@@ -66,24 +65,5 @@ func TestPacketListFromH264Mode1(t *testing.T) {
 	pl = codec.PacketListFromH264Mode1(nals, 100, 97, 1000, false)
 	if pl.Len() != 5 {
 		t.Fatal("should be packed as single, aggregation and fu nals")
-	}
-}
-
-func TestH264PacketCloneable(t *testing.T) {
-	payload := []byte("abc")
-	pkt := &codec.H264Packet{
-		Payload: payload,
-		Pts:     1,
-	}
-	msg := &comp.GenericMessage{
-		Subtype: "h264",
-		Obj:     pkt,
-	}
-	cmsg := msg.Clone()
-	if cmsg == nil {
-		t.Fatal("msg can not be cloned")
-	}
-	if cmsg.(*comp.GenericMessage).Obj == nil {
-		t.Fatal("h264 packet is not cloned")
 	}
 }

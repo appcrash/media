@@ -86,9 +86,27 @@ func (n *printNode) handleRawByteEvent(evt *event.Event) {
 	}
 }
 
+type printHeaderNode struct {
+	printNode
+}
+
+func (n *printHeaderNode) handleRawByteEvent(evt *event.Event) {
+	msg, _ := comp.EventToMessage[comp.Message](evt)
+	if v := msg.GetHeader(comp.Origin); v != nil {
+		fmt.Printf("%v print origin %v", n.GetNodeName(), string(v))
+	}
+}
+
 func newPrintNode() comp.SessionAware {
 	p := &printNode{}
 	p.Trait, _ = comp.NodeTraitOfType("print")
+	p.SetMessageHandler(comp.MtRawByte, comp.ChainSetHandler(p.handleRawByteEvent))
+	return p
+}
+
+func newPrintHeaderNode() comp.SessionAware {
+	p := &printHeaderNode{}
+	p.Trait, _ = comp.NodeTraitOfType("print_header")
 	p.SetMessageHandler(comp.MtRawByte, comp.ChainSetHandler(p.handleRawByteEvent))
 	return p
 }
@@ -97,6 +115,7 @@ func initComposer() {
 	comp.AddMessageTrait(comp.MT[customMessage](comp.MetaType[customMessageConvertable]()))
 	comp.SetMessageConvertable(mtCustom, comp.MtRawByte)
 	comp.RegisterNodeTrait(comp.NT[printNode]("print", newPrintNode))
+	comp.RegisterNodeTrait(comp.NT[printHeaderNode]("print_header", newPrintHeaderNode))
 	comp.RegisterNodeTrait(comp.NT[fireNode]("fire", newFireNode))
 }
 
@@ -163,6 +182,21 @@ func TestChanSrcSink(t *testing.T) {
 			t.Fatal("should not link again")
 		}
 	}
+}
+
+func ExampleMessagePostProcessor() {
+	gd := `[input:chan_src trackable=true] -> [pubsub] -> [p1:print_header];`
+	c, err := composeIt("test_session", gd)
+	if err != nil {
+		panic(err)
+	}
+	inputC := make(chan []byte)
+	c.GetNode("input").(*comp.ChanSrc).LinkMe(inputC)
+	inputC <- []byte("abcdefg")
+	time.Sleep(50 * time.Millisecond)
+
+	// Unordered OUTPUT:
+	// p1 print origin input
 }
 
 func ExampleComposerPubSub() {

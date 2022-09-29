@@ -2,18 +2,10 @@ package comp
 
 import (
 	"bytes"
+	"github.com/appcrash/media/server/comp/nmd"
 	"github.com/appcrash/media/server/event"
+	"strings"
 )
-
-type MessageType int
-
-// Message is the base interface of all kinds of message
-type Message interface {
-	AsEvent() *event.Event
-	GetHeader(name string) []byte
-	SetHeader(name string, data []byte)
-	Type() MessageType
-}
 
 // MessageBase provides basic header operations, all common properties of messages are set here, such as from which node
 // the message originates. it uses "key1=value1;key2=value2;..." to encapsulate infos, as each message may carry the
@@ -81,6 +73,14 @@ func (m *MessageBase) SetHeader(name string, data []byte) {
 	m.Meta = append(m.Meta, ';')
 }
 
+func (m *MessageBase) Clone() MessageBase {
+	clone := MessageBase{}
+	if m.Meta != nil {
+		clone.Meta = append([]byte(nil), m.Meta...)
+	}
+	return clone
+}
+
 func (m *MessageBase) Type() MessageType {
 	panic("message Type() not implemented")
 }
@@ -106,14 +106,59 @@ type RawByteMessage struct {
 
 func (m *RawByteMessage) Clone() Cloneable {
 	clone := &RawByteMessage{
-		MessageBase: MessageBase{
-			Meta: m.Meta,
-		},
-		//Data: make([]byte, len(m.Data)),
-		Data: append([]byte(nil), m.Data...),
+		MessageBase: m.MessageBase.Clone(),
+		Data:        append([]byte(nil), m.Data...),
 	}
-	//copy(clone.Data, m.Data)
 	return clone
+}
+
+// Message Processor
+var (
+	nullMessagePostProcessor = func(message Message) {}
+)
+
+// properties of node in nmd language
+const (
+	propTrackable = "trackable"
+)
+
+const (
+	Origin = "_o"
+)
+
+// default factory to process message for session node, filter any known built-in message-specified property
+func messagePostProcessFactory(s SessionAware, props []*nmd.NodeProp) (mpp MessagePostProcessor, newProps []*nmd.NodeProp) {
+	var processor []MessagePostProcessor
+
+	mpp = nullMessagePostProcessor
+	for _, p := range props {
+		switch p.Key {
+		case propTrackable:
+			if p.Type != "str" {
+				continue
+			}
+			if str, ok := p.Value.(string); !ok {
+				continue
+			} else {
+				if strings.Compare("true", strings.ToLower(str)) == 0 {
+					processor = append(processor, func(msg Message) {
+						msg.SetHeader(Origin, []byte(s.GetNodeName()))
+					})
+				}
+			}
+		default:
+			newProps = append(newProps, p)
+		}
+	}
+
+	if processor != nil {
+		mpp = func(msg Message) {
+			for _, proc := range processor {
+				proc(msg)
+			}
+		}
+	}
+	return
 }
 
 //func deepClone(obj interface{}) interface{} {

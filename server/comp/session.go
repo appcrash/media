@@ -52,8 +52,9 @@ type SessionNode struct {
 	messageHandler   []MessageHandler
 	linkPoint        []LinkPoint // grow only array
 
-	Trait     *NodeTrait       // initialized by gentrait
-	Initiator CommandInitiator // initialized by composer
+	messagePostProcessor MessagePostProcessor
+
+	Trait *NodeTrait // initialized by gentrait
 }
 
 //------------------- Base Node Implementation -------------------------
@@ -260,6 +261,7 @@ func (s *SessionNode) StreamTo(session, name string, preferredOffer []MessageTyp
 		return
 	}
 	sendFunc := func(msg Message) error {
+		s.messagePostProcessor(msg)
 		if !s.delegate.Deliver(linkId, msg.AsEvent()) {
 			return errors.New("failed to deliver event")
 		}
@@ -350,7 +352,15 @@ func MakeSessionNode(nodeType string, sessionId string, props []*nmd.NodeProp) S
 	} else {
 		node := trait.FactoryFunc()
 		if node != nil {
-			for _, p := range setNodeProperties(node, props) {
+			messagePostProcessor, newProps := messagePostProcessFactory(node, props)
+			// set the message post processor
+			newProps = append(newProps,
+				&nmd.NodeProp{
+					Key:   "messagePostProcessor",
+					Type:  "func",
+					Value: messagePostProcessor,
+				})
+			for _, p := range setNodeProperties(node, newProps) {
 				logger.Warnf("node %v doesn't handle property: %v", node, p.Key)
 			}
 		}

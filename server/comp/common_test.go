@@ -10,7 +10,7 @@ import (
 func initComp() {
 	logger := &logrus.Logger{
 		Out:   os.Stdout,
-		Level: logrus.DebugLevel,
+		Level: logrus.InfoLevel,
 		Formatter: &logrus.TextFormatter{
 			TimestampFormat: "15:04:05",
 		},

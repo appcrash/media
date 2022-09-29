@@ -27,6 +27,17 @@ func MetaType[T any]() reflect.Type {
 	return typ
 }
 
+type MessageType int
+type MessagePostProcessor func(msg Message)
+
+// Message is the base interface of all kinds of message
+type Message interface {
+	AsEvent() *event.Event
+	GetHeader(name string) []byte
+	SetHeader(name string, data []byte)
+	Type() MessageType
+}
+
 type LinkIdentityType uint64 // it differs from linkId as it is unique among whole graph instead of node scope
 
 // LinkPoint is an affiliated output gateway of a node. it is used to communicate with other node as long as a link
