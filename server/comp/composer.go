@@ -7,13 +7,20 @@ import (
 	"github.com/appcrash/media/server/utils"
 )
 
-var preInitializerMetaType = MetaType[PreInitializer]()
-var postInitializerMetaType = MetaType[PostInitializer]()
-var preComposerMetaType = MetaType[PreComposer]()
-var postComposerMetaType = MetaType[PostComposer]()
+var (
+	preComposerType        = MetaType[PreComposer]()
+	postComposerType       = MetaType[PostComposer]()
+	initializingNodeType   = MetaType[InitializingNode]()
+	unInitializingNodeType = MetaType[UnInitializingNode]()
+)
 
 // Composer creates every node and config their properties based on the collected info, then
-// link and negotiate for them to put them into working state.
+// link and negotiate for them to put them into working state. the order of function called when no error happens:
+//
+// Node.Init
+// Node.BeforeCompose
+// Node.AfterCompose
+// Node.UnInit
 type Composer struct {
 	sessionId string
 
@@ -23,6 +30,7 @@ type Composer struct {
 
 	initiator  CommandInitiator
 	linkPoints []LinkPoint
+	nodeExited bool // ensure node UnInit called only once
 }
 
 func NewSessionComposer(sessionId string) *Composer {
@@ -65,14 +73,14 @@ func (c *Composer) Connect(sender, receiver SessionAware, preferredOffer []Messa
 
 func (c *Composer) preConnectNodes() error {
 	for _, node := range c.nodeSortedList {
-		utils.AopCall(node, []interface{}{c, node}, preComposerMetaType, "BeforeCompose")
+		utils.AopCall(node, []interface{}{c, node}, preComposerType, "BeforeCompose")
 	}
 	return nil
 }
 
 func (c *Composer) postConnectNodes() error {
 	for _, node := range c.nodeSortedList {
-		utils.AopCall(node, []interface{}{c, node}, postComposerMetaType, "AfterCompose")
+		utils.AopCall(node, []interface{}{c, node}, postComposerType, "AfterCompose")
 	}
 	return nil
 }
@@ -133,11 +141,14 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 			err = fmt.Errorf("can not make unknown node: %v", n.Type)
 			return
 		}
-		utils.AopCall(sn, nil, preInitializerMetaType, "PreInit")
-		if err = sn.Init(); err != nil {
-			return
+		returnValues := utils.AopCall(sn, nil, initializingNodeType, "Init")
+		for _, rv := range returnValues {
+			// any Init error would prevent composing
+			if !rv[0].IsNil() {
+				logger.Errorf("node %v init failed with error: %v", sn, rv[0])
+				return
+			}
 		}
-		utils.AopCall(sn, nil, postInitializerMetaType, "PostInit")
 
 		c.nodeSortedList = append(c.nodeSortedList, sn)
 		c.nodeMap[sn.GetNodeName()] = sn
@@ -167,7 +178,11 @@ func (c *Composer) GetCommandInitiator() CommandInitiator {
 }
 
 func (c *Composer) ExitGraph() {
-	for _, n := range c.nodeSortedList {
-		n.ExitGraph()
+	if c.nodeExited {
+		return
 	}
+	for _, n := range c.nodeSortedList {
+		utils.AopCall(n, nil, unInitializingNodeType, "UnInit")
+	}
+	c.nodeExited = true
 }

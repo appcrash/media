@@ -84,6 +84,15 @@ type Streamable interface {
 	StreamTo(session, name string, preferredOffer []MessageType) (LinkPoint, error)
 	GetLinkPoint(index int) (lp LinkPoint)
 	GetLinkPointOfType(messageType MessageType) (lp LinkPoint)
+
+	// GetNodeTypeName return the node trait name
+	GetNodeTypeName() string
+}
+
+// GraphPhase enable aop calls at each graph-related phase
+type GraphPhase interface {
+	InitializingNode
+	UnInitializingNode
 }
 
 // SessionAware enables node to:
@@ -95,13 +104,5 @@ type SessionAware interface {
 	event.Node
 	CommandReceiver
 	Streamable
-
-	// GetNodeTypeName return the node trait name
-	GetNodeTypeName() string
-
-	// Init do initialization after node is allocated and configured
-	Init() error
-
-	// ExitGraph is used when initialization failed or session terminated
-	ExitGraph()
+	GraphPhase
 }

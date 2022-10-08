@@ -175,7 +175,7 @@ func (s *SessionNode) _handleLinkPointRequest(evt *event.Event) {
 	return
 }
 
-func (s *SessionNode) ExitGraph() {
+func (s *SessionNode) UnInit() {
 	if s.delegate != nil {
 		_ = s.delegate.RequestNodeExit()
 	}
@@ -189,9 +189,7 @@ func (s *SessionNode) OnCall(fromNode string, args []string) (resp []string) {
 	return WithOk()
 }
 
-func (s *SessionNode) OnCast(fromNode string, args []string) {
-
-}
+func (s *SessionNode) OnCast(fromNode string, args []string) {}
 
 func (s *SessionNode) Accept() []MessageType {
 	return nil

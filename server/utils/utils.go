@@ -94,14 +94,14 @@ func WaitChannelWithTimeout[T any](c <-chan T, nbWaitFor int, d time.Duration) (
 	return
 }
 
-// AopCall take a pointer to struct (obj) and check all the structs embedded field's pointer type,
+// AopCall take a pointer to struct (obj) and check all embedded(of type struct) VISIBLE FIELD'S pointer type,
 // if this type implements the provided interface type, invoke one of its method provided by the method name, finally if
 // the struct itself implements the interface, invoke for it too. this is different to golang's method shadowing spec,
 // which says only the top-most method(the one shadowing same method of its parent) is seen except explicitly invoking
 // parent's method. this function emulates aop functionality, when an interface method implemented by an object is
 // invoked(point cut, before or after), execute other operations just by embedding corresponding atomic struct.
 // currently AopCall only supports before pointcut
-func AopCall(obj interface{}, args []interface{}, interfaceType reflect.Type, methodName string) {
+func AopCall(obj interface{}, args []interface{}, interfaceType reflect.Type, methodName string) (rv [][]reflect.Value) {
 	objValue := reflect.ValueOf(obj)
 	objType := objValue.Type().Elem()
 
@@ -121,23 +121,28 @@ func AopCall(obj interface{}, args []interface{}, interfaceType reflect.Type, me
 	// check every embedded field of a struct and invoke interface method for them
 	for i := 0; i <= objType.NumField(); i++ {
 		if i == objType.NumField() {
+			// check the object itself
 			ptrValue = objValue
 			ptrType = objValue.Type()
 		} else {
+			// check the embedded field
 			ptrValue = objValue.Elem().Field(i).Addr()
-			fieldType := objType.Field(i).Type
-			if fieldType.Kind() != reflect.Struct {
+			field := objType.Field(i)
+			fieldType := field.Type
+			if !field.IsExported() || fieldType.Kind() != reflect.Struct {
 				continue
 			}
 			ptrType = reflect.PtrTo(fieldType)
 		}
+
 		if ptrType.Implements(interfaceType) {
 			method := ptrValue.Convert(interfaceType).Method(methodType.Index)
 			var valueArgs []reflect.Value
 			for _, a := range args {
 				valueArgs = append(valueArgs, reflect.ValueOf(a))
 			}
-			method.Call(valueArgs)
+			rv = append(rv, method.Call(valueArgs))
 		}
 	}
+	return
 }

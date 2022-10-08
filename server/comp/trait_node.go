@@ -20,18 +20,6 @@ type Channelable[T any] interface {
 	ChannelLink(c chan T)
 }
 
-// PreInitializer is called before node's Init()
-type PreInitializer interface {
-	NodeTraitTag
-	PreInit()
-}
-
-// PostInitializer is called after node's Init()
-type PostInitializer interface {
-	NodeTraitTag
-	PostInit()
-}
-
 type PreComposer interface {
 	NodeTraitTag
 	// BeforeCompose is called after nodes initialized but not added to graph yet
@@ -42,6 +30,18 @@ type PostComposer interface {
 	NodeTraitTag
 	// AfterCompose is called after nodes are negotiated and connected
 	AfterCompose(c *Composer, node SessionAware) error
+}
+
+type InitializingNode interface {
+	NodeTraitTag
+	// Init do initialization after node is allocated and configured
+	Init() error
+}
+
+type UnInitializingNode interface {
+	NodeTraitTag
+	// UnInit is called when initialization failed or session terminated
+	UnInit()
 }
 
 // NodeTo convert session node to node with specific trait object
