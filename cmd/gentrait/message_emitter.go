@@ -152,7 +152,7 @@ func msgEmitTraitEnum(w *bufio.Writer) {
 func msgEmitEnum(w io.Writer) {
 	start := "iota"
 	if isGenForUser() {
-		start = _V(msgEnumEnd)
+		start = "iota+" + _V(msgEnumEnd)
 	}
 	w.Write([]byte("// Message Type Enum\n"))
 	msgTempEnumStart.Execute(w, struct{ Name, Start string }{emitMtis[0].enumName(), start})

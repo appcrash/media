@@ -7,10 +7,10 @@ import "github.com/appcrash/media/server/event"
 const (
 	MrCloneable                    = uint64(1) << 0
 	MrChannelable                  = uint64(1) << 1
-	MrPreInitializer               = uint64(1) << 2
-	MrPostInitializer              = uint64(1) << 3
-	MrPreComposer                  = uint64(1) << 4
-	MrPostComposer                 = uint64(1) << 5
+	MrPreComposer                  = uint64(1) << 2
+	MrPostComposer                 = uint64(1) << 3
+	MrInitializingNode             = uint64(1) << 4
+	MrUnInitializingNode           = uint64(1) << 5
 	UserMessageTraitEnumShiftBegin = 6
 )
 
