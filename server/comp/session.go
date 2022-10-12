@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"sync"
 	"time"
-	"unsafe"
 )
 
 type Id struct {
@@ -179,10 +178,6 @@ func (s *SessionNode) UnInit() {
 	if s.delegate != nil {
 		_ = s.delegate.RequestNodeExit()
 	}
-}
-
-func (s *SessionNode) Init() error {
-	return nil
 }
 
 func (s *SessionNode) OnCall(fromNode string, args []string) (resp []string) {
@@ -386,14 +381,7 @@ func setNodeProperties(node event.Node, props []*nmd.NodeProp) (newProps []*nmd.
 		} else {
 			goto notHandled
 		}
-
-		if field.CanSet() {
-			field.Set(rvCopy)
-		} else {
-			// forcefully setting unexported variable
-			nf := reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem()
-			nf.Set(rvCopy)
-		}
+		utils.SetField(field, rvCopy)
 		continue
 	notHandled:
 		newProps = append(newProps, p)

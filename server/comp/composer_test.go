@@ -41,6 +41,7 @@ func (m *customMessage) AsRawByteMessage() *comp.RawByteMessage {
 type fireNode struct {
 	comp.SessionNode
 	comp.InitiatorNode
+	lp comp.LinkPoint `comp:"type=custom,nullable"`
 }
 
 func (n *fireNode) Offer() []comp.MessageType {
@@ -229,6 +230,9 @@ func ExampleComposerMessageConvert() {
 		panic(err)
 	}
 
+	if c.GetNode("fire").(*fireNode).lp == nil {
+		panic("fire node link point not injected")
+	}
 	fire := c.GetNode("fire1").(*fireNode)
 	fire.Call("fire", comp.With("call_action"))
 	fire.Cast("fire", comp.With("cast_action"))

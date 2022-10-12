@@ -1,7 +1,11 @@
 package comp
 
 import (
+	"fmt"
+	"github.com/appcrash/media/server/utils"
 	"hash/fnv"
+	"reflect"
+	"strings"
 	"sync/atomic"
 )
 
@@ -66,4 +70,35 @@ func MakeLinkIdentity(session, name string, linkId int) LinkIdentityType {
 	h.Write([]byte(name))
 	msb := uint64(h.Sum32())
 	return LinkIdentityType((msb << 32) | uint64(linkId))
+}
+
+// tag is of "key1=value1,key_only,...",supported keys:
+//
+// type={msg_snake_name}
+// nullable
+func injectLinkPoint(structField reflect.StructField, field reflect.Value, lps []LinkPoint, tag string) error {
+	var nullable bool
+	var msgType string
+	for _, prop := range strings.Split(tag, ",") {
+		if prop == "nullable" {
+			nullable = true
+		} else if strings.HasPrefix(prop, "type=") {
+			msgType = prop[5:]
+		}
+	}
+	if !nullable && len(msgType) == 0 {
+		return fmt.Errorf("field %v is not nullable but no message type set", structField)
+	}
+	for _, lp := range lps {
+		if lp.MessageTrait().Name() == msgType {
+			// only support injecting one link point for each message type
+			utils.SetField(field, reflect.ValueOf(lp))
+			return nil
+		}
+	}
+	if nullable {
+		return nil
+	} else {
+		return fmt.Errorf("field %v can not be inject as link point of message type %v not found", structField, msgType)
+	}
 }

@@ -41,18 +41,22 @@ func (pl *RtpPacketList) Iterate(f func(p *RtpPacketList)) {
 	}
 }
 
+func (pl RtpPacketList) CloneSingle() *RtpPacketList {
+	return &RtpPacketList{
+		Payload:     pl.Payload,
+		RawBuffer:   pl.RawBuffer,
+		PayloadType: pl.PayloadType,
+		Pts:         pl.Pts,
+		Marker:      pl.Marker,
+		Ssrc:        pl.Ssrc,
+		Csrc:        pl.Csrc,
+	}
+}
+
 func (pl *RtpPacketList) Clone() *RtpPacketList {
 	var cloned, current *RtpPacketList
 	pl.Iterate(func(packet *RtpPacketList) {
-		newPacket := &RtpPacketList{
-			Payload:     packet.Payload,
-			RawBuffer:   packet.RawBuffer,
-			PayloadType: packet.PayloadType,
-			Pts:         packet.Pts,
-			Marker:      packet.Marker,
-			Ssrc:        packet.Ssrc,
-			Csrc:        packet.Csrc,
-		}
+		newPacket := packet.CloneSingle()
 		if cloned == nil {
 			cloned = newPacket
 		} else {

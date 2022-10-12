@@ -92,7 +92,7 @@ func (m *MessageTrait) Match(peer *MessageTrait) bool {
 	return m.TypeId == peer.TypeId
 }
 
-// Name is a string that used in nmd language to identify this trait
+// Name is a string that used in nmd language or node's struct tag to identify this trait
 func (m *MessageTrait) Name() string {
 	typeName := m.Type.Name()
 	baseName := typeName[:len(typeName)-len(MessagePostfix)]

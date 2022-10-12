@@ -5,6 +5,7 @@ import (
 	"github.com/appcrash/media/server/comp/nmd"
 	"github.com/appcrash/media/server/event"
 	"github.com/appcrash/media/server/utils"
+	"reflect"
 )
 
 var (
@@ -12,15 +13,23 @@ var (
 	postComposerType       = MetaType[PostComposer]()
 	initializingNodeType   = MetaType[InitializingNode]()
 	unInitializingNodeType = MetaType[UnInitializingNode]()
+	linkPointType          = MetaType[LinkPoint]()
+)
+
+const (
+	structTagKey = "comp"
 )
 
 // Composer creates every node and config their properties based on the collected info, then
 // link and negotiate for them to put them into working state. the order of function called when no error happens:
 //
-// Node.Init
-// Node.BeforeCompose
-// Node.AfterCompose
-// Node.UnInit
+// Node.New(created by factory method and injected by nmd properties)
+// Node.Init (aop)
+// Node.BeforeCompose (aop)
+// Node.OnEnter
+// Node.AfterCompose (aop)
+// Node.UnInit (aop)
+// Node.OnExit
 type Composer struct {
 	sessionId string
 
@@ -101,6 +110,7 @@ func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error)
 	// receivers(at the start of sorted list), so iterate the sorted list reversely until all message types are
 	// determined as required by link creation
 	for i := len(c.nodeSortedList) - 1; i >= 0; i-- {
+		var slps []LinkPoint = nil
 		sender := c.nodeSortedList[i]
 		for _, receiverDef := range nodeDefs[i].Deps {
 			receiver := c.nodeMap[receiverDef.Name]
@@ -110,6 +120,20 @@ func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error)
 				return
 			} else {
 				lps = append(lps, lp)
+				slps = append(slps, lp)
+			}
+		}
+		// the sender has created link points, check the node's field and try to inject them to field variables
+		value := reflect.ValueOf(sender).Elem()
+		typ := value.Type()
+		for j := 0; j < typ.NumField(); j++ {
+			field := typ.Field(j)
+			if field.Type == linkPointType {
+				if tag, exist := field.Tag.Lookup(structTagKey); exist {
+					if err = injectLinkPoint(field, value.Field(j), slps, tag); err != nil {
+						return
+					}
+				}
 			}
 		}
 	}
@@ -128,7 +152,7 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 		}
 	}()
 
-	// create node instances, collect message providers if any
+	// create node instances
 	for _, n := range nodeDefs {
 		n.Props = append(n.Props, &nmd.NodeProp{
 			Key:   "Name",

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unsafe"
 )
 
 func RemoveElementFromArray[T any](slice []T, index int) ([]T, error) {
@@ -145,4 +146,15 @@ func AopCall(obj interface{}, args []interface{}, interfaceType reflect.Type, me
 		}
 	}
 	return
+}
+
+// SetField set a struct field even it is not exported
+func SetField(field, value reflect.Value) {
+	if field.CanSet() {
+		field.Set(value)
+	} else {
+		// forcefully setting unexported variable
+		nf := reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem()
+		nf.Set(value)
+	}
 }

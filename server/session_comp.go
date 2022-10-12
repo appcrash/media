@@ -184,6 +184,7 @@ func (s *MediaSession) finalize() {
 	}
 	if s.localPort != 0 {
 		s.server.reclaimRtpPort(s.localPort)
+		s.localPort = 0
 	}
 	prom.StartedSession.Dec()
 	s.server.removeFromSessionMap(s)

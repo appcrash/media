@@ -146,7 +146,7 @@ func nodeEmitFactoryFunc(w *bufio.Writer) {
 func nodeEmitMessageHandler(w *bufio.Writer) {
 	for _, n := range emitNtis {
 		if len(n.acceptMessageTypes) == 0 {
-			log.Warnf("node %v has not any message handler", n.typeName())
+			log.Warnf("==> node %v has not any message handler", n.typeName())
 			continue
 		}
 		nodeTempMethodStart.Execute(w, struct{ Name, FuncName, ReturnType string }{n.typeName(), "configHandler", ""})

@@ -48,7 +48,7 @@ func (s *MediaSession) receiveRtpLoop(ctx context.Context) {
 	// Create and store the data receive channel.
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Fatalln("receiveRtpLoop panic(recovered)")
+			logger.Errorln("receiveRtpLoop panic(recovered)")
 			debug.PrintStack()
 		}
 	}()

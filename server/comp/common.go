@@ -89,9 +89,11 @@ type Streamable interface {
 	GetNodeTypeName() string
 }
 
-// GraphPhase enable aop calls at each graph-related phase
-type GraphPhase interface {
+// GraphPhaseAop enable aop calls at each graph-related phase, each sub-interface in it is optional to all nodes
+type GraphPhaseAop interface {
 	InitializingNode
+	PreComposer
+	PostComposer
 	UnInitializingNode
 }
 
@@ -104,5 +106,4 @@ type SessionAware interface {
 	event.Node
 	CommandReceiver
 	Streamable
-	GraphPhase
 }

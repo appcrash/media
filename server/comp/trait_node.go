@@ -40,7 +40,7 @@ type InitializingNode interface {
 
 type UnInitializingNode interface {
 	NodeTraitTag
-	// UnInit is called when initialization failed or session terminated
+	// UnInit is called when initialization failed or session terminated, before node exit graph
 	UnInit()
 }
 
