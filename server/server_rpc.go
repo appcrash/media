@@ -28,7 +28,7 @@ func (srv *MediaServer) PrepareSession(_ context.Context, param *rpc.CreateParam
 
 	logger.Infof("rpc: prepared session %v", session.sessionId)
 	rpcSession := rpc.Session{}
-	rpcSession.SessionId = session.sessionId
+	rpcSession.SessionId = session.sessionId.String()
 	rpcSession.PeerIp = param.GetPeerIp()
 	rpcSession.PeerRtpPort = param.GetPeerPort()
 	rpcSession.LocalRtpPort = uint32(session.localPort)
@@ -57,9 +57,14 @@ func (srv *MediaServer) StopSession(_ context.Context, param *rpc.StopParam) (*r
 }
 
 func (srv *MediaServer) ExecuteAction(_ context.Context, action *rpc.Action) (*rpc.ActionResult, error) {
-	sessionId := action.SessionId
+	var sessionId SessionIdType
+	var err error
+	if sessionId, err = SessionIdFromString(action.SessionId); err != nil {
+		err = errors.New("invalid session id")
+		return nil, err
+	}
 	result := rpc.ActionResult{
-		SessionId: sessionId,
+		SessionId: action.SessionId,
 	}
 	srv.sessionMutex.Lock()
 	session, ok := srv.sessionMap[sessionId]
@@ -88,7 +93,12 @@ func (srv *MediaServer) ExecuteAction(_ context.Context, action *rpc.Action) (*r
 }
 
 func (srv *MediaServer) ExecuteActionWithNotify(action *rpc.Action, stream rpc.MediaApi_ExecuteActionWithNotifyServer) error {
-	sessionId := action.SessionId
+	var sessionId SessionIdType
+	var err error
+	if sessionId, err = SessionIdFromString(action.SessionId); err != nil {
+		err = errors.New("invalid session id")
+		return err
+	}
 	srv.sessionMutex.Lock()
 	session, ok := srv.sessionMap[sessionId]
 	srv.sessionMutex.Unlock()
@@ -118,7 +128,7 @@ func (srv *MediaServer) ExecuteActionWithNotify(action *rpc.Action, stream rpc.M
 				select {
 				case msg, more := <-ctrlOut:
 					event := rpc.ActionEvent{
-						SessionId: sessionId,
+						SessionId: action.SessionId,
 						Event:     msg,
 					}
 					if !more {
@@ -140,16 +150,19 @@ func (srv *MediaServer) ExecuteActionWithNotify(action *rpc.Action, stream rpc.M
 }
 
 func (srv *MediaServer) ExecuteActionWithPush(stream rpc.MediaApi_ExecuteActionWithPushServer) error {
-	var sessionId string
+	var sessionId SessionIdType
 	var dataIn chan *rpc.PushData
 
 	// receive the first data to retrieve the session id
 	if data, err := stream.Recv(); err != nil {
 		return err
 	} else {
-		sessionId = data.GetSessionId()
-		if sessionId == "" {
+		sidStr := data.GetSessionId()
+		if sidStr == "" {
 			return errors.New("push action with empty session id")
+		}
+		if sessionId, err = SessionIdFromString(sidStr); err != nil {
+			return errors.New("push action with invalid sessin id")
 		}
 		srv.sessionMutex.Lock()
 		session, ok := srv.sessionMap[sessionId]
@@ -180,7 +193,7 @@ func (srv *MediaServer) ExecuteActionWithPush(stream rpc.MediaApi_ExecuteActionW
 		data, err := stream.Recv()
 		if err == io.EOF {
 			return stream.SendAndClose(&rpc.ActionResult{
-				SessionId: sessionId,
+				SessionId: sessionId.String(),
 				State:     "ok",
 			})
 		}

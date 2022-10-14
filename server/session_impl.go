@@ -7,11 +7,25 @@ import (
 	"github.com/appcrash/media/server/comp"
 	"github.com/appcrash/media/server/prom"
 	"github.com/appcrash/media/server/rpc"
-	"github.com/google/uuid"
 	"net"
-	"strings"
+	"strconv"
+	"sync/atomic"
 	"time"
 )
+
+type SessionIdType uint32
+
+func (id SessionIdType) String() string {
+	// math.MaxUint32 == 4294967295, max 10 zero ...
+	return fmt.Sprintf("%010d", id)
+}
+
+func SessionIdFromString(s string) (SessionIdType, error) {
+	id, err := strconv.ParseUint(s, 10, 32)
+	return SessionIdType(id), err
+}
+
+var sessionIdCounter uint32 // fetch new id from here, use atomic increment
 
 func profileOfCodec(c rpc.CodecType) (profile string) {
 	switch c {
@@ -56,10 +70,10 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (s *MediaSession,
 		return nil, fmt.Errorf("invalid peer port: %v", mediaParam.GetPeerPort())
 	}
 	remotePort = uint16(mediaParam.GetPeerPort())
-	sid := uuid.New().String()
-	sid = strings.Replace(sid, "-", "", -1) // ID in nmd language doesn't contains '-'
+	sid := SessionIdType(atomic.AddUint32(&sessionIdCounter, 1))
+
 	gd := mediaParam.GetGraphDesc()
-	composer := comp.NewSessionComposer(sid)
+	composer := comp.NewSessionComposer(sid.String())
 	if err = composer.ParseGraphDescription(gd); err != nil {
 		logger.Errorf("parse graph error: %v", err)
 		return nil, errors.New("composer parse graph description failed")

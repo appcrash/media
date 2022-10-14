@@ -8,16 +8,22 @@ import (
 	"github.com/appcrash/media/server/rpc"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"math/rand"
 	"net"
 	"sync"
+	"time"
 )
 
 var logger *logrus.Entry
 
-// Initialize all packages logger
 func init() {
 	gl := logrus.New()
+	// Initialize all packages logger
 	InitServerLogger(gl)
+
+	// Randomize session id count
+	rand.Seed(time.Now().UnixNano())
+	sessionIdCounter = rand.Uint32()
 }
 
 type MediaServer struct {
@@ -30,7 +36,7 @@ type MediaServer struct {
 	graph *event.Graph
 
 	sessionMutex sync.Mutex
-	sessionMap   map[string]*MediaSession
+	sessionMap   map[SessionIdType]*MediaSession
 
 	simpleExecutorMap map[string]CommandExecute
 	streamExecutorMap map[string]CommandExecute
@@ -78,7 +84,7 @@ func StartServer(c *Config) (err error) {
 		rtpServerIpString: rtpIp,
 		portPool:          newPortPool(),
 		sessionListener:   c.SessionListenerList,
-		sessionMap:        make(map[string]*MediaSession),
+		sessionMap:        make(map[SessionIdType]*MediaSession),
 
 		// read-only maps once executors registered
 		simpleExecutorMap: make(map[string]CommandExecute),

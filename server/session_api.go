@@ -22,7 +22,7 @@ const (
 
 type MediaSession struct {
 	server                *MediaServer
-	sessionId             string
+	sessionId             SessionIdType
 	localIp, remoteIp     *net.IPAddr
 	localPort, remotePort uint16
 	rtpSession            *rtp.Session
@@ -50,7 +50,7 @@ type MediaSession struct {
 	composer     *comp.Composer
 }
 
-func (s *MediaSession) GetSessionId() string {
+func (s *MediaSession) GetSessionId() SessionIdType {
 	return s.sessionId
 }
 

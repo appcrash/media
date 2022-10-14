@@ -13,7 +13,7 @@ func (sc *BuiltinCommandHandler) Execute(s *MediaSession, _ string, args string)
 	if args == "" {
 		return
 	}
-	sessionId := s.GetSessionId()
+	sessionId := s.GetSessionId().String()
 	gt := nmd.NewGraphTopology()
 	if err := gt.ParseGraph(sessionId, args); err != nil {
 		return
@@ -53,7 +53,7 @@ func (sc *BuiltinCommandHandler) ExecuteWithNotify(s *MediaSession, args string,
 	if args == "" {
 		return
 	}
-	sessionId := s.GetSessionId()
+	sessionId := s.GetSessionId().String()
 	gt := nmd.NewGraphTopology()
 	if err := gt.ParseGraph(sessionId, args); err != nil {
 		return

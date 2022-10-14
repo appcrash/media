@@ -86,7 +86,11 @@ func (srv *MediaServer) createSession(param *rpc.CreateParam) (session *MediaSes
 }
 
 func (srv *MediaServer) updateSession(param *rpc.UpdateParam) (err error) {
-	sessionId := param.GetSessionId()
+	var sessionId SessionIdType
+	if sessionId, err = SessionIdFromString(param.GetSessionId()); err != nil {
+		err = errors.New("invalid session id")
+		return
+	}
 	var remoteIp *net.IPAddr
 	var err1 error
 	if remoteIp, err1 = net.ResolveIPAddr("ip", param.GetPeerIp()); err1 != nil {
@@ -117,7 +121,11 @@ func (srv *MediaServer) updateSession(param *rpc.UpdateParam) (err error) {
 }
 
 func (srv *MediaServer) startSession(param *rpc.StartParam) (err error) {
-	sessionId := param.GetSessionId()
+	var sessionId SessionIdType
+	if sessionId, err = SessionIdFromString(param.GetSessionId()); err != nil {
+		err = errors.New("invalid session id")
+		return
+	}
 	logger.Infof("rpc: start session %v", sessionId)
 	srv.sessionMutex.Lock()
 	session, exist := srv.sessionMap[sessionId]
@@ -134,7 +142,11 @@ func (srv *MediaServer) startSession(param *rpc.StartParam) (err error) {
 }
 
 func (srv *MediaServer) stopSession(param *rpc.StopParam) (err error) {
-	sessionId := param.GetSessionId()
+	var sessionId SessionIdType
+	if sessionId, err = SessionIdFromString(param.GetSessionId()); err != nil {
+		err = errors.New("invalid session id")
+		return
+	}
 	logger.Infof("rpc: stop session %v", sessionId)
 	srv.sessionMutex.Lock()
 	session, exist := srv.sessionMap[sessionId]
@@ -238,7 +250,7 @@ func (srv *MediaServer) healthCheck() {
 					msg := rpc.SystemEvent{
 						Cmd:        rpc.SystemCommand_SESSION_INFO,
 						InstanceId: instanceId,
-						SessionId:  sessionId,
+						SessionId:  sessionId.String(),
 						Event:      evt,
 					}
 					if instanceId == "" {
@@ -264,12 +276,13 @@ func (srv *MediaServer) healthCheck() {
 func (srv *MediaServer) OnChannelEvent(e *rpc.SystemEvent) {
 	var exist bool
 	var session *MediaSession
-	sessionId := e.SessionId
-	event := e.Event
-	if sessionId == "" {
-		logger.Errorf("OnChannelEvent got empty session id")
+	var sessionId SessionIdType
+	var err error
+	if sessionId, err = SessionIdFromString(e.SessionId); err != nil {
+		logger.Errorf("OnChannelEvent got invalid session id")
 		return
 	}
+	event := e.Event
 	switch e.Cmd {
 	case rpc.SystemCommand_SESSION_INFO:
 		// report from signalling server about the session state

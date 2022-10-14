@@ -35,25 +35,18 @@ type CommandExecute interface {
 // ultimately create new packet from RtpPacketList then send it.
 // so be careful the order of providers
 type RtpPacketProvider interface {
-	comp.NodeTrait
+	comp.NodeTraitTag
 	PullPacketChannel() <-chan *utils.RtpPacketList
 }
 
 // RtpPacketConsumer consumes data from RTP session
 // receive loop fetches rtp data packet and feeds it to all consumers in consumer-list
 type RtpPacketConsumer interface {
-	comp.NodeTrait
+	comp.NodeTraitTag
 	HandlePacketChannel() chan<- *utils.RtpPacketList
 }
 
 // RtpPacketInterceptor can intercept packets bidirectional, that is on the way of graph -> socket or socket -> graph
 type RtpPacketInterceptor interface {
 	InterceptRtpPacket(pl *utils.RtpPacketList)
-}
-
-type SourceFactory interface {
-	NewSource(s *MediaSession) RtpPacketProvider
-}
-type SinkFactory interface {
-	NewSink(s *MediaSession) RtpPacketConsumer
 }
