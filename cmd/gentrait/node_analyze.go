@@ -114,7 +114,7 @@ func nodePassFindAcceptFunc(p *packages.Package) {
 		decls := findClassMethodsLike(p, info.typeName(), true, regexp.MustCompile("^Accept$"))
 		for _, d := range decls {
 			if o, ok := defs[d.Name]; ok {
-				// the check is in fact not necessary because if node define a Accept() method with another signature,
+				// the check is in fact not necessary because if node define an Accept() method with another signature,
 				// then it won't implement SessionAware interface as method shadowed
 				sig := o.(*types.Func).Type().(*types.Signature)
 				if sig.Params().Len() == 0 {

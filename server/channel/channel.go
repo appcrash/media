@@ -19,7 +19,7 @@ type InstanceState struct {
 }
 
 // Channel is a bidirectional channel that communicates with each signalling server (by grpc streaming)
-// the goal is to provide mechanism enabling media server to send async event to other servers and
+// the goal is to provide mechanism enabling media server to send async event to other services and
 // route incoming async events to subsystem in media server
 type Channel struct {
 	mutex            sync.Mutex
@@ -31,8 +31,8 @@ type Channel struct {
 var sysChannel = newChannel()
 
 const (
-	KeepAliveDuration = 2 * time.Second
-	KeepAliveTimeout  = KeepAliveDuration * 3
+	KeepAliveCheckDuration = 2 * time.Second
+	KeepAliveTimeout       = KeepAliveCheckDuration * 3
 )
 
 func newChannel() *Channel {
@@ -76,7 +76,7 @@ func (sc *Channel) RegisterInstance(name string) (is *InstanceState, err error) 
 	if prevIs, exist := sc.instanceStateMap[name]; exist {
 		// an instance(with same id) disconnected and reconnects to media server
 		// previous instance state's channels can be used concurrently
-		// even though it is deleted from map right now. set send-channel to nil to stop send, and close recv channel
+		// even though it is deleted from map right now. set send-channel to nil to stop send, and close recv channel.
 		// set to nil before closing
 		prevIs.close()
 		delete(sc.instanceStateMap, name)
@@ -111,11 +111,10 @@ func (sc *Channel) NotifyInstance(se *rpc.SystemEvent) (err error) {
 		select {
 		case is.ToInstanceC <- se:
 		default:
-			logger.Errorf("server channel send to instance(%v) failed", se.InstanceId)
-			err = fmt.Errorf("send to instance %v failed", se.InstanceId)
+			err = fmt.Errorf("server channel: send to instance %v failed", se.InstanceId)
 		}
 	} else {
-		err = fmt.Errorf("no such instance %v when send to instance", se.InstanceId)
+		err = fmt.Errorf("server channel: no such instance %v when send to instance", se.InstanceId)
 	}
 	return
 }
@@ -131,8 +130,7 @@ func (sc *Channel) BroadcastInstance(se *rpc.SystemEvent) (err error) {
 		select {
 		case is.ToInstanceC <- se:
 		default:
-			logger.Errorf("server channel broadcast to instance(%v) failed", name)
-			err = fmt.Errorf("broadcast to instance %v failed", name)
+			err = fmt.Errorf("server channel: broadcast to instance %v failed", name)
 			return
 		}
 	}
@@ -149,7 +147,7 @@ func (sc *Channel) startReceiveLoop(instanceId string) {
 		return
 	}
 	sc.mutex.Unlock()
-	ticker := time.NewTicker(KeepAliveDuration)
+	ticker := time.NewTicker(KeepAliveCheckDuration)
 	for {
 		select {
 		case se, more := <-is.FromInstanceC:

@@ -7,14 +7,12 @@ import (
 	"github.com/appcrash/media/server/prom"
 	"github.com/appcrash/media/server/rpc"
 	"net"
-	"time"
 )
 
 func (srv *MediaServer) init(ip *net.IPAddr, portStart, portEnd uint16) {
 	srv.rtpServerIpAddr = ip
 	srv.portPool.init(portStart, portEnd)
-	//go srv.healthCheck()
-	//channel.GetSystemChannel().AddListener(srv)
+	channel.GetSystemChannel().AddListener(srv)
 }
 
 func (srv *MediaServer) addToSessionMap(session *MediaSession) {
@@ -203,76 +201,7 @@ func (srv *MediaServer) getExecutorFor(cmd string) (needNotify bool, ce CommandE
 	return
 }
 
-const (
-	healthCheckPeriod    = 10 * time.Second
-	sessionCheckPeriod   = 30 * time.Second
-	sessionTimeoutPeriod = 2 * time.Minute
-)
-
-// healthCheck periodically check sessions' state
-func (srv *MediaServer) healthCheck() {
-	ticker := time.NewTicker(healthCheckPeriod)
-	sysChannel := channel.GetSystemChannel()
-	for {
-		select {
-		case <-ticker.C:
-			var ms []*MediaSession
-			srv.sessionMutex.Lock()
-			for _, s := range srv.sessionMap {
-				ms = append(ms, s)
-			}
-			srv.sessionMutex.Unlock()
-			for _, session := range ms {
-				session.mutex.Lock()
-				checkTs := session.activeCheckTimestamp
-				echoTs := session.activeEchoTimestamp
-				status := session.status
-				session.mutex.Unlock()
-				sessionId := session.sessionId
-				instanceId := session.instanceId
-				if time.Since(echoTs) > sessionTimeoutPeriod {
-					logger.Infof("session(%v) is stopped by health check due to timeout", sessionId)
-					session.Stop()
-				}
-				if time.Since(checkTs) > sessionCheckPeriod {
-					var evt string
-					switch status {
-					case sessionStatusCreated:
-						evt = "create"
-					case sessionStatusStarted:
-						evt = "start"
-					case sessionStatusStopped:
-						evt = "stop"
-					default:
-						logger.Errorf("session(%v) has unknown state(%v)", sessionId, status)
-					}
-					logger.Debugf("session(%v) state is queried by health check", sessionId)
-					msg := rpc.SystemEvent{
-						Cmd:        rpc.SystemCommand_SESSION_INFO,
-						InstanceId: instanceId,
-						SessionId:  sessionId.String(),
-						Event:      evt,
-					}
-					if instanceId == "" {
-						goto broadcast
-					}
-					if err := sysChannel.NotifyInstance(&msg); err != nil {
-						logger.Error(err)
-						goto broadcast
-					}
-					continue
-				broadcast:
-					// instance of session is unknown or disconnected from server, so broadcast it
-					// in hope that somebody echos this session's state
-					logger.Infof("session(%v)'s instance(%v) is not available, broadcast its info",
-						sessionId, instanceId)
-					sysChannel.BroadcastInstance(&msg)
-				}
-			}
-		}
-	}
-}
-
+// OnChannelEvent just forwards system event to session
 func (srv *MediaServer) OnChannelEvent(e *rpc.SystemEvent) {
 	var exist bool
 	var session *MediaSession
@@ -282,31 +211,12 @@ func (srv *MediaServer) OnChannelEvent(e *rpc.SystemEvent) {
 		logger.Errorf("OnChannelEvent got invalid session id")
 		return
 	}
-	event := e.Event
-	switch e.Cmd {
-	case rpc.SystemCommand_SESSION_INFO:
-		// report from signalling server about the session state
-		srv.sessionMutex.Lock()
-		session, exist = srv.sessionMap[sessionId]
-		srv.sessionMutex.Unlock()
-		if !exist {
-			logger.Debugf("OnChannelEvent got an non-existent session report: %v", sessionId)
-			return
-		}
-		switch event {
-		case "ok":
-			// update session timestamp
-			logger.Debugf("update session(%v) active timestamp", sessionId)
-			session.mutex.Lock()
-			session.activeEchoTimestamp = time.Now()
-			session.mutex.Unlock()
-		case "stop":
-			// the session has been terminated in signalling server, so must be done in media server too
-			logger.Infof("session(%v) is stopped by channel event", sessionId)
-			session.Stop()
-		default:
-			logger.Errorf("unknown event(%v) for SESSION_INFO", event)
-		}
-
+	srv.sessionMutex.Lock()
+	session, exist = srv.sessionMap[sessionId]
+	srv.sessionMutex.Unlock()
+	if !exist {
+		logger.Debugf("OnChannelEvent got an non-existent session report: %v", sessionId)
+		return
 	}
+	session.onSystemEvent(e)
 }

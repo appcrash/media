@@ -31,7 +31,7 @@ func (s *MediaSession) receiveRtcpLoop(ctx context.Context) {
 			for _, evt := range eventArray {
 				if evt.EventType == rtp.RtcpBye {
 					// peer send bye, notify data send/receive loop to stop
-					logger.Debugln("rtp peer says bye")
+					logger.Debugf("session: %v rtp peer says bye", s.sessionId)
 					go s.Stop() // CAVEAT: don't call Stop() in this goroutine directly
 					return
 				}
@@ -72,6 +72,7 @@ func (s *MediaSession) receiveRtpLoop(ctx context.Context) {
 	rtpSession := s.rtpSession
 	dataReceiver := rtpSession.CreateDataReceiveChan()
 	cancelC := ctx.Done()
+	var nbPacket int
 	for {
 		select {
 		case rp, more := <-dataReceiver:
@@ -85,6 +86,11 @@ func (s *MediaSession) receiveRtpLoop(ctx context.Context) {
 			select {
 			case s.handleC <- pl:
 			default:
+			}
+			nbPacket++
+			if nbPacket > reportInfoPacketInterval {
+				nbPacket = 0
+				s.watchdog.reportLoopInfo(receiveLoop)
 			}
 
 			// don't free packet, let it be GCed, as GoRTP will reuse this packet along with its buffer
@@ -116,6 +122,7 @@ func (s *MediaSession) sendRtpLoop(ctx context.Context) {
 		logger.Infof("session:%v has no rtp pulling channel, stop local send early", s.sessionId)
 	}
 
+	var nbPacket int
 	cancelC := ctx.Done()
 	for {
 		select {
@@ -141,9 +148,16 @@ func (s *MediaSession) sendRtpLoop(ctx context.Context) {
 					packet.SetMarker(mark)
 					packet.SetPayload(payload)
 					packet.SetPayloadType(ptype)
-					_, _ = s.rtpSession.WriteData(packet)
+					if _, err := s.rtpSession.WriteData(packet); err != nil {
+						s.watchdog.reportLoopError(sendLoop, err)
+					}
 				}
+				nbPacket++
 			})
+			if nbPacket > reportInfoPacketInterval {
+				nbPacket = 0
+				s.watchdog.reportLoopInfo(sendLoop)
+			}
 		case <-cancelC:
 			return
 		}

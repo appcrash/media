@@ -10,10 +10,11 @@ import (
 	"net"
 	"strconv"
 	"sync/atomic"
-	"time"
 )
 
 type SessionIdType uint32
+
+var sessionIdCounter uint32 // fetch new id from here, use atomic increment
 
 func (id SessionIdType) String() string {
 	// math.MaxUint32 == 4294967295, max 10 zero ...
@@ -24,8 +25,6 @@ func SessionIdFromString(s string) (SessionIdType, error) {
 	id, err := strconv.ParseUint(s, 10, 32)
 	return SessionIdType(id), err
 }
-
-var sessionIdCounter uint32 // fetch new id from here, use atomic increment
 
 func profileOfCodec(c rpc.CodecType) (profile string) {
 	switch c {
@@ -58,7 +57,7 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (s *MediaSession,
 		err = errors.New("server runs out of port resource")
 		return
 	}
-	//instanceId := mediaParam.InstanceId
+	instanceId := mediaParam.InstanceId
 	//if !channel.GetSystemChannel().HasInstance(instanceId) {
 	//	return nil, fmt.Errorf("the instance %v not registered, cannot create session", instanceId)
 	//}
@@ -78,7 +77,6 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (s *MediaSession,
 		logger.Errorf("parse graph error: %v", err)
 		return nil, errors.New("composer parse graph description failed")
 	}
-	now := time.Now()
 	s = &MediaSession{
 		server:     srv,
 		sessionId:  sid,
@@ -86,11 +84,7 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (s *MediaSession,
 		localPort:  localPort,
 		remoteIp:   remoteIp,
 		remotePort: remotePort,
-		//instanceId: instanceId,
-
-		createTimestamp:      now,
-		activeCheckTimestamp: now,
-		activeEchoTimestamp:  now,
+		instanceId: instanceId,
 
 		// use buffered version to avoid deadlock
 		doneC:  make(chan string, 3),
@@ -98,6 +92,7 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (s *MediaSession,
 
 		composer: composer,
 	}
+
 	codecInfos := mediaParam.GetCodecs()
 	if len(codecInfos) == 0 {
 		err = errors.New("create session without any codec info")
@@ -124,6 +119,8 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (s *MediaSession,
 		err = errors.New("create session without any audio/video codec info")
 	}
 
+	// everything is checked, setup the watchdog
+	s.watchdog = newWatchDog(s)
 	return
 }
 
@@ -131,7 +128,7 @@ func (s *MediaSession) setupGraph() error {
 	if err := s.composer.ComposeNodes(s.server.graph); err != nil {
 		return err
 	}
-	// search rtp packet provider and consumer, this is the edge of rtp stack and graph
+	// search rtp packet provider and consumer, this is the edge between rtp stack and graph
 	s.composer.IterateNode(func(name string, node comp.SessionAware) {
 		if s.pullC != nil && s.handleC != nil {
 			return
@@ -185,6 +182,7 @@ func (s *MediaSession) activate() (err error) {
 	} else {
 		return errors.New("unsupported rtp payload profile")
 	}
+	s.watchdog.start()
 	return nil
 }
 
@@ -202,4 +200,14 @@ func (s *MediaSession) finalize() {
 	}
 	prom.StartedSession.Dec()
 	s.server.removeFromSessionMap(s)
+}
+
+func (s *MediaSession) onSystemEvent(se *rpc.SystemEvent) {
+	switch se.Cmd {
+	case rpc.SystemCommand_USER_EVENT:
+		// TODO: use user event
+	case rpc.SystemCommand_SESSION_INFO:
+		s.watchdog.reportSessionInfo(se)
+	}
+
 }

@@ -1,19 +1,20 @@
 package server
 
 import (
+	"github.com/appcrash/media/server/utils"
 	"sync"
 )
 
 func newPortPool() *portPool {
 	return &portPool{
-		freePortSet: make(map[uint16]struct{}),
+		freePortSet: utils.NewSet[uint16](),
 	}
 }
 
 type portPool struct {
 	mutex sync.Mutex
 
-	freePortSet map[uint16]struct{} // store rtp ports (even number)
+	freePortSet *utils.Set[uint16] // store rtp ports (even number)
 	start, end  uint16
 }
 
@@ -28,7 +29,7 @@ func (p *portPool) init(start uint16, end uint16) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 	for i := start; i < end; i += 2 {
-		p.freePortSet[i] = struct{}{}
+		p.freePortSet.Add(i)
 	}
 
 	p.start = start
@@ -40,14 +41,10 @@ func (p *portPool) get() (port uint16) {
 	defer p.mutex.Unlock()
 	// if pool is empty, return 0 as this port wouldn't be used by applications
 
-	if len(p.freePortSet) == 0 {
+	if p.freePortSet.Size() == 0 {
 		goto noPort
 	}
-	for port, _ = range p.freePortSet {
-		break
-	}
-	delete(p.freePortSet, port)
-
+	port = p.freePortSet.GetAndRemove()
 noPort:
 	return
 }
@@ -55,8 +52,9 @@ noPort:
 func (p *portPool) put(port uint16) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
-	if _, ok := p.freePortSet[port]; ok {
+	if p.freePortSet.Contain(port) {
 		logger.Errorf("put port: %v to pool but it is already in it", port)
+		return
 	}
-	p.freePortSet[port] = struct{}{}
+	p.freePortSet.Add(port)
 }

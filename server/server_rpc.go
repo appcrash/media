@@ -207,12 +207,13 @@ func (srv *MediaServer) ExecuteActionWithPush(stream rpc.MediaApi_ExecuteActionW
 	}
 }
 
+// SystemChannel is long-keepalive connection to ease bidirectional system-level message exchange
 func (srv *MediaServer) SystemChannel(stream rpc.MediaApi_SystemChannelServer) error {
 	sendNotifyC := make(chan string, 2)
 	recvNotifyC := make(chan string, 2)
 	wg := &sync.WaitGroup{}
 	var instanceId string
-	var errorNotified bool
+	var errorLogged bool
 	var fromC, toC chan *rpc.SystemEvent
 
 	logger.Infof("server's system channel is connected")
@@ -232,8 +233,8 @@ func (srv *MediaServer) SystemChannel(stream rpc.MediaApi_SystemChannelServer) e
 			}
 			break
 		} else {
-			if !errorNotified {
-				errorNotified = true
+			if !errorLogged {
+				errorLogged = true
 				logger.Errorf("system channel got event before client registers itself")
 			}
 		}
@@ -253,7 +254,7 @@ func (srv *MediaServer) SystemChannel(stream rpc.MediaApi_SystemChannelServer) e
 	go func() {
 		defer func() {
 			wg.Done()
-			logger.Infof("system channel rpc, exit recv loop")
+			logger.Infof("instance (%v) system channel rpc, exit recv loop", instanceId)
 		}()
 
 		for {
@@ -276,7 +277,7 @@ func (srv *MediaServer) SystemChannel(stream rpc.MediaApi_SystemChannelServer) e
 	go func() {
 		defer func() {
 			wg.Done()
-			logger.Infof("system channel rpc, exit send loop")
+			logger.Infof("instance (%v) system channel rpc, exit send loop", instanceId)
 		}()
 
 		for {
@@ -298,6 +299,6 @@ func (srv *MediaServer) SystemChannel(stream rpc.MediaApi_SystemChannelServer) e
 	}()
 
 	wg.Wait()
-	logger.Infof("instance (%v) has exited system channel rpc", instanceId)
+	logger.Infof("instance (%v) has exited system channel rpc normally", instanceId)
 	return nil
 }

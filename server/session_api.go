@@ -36,18 +36,17 @@ type MediaSession struct {
 	telephoneEventPayloadCodec  rpc.CodecType
 	telephoneEventCodecParam    string
 
-	mutex                sync.Mutex
-	createTimestamp      time.Time
-	activeCheckTimestamp time.Time // last time we send session info state to instance, updated by server
-	activeEchoTimestamp  time.Time // last time we recv session info state from instance, updated by server
-	status               int
-	cancelFunc           context.CancelFunc
-	doneC                chan string // notify this channel when loop is done
+	mutex sync.Mutex
+
+	status     int
+	cancelFunc context.CancelFunc
+	doneC      chan string // notify this channel when loop is done
 
 	pullC        <-chan *utils.RtpPacketList
 	handleC      chan<- *utils.RtpPacketList
 	interceptors []RtpPacketInterceptor
 	composer     *comp.Composer
+	watchdog     *WatchDog
 }
 
 func (s *MediaSession) GetSessionId() SessionIdType {
@@ -131,7 +130,7 @@ func (s *MediaSession) Stop() {
 	defer s.mutex.Unlock()
 	var nbDone int
 	if s.status == sessionStatusStopped {
-		logger.Errorf("try to stop already terminated session(%v)", s.sessionId)
+		//logger.Errorf("try to stop already terminated session(%v)", s.sessionId)
 		return
 	}
 	if s.status == sessionStatusCreated {
