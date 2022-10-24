@@ -9,24 +9,25 @@ import (
 // BuiltinCommandHandler provides built-in command to interact with graph by executing nmd script
 type BuiltinCommandHandler struct{}
 
-func (sc *BuiltinCommandHandler) Execute(s *MediaSession, _ string, args string) (result []string) {
+func (sc *BuiltinCommandHandler) Execute(s *MediaSession, _ string, args string) (result []string, err error) {
 	if args == "" {
 		return
 	}
 	sessionId := s.GetSessionId().String()
 	gt := nmd.NewGraphTopology()
-	if err := gt.ParseGraph(sessionId, args); err != nil {
+	if err = gt.ParseGraph(sessionId, args); err != nil {
 		return
 	}
 	ctrl := s.GetController()
+	var cmds []string
 
 	// parse rpc command and call/cast to corresponding node, fromNode arg is set to empty string
 	for _, call := range gt.GetCallActions() {
 		cmd, node := call.Cmd, call.Node
-		cmds, err := comp.WithString(cmd)
+		cmds, err = comp.WithString(cmd)
 		if err != nil {
 			logger.Errorf("session:%v execute call: node(%v) with %v has error %v", sessionId, node, cmds, err)
-			continue
+			return
 		}
 		logger.Infof("session:%v execute call: node %v with %v", sessionId, node, cmds)
 		re := ctrl.Call("", node.Name, cmds)
@@ -37,10 +38,10 @@ func (sc *BuiltinCommandHandler) Execute(s *MediaSession, _ string, args string)
 	}
 	for _, cast := range gt.GetCastActions() {
 		cmd, node := cast.Cmd, cast.Node
-		cmds, err := comp.WithString(cmd)
+		cmds, err = comp.WithString(cmd)
 		if err != nil {
 			logger.Errorf("session:%v execute cast: node(%v) with %v has error %v", sessionId, node, cmds, err)
-			continue
+			return
 		}
 		logger.Infof("session:%v execute cast: node(%v) with %v", sessionId, node, cmds)
 		ctrl.Cast("", node.Name, cmds)

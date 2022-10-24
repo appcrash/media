@@ -9,10 +9,10 @@ import (
 )
 
 const (
-	sessionAuditPeriod       = 30 * time.Second
-	sessionTimeoutPeriod     = 5 * time.Minute
-	reportErrorThreshold     = 10
-	reportInfoPacketInterval = 200
+	SessionAuditPeriod       = 30 * time.Second
+	SessionTimeoutPeriod     = 5 * time.Minute
+	ReportErrorThreshold     = 10
+	ReportInfoPacketInterval = 200
 )
 
 const (
@@ -77,7 +77,7 @@ func (wd *WatchDog) reportLoopError(loopId int, err error) {
 	}
 
 	wd.nbError++
-	if wd.nbError > reportErrorThreshold {
+	if wd.nbError > ReportErrorThreshold {
 		logger.Errorf("watchdog(%v): stop session due to too many errors", wd.session.GetSessionId())
 		wd.stop()
 	}
@@ -99,7 +99,7 @@ func (wd *WatchDog) stop() {
 
 // healthCheck periodically check session's state
 func (wd *WatchDog) healthCheck(ctx context.Context) {
-	ticker := time.NewTicker(sessionAuditPeriod)
+	ticker := time.NewTicker(SessionAuditPeriod)
 	session := wd.session
 	for {
 		select {
@@ -113,8 +113,8 @@ func (wd *WatchDog) healthCheck(ctx context.Context) {
 				// currently only check that is any packet still received
 				// open question: how to use send loop's info to determine zombie session
 				recvTs := wd.loopAliveTimestamp[receiveLoop]
-				if !recvTs.IsZero() && time.Since(recvTs) > sessionTimeoutPeriod {
-					logger.Error("session(%v) has not received any packet in timeout period, stop it", sessionId)
+				if !recvTs.IsZero() && time.Since(recvTs) > SessionTimeoutPeriod {
+					logger.Errorf("session(%v) has not received any packet in timeout period, stop it", sessionId)
 					stopSession = true
 				}
 				fallthrough // more checks
@@ -122,14 +122,14 @@ func (wd *WatchDog) healthCheck(ctx context.Context) {
 				// created session has no running loops, check instance aliveness and if create timestamp too far away
 				if wd.instanceAliveTimestamp.IsZero() {
 					// instance has not reported any info yet, so examine session's creation moment
-					if session.status == sessionStatusCreated && time.Since(wd.createTimestamp) > sessionTimeoutPeriod {
-						logger.Error("session(%v) created but not started until timeout, stop it", sessionId)
+					if session.status == sessionStatusCreated && time.Since(wd.createTimestamp) > SessionTimeoutPeriod {
+						logger.Errorf("session(%v) created but not started until timeout, stop it", sessionId)
 						stopSession = true
 					}
 				} else {
 					// the instance is able to report its session info, check whether disconnected
-					if time.Since(wd.instanceAliveTimestamp) > sessionTimeoutPeriod {
-						logger.Error("session(%v) has no update from instance since %v, timeout, stop it",
+					if time.Since(wd.instanceAliveTimestamp) > SessionTimeoutPeriod {
+						logger.Errorf("session(%v) has no update from instance since %v, timeout, stop it",
 							wd.instanceAliveTimestamp, sessionId)
 						stopSession = true
 					}

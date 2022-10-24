@@ -30,7 +30,12 @@ func (gt *GraphTopology) ParseGraph(sessionId, desc string) error {
 	stream := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
 	parser := NewnmdParser(stream)
 	listener := NewListener(sessionId)
+	parser.AddErrorListener(listener)
 	antlr.ParseTreeWalkerDefault.Walk(listener, parser.Graph())
+
+	if listener.errorString != "" {
+		return errors.New(listener.errorString)
+	}
 
 	gt.nodeDefs = listener.NodeDefs
 	gt.callDefs = listener.CallDefs

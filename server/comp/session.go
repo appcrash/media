@@ -51,6 +51,7 @@ type SessionNode struct {
 	messageHandler   []MessageHandler
 	linkPoint        []LinkPoint // grow only array
 
+	// TODO: put post processor to link level
 	messagePostProcessor MessagePostProcessor
 
 	Trait *NodeTrait // initialized by gentrait

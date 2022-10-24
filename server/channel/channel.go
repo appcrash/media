@@ -47,8 +47,7 @@ func GetSystemChannel() *Channel {
 
 // close must be called with mutex held
 func (is *InstanceState) close() {
-	from := is.FromInstanceC
-	to := is.ToInstanceC
+	from, to := is.FromInstanceC, is.ToInstanceC
 	is.FromInstanceC = nil
 	if from != nil {
 		close(from) // end channel receive loop
@@ -71,6 +70,12 @@ func (sc *Channel) RegisterInstance(name string) (is *InstanceState, err error) 
 		return
 	}
 
+	is = &InstanceState{
+		name:          name,
+		lastSeen:      time.Now(),
+		FromInstanceC: make(chan *rpc.SystemEvent, 64),
+		ToInstanceC:   make(chan *rpc.SystemEvent, 64),
+	}
 	sc.mutex.Lock()
 	defer sc.mutex.Unlock()
 	if prevIs, exist := sc.instanceStateMap[name]; exist {
@@ -78,16 +83,11 @@ func (sc *Channel) RegisterInstance(name string) (is *InstanceState, err error) 
 		// previous instance state's channels can be used concurrently
 		// even though it is deleted from map right now. set send-channel to nil to stop send, and close recv channel.
 		// set to nil before closing
+		logger.Infof("instance %v re-registered, close previous one", name)
 		prevIs.close()
 		delete(sc.instanceStateMap, name)
 	}
 
-	is = &InstanceState{
-		name:          name,
-		lastSeen:      time.Now(),
-		FromInstanceC: make(chan *rpc.SystemEvent, 64),
-		ToInstanceC:   make(chan *rpc.SystemEvent, 64),
-	}
 	sc.instanceStateMap[name] = is
 	go sc.startReceiveLoop(name)
 	return
@@ -106,14 +106,15 @@ func (sc *Channel) NotifyInstance(se *rpc.SystemEvent) (err error) {
 		return fmt.Errorf("invalid instance id when notifying instance")
 	}
 	sc.mutex.Lock()
-	defer sc.mutex.Unlock()
 	if is, exist := sc.instanceStateMap[se.InstanceId]; exist {
+		sc.mutex.Unlock()
 		select {
 		case is.ToInstanceC <- se:
 		default:
 			err = fmt.Errorf("server channel: send to instance %v failed", se.InstanceId)
 		}
 	} else {
+		sc.mutex.Unlock()
 		err = fmt.Errorf("server channel: no such instance %v when send to instance", se.InstanceId)
 	}
 	return
@@ -124,13 +125,17 @@ func (sc *Channel) BroadcastInstance(se *rpc.SystemEvent) (err error) {
 	if se.InstanceId == "" {
 		return fmt.Errorf("invalid instance id when broadcasting instances")
 	}
+	var instances []*InstanceState
 	sc.mutex.Lock()
-	defer sc.mutex.Unlock()
-	for name, is := range sc.instanceStateMap {
+	for _, is := range sc.instanceStateMap {
+		instances = append(instances, is)
+	}
+	sc.mutex.Unlock()
+	for _, is := range instances {
 		select {
 		case is.ToInstanceC <- se:
 		default:
-			err = fmt.Errorf("server channel: broadcast to instance %v failed", name)
+			err = fmt.Errorf("server channel: broadcast to instance %v failed", is.name)
 			return
 		}
 	}
@@ -152,7 +157,7 @@ func (sc *Channel) startReceiveLoop(instanceId string) {
 		select {
 		case se, more := <-is.FromInstanceC:
 			if !more {
-				logger.Infoln("from-instance channel closed")
+				logger.Infof("instance %v from-instance channel closed", instanceId)
 				return
 			}
 			handled := true
@@ -184,7 +189,7 @@ func (sc *Channel) startReceiveLoop(instanceId string) {
 			}
 		case <-ticker.C:
 			if time.Since(is.lastSeen) > KeepAliveTimeout {
-				logger.Errorf("server channel for instance(%v) keep-alive times out, exit recv loop", instanceId)
+				logger.Errorf("server channel for instance(%v) keep-alive times out, close it", instanceId)
 				sc.mutex.Lock()
 				is.close()
 				sc.mutex.Unlock()

@@ -12,6 +12,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"time"
 )
 
 func (srv *MediaServer) GetVersion(_ context.Context, _ *rpc.Empty) (*rpc.VersionNumber, error) {
@@ -82,10 +83,10 @@ func (srv *MediaServer) ExecuteAction(_ context.Context, action *rpc.Action) (*r
 		arg := action.GetCmdArg()
 		exec, exist := srv.simpleExecutorMap[cmd]
 		if exist {
-			re := exec.Execute(session, cmd, arg)
+			re, err1 := exec.Execute(session, cmd, arg)
 			prom.SessionAction.With(prometheus.Labels{"cmd": cmd, "type": "simple"}).Inc()
 			result.State = strings.Join(re, " ")
-			return &result, nil
+			return &result, err1
 		}
 	}
 	result.State = "error execute not exist"
@@ -209,14 +210,11 @@ func (srv *MediaServer) ExecuteActionWithPush(stream rpc.MediaApi_ExecuteActionW
 
 // SystemChannel is long-keepalive connection to ease bidirectional system-level message exchange
 func (srv *MediaServer) SystemChannel(stream rpc.MediaApi_SystemChannelServer) error {
-	sendNotifyC := make(chan string, 2)
-	recvNotifyC := make(chan string, 2)
 	wg := &sync.WaitGroup{}
 	var instanceId string
 	var errorLogged bool
 	var fromC, toC chan *rpc.SystemEvent
 
-	logger.Infof("server's system channel is connected")
 	// only work after REGISTER is seen
 	for {
 		in, err := stream.Recv()
@@ -248,57 +246,52 @@ func (srv *MediaServer) SystemChannel(stream rpc.MediaApi_SystemChannelServer) e
 	} else {
 		fromC, toC = is.FromInstanceC, is.ToInstanceC
 	}
-	logger.Infof("instance (%v) has registered system channel", instanceId)
-
+	logger.Infof("instance:%v has registered system channel", instanceId)
 	wg.Add(2)
+
+	// the receive&send goroutines are independent, one exit wouldn't end the other one
+	// only network exception or instance state close would end them
+	now := time.Now().Format("2006-01-02 15:04:05")
 	go func() {
 		defer func() {
 			wg.Done()
-			logger.Infof("instance (%v) system channel rpc, exit recv loop", instanceId)
+			logger.Infof("instance:%v at %v system channel rpc, exit recv loop", instanceId, now)
 		}()
 
 		for {
 			in, err := stream.Recv()
 			if err != nil {
-				sendNotifyC <- "recv_error"
 				break
 			}
-			fromC <- in
-
-			// check exit ...
 			select {
-			case <-recvNotifyC:
-				return
+			case fromC <- in:
 			default:
 			}
+
 		}
 	}()
 
 	go func() {
 		defer func() {
 			wg.Done()
-			logger.Infof("instance (%v) system channel rpc, exit send loop", instanceId)
+			logger.Infof("instance:%v at %v system channel rpc, exit send loop", instanceId, now)
 		}()
 
 		for {
 			select {
 			case msg, more := <-toC:
 				if !more {
-					recvNotifyC <- "send_error"
 					return
 				}
 				if err := stream.Send(msg); err != nil {
-					logger.Errorf("system cahnnel rpc, send message error: %v", err)
-					recvNotifyC <- "send_error"
+					logger.Errorf("instance:%v system channel rpc, send message error: %v", instanceId, err)
 					return
 				}
-			case <-sendNotifyC:
-				return
 			}
 		}
 	}()
 
 	wg.Wait()
-	logger.Infof("instance (%v) has exited system channel rpc normally", instanceId)
+	logger.Infof("instance:%v at %v has exited system channel rpc normally", instanceId, now)
 	return nil
 }

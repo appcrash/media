@@ -23,7 +23,7 @@ type CommandTrait struct {
 }
 
 type CommandExecute interface {
-	Execute(s *MediaSession, cmd string, args string) (result []string)
+	Execute(s *MediaSession, cmd string, args string) (result []string, err error)
 	ExecuteWithNotify(s *MediaSession, args string, ctx context.Context, ctrlOut ExecuteCtrlChan)
 	ExecuteWithPush(s *MediaSession, dataIn ExecuteDataChan)
 	GetCommandTrait() []CommandTrait

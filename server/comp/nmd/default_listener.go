@@ -1,12 +1,14 @@
 package nmd
 
 import (
+	"github.com/antlr/antlr4/runtime/Go/antlr"
 	"strconv"
 	"strings"
 )
 
 type Listener struct {
 	*BasenmdListener
+	*antlr.DefaultErrorListener
 
 	sessionId string
 
@@ -23,6 +25,8 @@ type Listener struct {
 	currentNodeProp *NodeProp
 	currentNodeDef  *NodeDef
 	currentEndpoint *EndpointDefs
+
+	errorString string
 }
 
 func NewListener(sessionId string) *Listener {
@@ -30,6 +34,10 @@ func NewListener(sessionId string) *Listener {
 	l.sessionId = sessionId
 	l.nodeMap = make(map[string]*NodeDef)
 	return l
+}
+
+func (l *Listener) SyntaxError(recognizer antlr.Recognizer, offendingSymbol interface{}, line, column int, msg string, e antlr.RecognitionException) {
+	l.errorString += msg + "\n"
 }
 
 func unquoteString(quotedString string) string {
@@ -162,6 +170,9 @@ func (l *Listener) ExitNode_prop(c *Node_propContext) {
 
 func (l *Listener) ExitCall_stmt(ctx *Call_stmtContext) {
 	node := l.nodeDefStack[0]
+	if ctx.cmd == nil {
+		return
+	}
 	cmd := unquoteString(ctx.cmd.GetText())
 	call := &CallActionDefs{
 		Node: node,
@@ -173,6 +184,9 @@ func (l *Listener) ExitCall_stmt(ctx *Call_stmtContext) {
 
 func (l *Listener) ExitCast_stmt(ctx *Cast_stmtContext) {
 	node := l.nodeDefStack[0]
+	if ctx.cmd == nil {
+		return
+	}
 	cmd := unquoteString(ctx.cmd.GetText())
 	cast := &CastActionDefs{}
 	cast.Node = node

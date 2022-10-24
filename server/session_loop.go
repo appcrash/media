@@ -88,7 +88,7 @@ func (s *MediaSession) receiveRtpLoop(ctx context.Context) {
 			default:
 			}
 			nbPacket++
-			if nbPacket > reportInfoPacketInterval {
+			if nbPacket > ReportInfoPacketInterval {
 				nbPacket = 0
 				s.watchdog.reportLoopInfo(receiveLoop)
 			}
@@ -154,7 +154,7 @@ func (s *MediaSession) sendRtpLoop(ctx context.Context) {
 				}
 				nbPacket++
 			})
-			if nbPacket > reportInfoPacketInterval {
+			if nbPacket > ReportInfoPacketInterval {
 				nbPacket = 0
 				s.watchdog.reportLoopInfo(sendLoop)
 			}

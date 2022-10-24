@@ -121,7 +121,7 @@ func initComposer() {
 }
 
 func composeIt(session, gd string) (*comp.Composer, error) {
-	c := comp.NewSessionComposer(session)
+	c := comp.NewSessionComposer(session, "")
 	if err := c.ParseGraphDescription(gd); err != nil {
 		return nil, fmt.Errorf("parse graph failed: %v", gd)
 	}
@@ -249,8 +249,8 @@ func ExampleComposerMessageConvert() {
 func ExampleComposerBuiltInCommand() {
 	gd1 := `[fire] -> [pubsub] -> [p1:print];`
 	gd2 := `[src:chan_src] -> [pubsub] -> {[p2:print],[output:chan_sink]};`
-	c1 := comp.NewSessionComposer("session1")
-	c2 := comp.NewSessionComposer("session2")
+	c1 := comp.NewSessionComposer("session1", "")
+	c2 := comp.NewSessionComposer("session2", "")
 	graph := event.NewEventGraph()
 	if err := c1.ParseGraphDescription(gd1); err != nil {
 		panic(err)

@@ -31,7 +31,8 @@ const (
 // Node.UnInit (aop)
 // Node.OnExit
 type Composer struct {
-	sessionId string
+	sessionId  string
+	instanceId string
 
 	gt             *nmd.GraphTopology
 	nodeSortedList []SessionAware // topographical sorted nodes, first one has no receiver
@@ -42,10 +43,11 @@ type Composer struct {
 	nodeExited bool // ensure node UnInit called only once
 }
 
-func NewSessionComposer(sessionId string) *Composer {
+func NewSessionComposer(sessionId, instanceId string) *Composer {
 	sc := &Composer{
-		sessionId: sessionId,
-		nodeMap:   make(map[string]SessionAware),
+		sessionId:  sessionId,
+		instanceId: instanceId,
+		nodeMap:    make(map[string]SessionAware),
 	}
 	sc.initiator = &builtinCommandInitiator{composer: sc}
 	return sc
@@ -55,6 +57,14 @@ func (c *Composer) IterateNode(iter func(name string, node SessionAware)) {
 	for name, node := range c.nodeMap {
 		iter(name, node)
 	}
+}
+
+func (c *Composer) GetSessionId() string {
+	return c.sessionId
+}
+
+func (c *Composer) GetInstanceId() string {
+	return c.instanceId
 }
 
 func (c *Composer) GetNode(name string) SessionAware {

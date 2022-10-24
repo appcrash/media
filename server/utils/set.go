@@ -26,7 +26,7 @@ func (s *Set[T]) Contain(v T) (exist bool) {
 }
 
 func (s *Set[T]) GetAndRemove() (v T) {
-	for _, v = range s.m {
+	for v, _ = range s.m {
 		break
 	}
 	delete(s.m, v)

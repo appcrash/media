@@ -72,7 +72,7 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (s *MediaSession,
 	sid := SessionIdType(atomic.AddUint32(&sessionIdCounter, 1))
 
 	gd := mediaParam.GetGraphDesc()
-	composer := comp.NewSessionComposer(sid.String())
+	composer := comp.NewSessionComposer(sid.String(), instanceId)
 	if err = composer.ParseGraphDescription(gd); err != nil {
 		logger.Errorf("parse graph error: %v", err)
 		return nil, errors.New("composer parse graph description failed")
@@ -150,7 +150,7 @@ func (s *MediaSession) setupGraph() error {
 		}
 	})
 	if s.pullC == nil || s.handleC == nil {
-		return fmt.Errorf("session(%v) missing rtp provider ch:(%v) or consumer ch:(%v)",
+		return fmt.Errorf("session(%v) has invalid rtp provider(with channel:%v) or consumer(with channel:%v) ",
 			s.GetSessionId(), s.pullC, s.handleC)
 	}
 	return nil
