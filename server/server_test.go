@@ -3,6 +3,7 @@ package server_test
 import (
 	"context"
 	"fmt"
+	"github.com/appcrash/GoRTP/rtp"
 	"github.com/appcrash/media/server"
 	"github.com/appcrash/media/server/channel"
 	"github.com/appcrash/media/server/comp"
@@ -11,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"io"
 	"log"
+	"net"
 	"os"
 	"strings"
 	"testing"
@@ -102,8 +104,70 @@ func (c *client) keepalive(ctx context.Context) {
 	}
 }
 
+func (c *client) reportSessionInfo(ctx context.Context, sessionId string) {
+	ticker := time.NewTicker(5 * time.Second)
+	for {
+		select {
+		case <-ticker.C:
+			c.sysStream.Send(&rpc.SystemEvent{
+				Cmd:       rpc.SystemCommand_SESSION_INFO,
+				SessionId: sessionId,
+			})
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
 func (c *client) close() {
 	c.conn.Close()
+}
+
+func mockSendRtp(localIpStr string, localPort int, remoteIpStr string, remotePort int) (context.CancelFunc, error) {
+	localIp, _ := net.ResolveIPAddr("ip", localIpStr)
+	remoteIp, _ := net.ResolveIPAddr("ip", remoteIpStr)
+	tpLocal, err := rtp.NewTransportUDP(localIp, localPort, "")
+	if err != nil {
+		return nil, err
+	}
+	session := rtp.NewSession(tpLocal, tpLocal)
+	strIndex, _ := session.NewSsrcStreamOut(&rtp.Address{
+		IPAddr:   localIp.IP,
+		DataPort: localPort,
+		CtrlPort: 1 + localPort,
+		Zone:     "",
+	}, 0, 0)
+	session.SsrcStreamOutForIndex(strIndex).SetProfile("PCMA", 8)
+	if _, err = session.AddRemote(&rtp.Address{
+		IPAddr:   remoteIp.IP,
+		DataPort: remotePort,
+		CtrlPort: 1 + remotePort,
+		Zone:     "",
+	}); err != nil {
+		return nil, err
+	}
+	if err = session.StartSession(); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		var samples [160]byte
+		var pts uint32
+		ticker := time.NewTicker(20 * time.Millisecond)
+
+		for {
+			select {
+			case <-ticker.C:
+				packet := session.NewDataPacket(pts)
+				packet.SetPayloadType(8)
+				packet.SetPayload(samples[:])
+				session.WriteData(packet)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return cancel, nil
 }
 
 func startServer() {
@@ -122,7 +186,7 @@ func startServer() {
 func initComposer() {
 	comp.InitBuiltIn()
 	comp.RegisterNodeTrait(comp.NT[echo]("echo", func() comp.SessionAware {
-		n := &echo{channel: make(chan *utils.RtpPacketList, 2)}
+		n := &echo{channel: make(chan *utils.RtpPacketList, 32)}
 		n.Trait, _ = comp.NodeTraitOfType("echo")
 		return n
 	}))
@@ -198,6 +262,13 @@ func TestOperateSession(t *testing.T) {
 		panic(err)
 	}
 	time.Sleep(1 * time.Second)
+
+	var cancelRtp context.CancelFunc
+	if cancelRtp, err = mockSendRtp("127.0.0.1", 3000, session.LocalIp, int(session.LocalRtpPort)); err != nil {
+		panic(err)
+	}
+	go c.reportSessionInfo(ctx, session.SessionId)
+
 	if _, err = c.mediaClient.ExecuteAction(ctx, &rpc.Action{
 		SessionId: session.SessionId,
 		Cmd:       "exec",
@@ -210,5 +281,6 @@ func TestOperateSession(t *testing.T) {
 		panic(err)
 	}
 	cancel()
+	cancelRtp()
 	time.Sleep(1 * time.Second)
 }

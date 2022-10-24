@@ -292,7 +292,7 @@ func ExampleComposerBuiltInCommand() {
 	initiator1.Call("", "pubsub", args)
 	initiator1.Cast("rpc", "fire", []string{"fire in the hole"})
 
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 	c1.ExitGraph()
 	c2.ExitGraph()
 
