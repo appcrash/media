@@ -122,9 +122,6 @@ func (sc *Channel) NotifyInstance(se *rpc.SystemEvent) (err error) {
 
 // BroadcastInstance NONBLOCK send event to all instances
 func (sc *Channel) BroadcastInstance(se *rpc.SystemEvent) (err error) {
-	if se.InstanceId == "" {
-		return fmt.Errorf("invalid instance id when broadcasting instances")
-	}
 	var instances []*InstanceState
 	sc.mutex.Lock()
 	for _, is := range sc.instanceStateMap {

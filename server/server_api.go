@@ -54,6 +54,8 @@ type Config struct {
 }
 
 type RegisterMore func(s grpc.ServiceRegistrar)
+type StartServerFunc func()
+type StopServerFunc func()
 
 // SessionListener methods are called concurrently, so it must be goroutine safe
 type SessionListener interface {
@@ -71,7 +73,7 @@ func (b *BaseSessionListener) OnSessionUpdated(s *MediaSession) {}
 func (b *BaseSessionListener) OnSessionStarted(s *MediaSession) {}
 func (b *BaseSessionListener) OnSessionStopped(s *MediaSession) {}
 
-func StartServer(c *Config) (err error) {
+func NewServer(c *Config) (start StartServerFunc, stop StopServerFunc, err error) {
 	var lis net.Listener
 	var ip *net.IPAddr
 
@@ -107,8 +109,17 @@ func StartServer(c *Config) (err error) {
 	if c.GrpcRegisterMore != nil {
 		c.GrpcRegisterMore(grpcServer)
 	}
-	grpcServer.Serve(lis)
-	return nil
+
+	start = func() {
+		logger.Infof("starting media server")
+		grpcServer.Serve(lis)
+	}
+	stop = func() {
+		logger.Infof("try to gracefully stop media server")
+		grpcServer.GracefulStop()
+		logger.Infof("media server has stopped")
+	}
+	return
 }
 
 // InitServerLogger can be called multiple times before server starts to override default logger

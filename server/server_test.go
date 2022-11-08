@@ -178,8 +178,10 @@ func startServer() {
 		GrpcIp:    grpcIp,
 		GrpcPort:  grpcPort,
 	}
-	if err := server.StartServer(config); err != nil {
+	if start, _, err := server.NewServer(config); err != nil {
 		panic(err)
+	} else {
+		start()
 	}
 }
 

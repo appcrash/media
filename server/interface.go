@@ -30,17 +30,14 @@ type CommandExecute interface {
 }
 
 // RtpPacketProvider provides data for RTP session
-// either generates data by it own or append/change data from previous provider by
-// modifying RtpPacketList object, once it is passed through all sources, RTP send loop
-// ultimately create new packet from RtpPacketList then send it.
-// so be careful the order of providers
+// RTP send loop creates new packets from RtpPacketList then send them.
 type RtpPacketProvider interface {
 	comp.NodeTraitTag
 	PullPacketChannel() <-chan *utils.RtpPacketList
 }
 
 // RtpPacketConsumer consumes data from RTP session
-// receive loop fetches rtp data packet and feeds it to all consumers in consumer-list
+// receive loop fetches rtp data packet and feeds it to consumer
 type RtpPacketConsumer interface {
 	comp.NodeTraitTag
 	HandlePacketChannel() chan<- *utils.RtpPacketList
