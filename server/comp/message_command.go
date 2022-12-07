@@ -5,8 +5,8 @@ package comp
 // LinkPointRequestMessage received when another node wants connecting to me
 type LinkPointRequestMessage struct {
 	InBandCommandCall[*MessageTrait]
-	OfferedTrait []*MessageTrait
-	LinkIdentity LinkIdentityType
+	PreferredTrait []*MessageTrait
+	LinkIdentity   LinkIdentityType
 }
 
 // ChannelLinkRequestMessage received when being ask to link to a provided channel

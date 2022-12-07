@@ -56,7 +56,6 @@ func NodeTo[T NodeTraitTag](n SessionAware) (v T) {
 type NodeTrait struct {
 	NodeType      string
 	FactoryFunc   func() SessionAware
-	Accept        []*MessageTrait
 	PtrType, Type reflect.Type
 }
 
@@ -66,9 +65,6 @@ func (nt *NodeTrait) Clone() (cloned *NodeTrait) {
 	cloned.FactoryFunc = nt.FactoryFunc
 	cloned.PtrType = nt.PtrType
 	cloned.Type = nt.Type
-	for _, mt := range nt.Accept {
-		cloned.Accept = append(cloned.Accept, mt.Clone())
-	}
 	return
 }
 
@@ -83,7 +79,6 @@ func NT[T any](typeName string, factoryFunc func() SessionAware) *NodeTrait {
 		panic(fmt.Errorf("node type %v doesn't implements session aware", ptrType.String()))
 	}
 
-	var accept []*MessageTrait
 	//name := utils.CamelCaseToSnake(structType.Name())
 	trait := &NodeTrait{}
 	//newFunc := func() SessionAware {
@@ -94,19 +89,10 @@ func NT[T any](typeName string, factoryFunc func() SessionAware) *NodeTrait {
 	//	nodeValue.FieldByName("Trait").Set(reflect.ValueOf(trait.Clone()))
 	//	return node.(SessionAware)
 	//}
-	nodeObj := reflect.New(structType).Interface().(SessionAware)
-
-	for _, messageType := range nodeObj.Accept() {
-		if tr, ok := MessageTraitOfType(messageType); !ok {
-			panic(fmt.Errorf("node type(%v) accept unknown message type %v", typeName, messageType))
-		} else {
-			accept = append(accept, tr)
-		}
-	}
+	//nodeObj := reflect.New(structType).Interface().(SessionAware)
 
 	trait.NodeType = typeName
 	trait.FactoryFunc = factoryFunc
-	trait.Accept = accept
 	trait.PtrType = ptrType
 	trait.Type = structType
 
@@ -129,14 +115,7 @@ func RegisterNodeTrait(traits ...*NodeTrait) error {
 			return fmt.Errorf("node trait(%v) has no factory method", name)
 		}
 
-		var acceptMsg string
-		for _, accept := range trait.Accept {
-			acceptMsg += accept.Name() + ","
-
-		}
-		logger.Infof("[NODE TRAIT]: name: %v, type: %v || ACCEPT: %v",
-			name, trait.Type.String(), acceptMsg)
-
+		logger.Infof("[NODE TRAIT]: name: %v, type: %v", name, trait.Type.String())
 		nodeTraitRegistry[name] = trait
 	}
 	return nil

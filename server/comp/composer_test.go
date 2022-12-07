@@ -67,6 +67,7 @@ func (n *fireNode) OnCast(fromNode string, args []string) {
 
 func newFireNode() comp.SessionAware {
 	n := &fireNode{}
+	n.Self = n
 	n.Trait, _ = comp.NodeTraitOfType("fire")
 	return n
 }
@@ -100,6 +101,7 @@ func (n *printHeaderNode) handleRawByteEvent(evt *event.Event) {
 
 func newPrintNode() comp.SessionAware {
 	p := &printNode{}
+	p.Self = p
 	p.Trait, _ = comp.NodeTraitOfType("print")
 	p.SetMessageHandler(comp.MtRawByte, comp.ChainSetHandler(p.handleRawByteEvent))
 	return p
@@ -107,6 +109,7 @@ func newPrintNode() comp.SessionAware {
 
 func newPrintHeaderNode() comp.SessionAware {
 	p := &printHeaderNode{}
+	p.Self = p
 	p.Trait, _ = comp.NodeTraitOfType("print_header")
 	p.SetMessageHandler(comp.MtRawByte, comp.ChainSetHandler(p.handleRawByteEvent))
 	return p
@@ -233,9 +236,9 @@ func ExampleComposerMessageConvert() {
 	if c.GetNode("fire").(*fireNode).lp == nil {
 		panic("fire node link point not injected")
 	}
-	fire := c.GetNode("fire1").(*fireNode)
-	fire.Call("fire", comp.With("call_action"))
-	fire.Cast("fire", comp.With("cast_action"))
+	fire1 := c.GetNode("fire1").(*fireNode)
+	fire1.Call("fire", comp.With("call_action"))
+	fire1.Cast("fire", comp.With("cast_action"))
 
 	time.Sleep(50 * time.Millisecond)
 

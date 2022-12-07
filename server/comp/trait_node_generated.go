@@ -72,6 +72,7 @@ func (n *Pubsub) Accept() []MessageType {
 func newChanSink() SessionAware {
 	var exist bool
 	node := &ChanSink{}
+	node.Self = node
 	if node.Trait, exist = NodeTraitOfType("chan_sink"); !exist {
 		panic("node type ChanSink not exist")
 	}
@@ -82,6 +83,7 @@ func newChanSink() SessionAware {
 func newChanSrc() SessionAware {
 	var exist bool
 	node := &ChanSrc{}
+	node.Self = node
 	if node.Trait, exist = NodeTraitOfType("chan_src"); !exist {
 		panic("node type ChanSrc not exist")
 	}
@@ -92,6 +94,7 @@ func newChanSrc() SessionAware {
 func newPubsub() SessionAware {
 	var exist bool
 	node := &Pubsub{}
+	node.Self = node
 	if node.Trait, exist = NodeTraitOfType("pubsub"); !exist {
 		panic("node type Pubsub not exist")
 	}

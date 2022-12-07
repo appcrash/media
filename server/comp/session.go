@@ -54,7 +54,9 @@ type SessionNode struct {
 	// TODO: put post processor to link level
 	messagePostProcessor MessagePostProcessor
 
-	Trait *NodeTrait // initialized by gentrait
+	// initialized by gentrait
+	Trait *NodeTrait
+	Self  SessionAware // virtual functions, workaround for golang's crap design
 }
 
 //------------------- Base Node Implementation -------------------------
@@ -120,7 +122,7 @@ func (s *SessionNode) OnLinkDown(linkId int, scope string, nodeName string) {
 //--------------------------- Base SessionAware Implementation --------------------------------
 
 // this is where negotiation happens, for each offered traits:
-// 1. check it can match any accepted trait of this node,
+// 1. check it can match any accepted trait of this node
 // 2. if none of them matched, test if message can be converted from offered to accepted type
 // 3. if no conversion is possible, go to first step with next candidate offer type
 func (s *SessionNode) _handleLinkPointRequest(evt *event.Event) {
@@ -128,29 +130,42 @@ func (s *SessionNode) _handleLinkPointRequest(evt *event.Event) {
 	if !ok {
 		return
 	}
-	for _, offer := range linkPointMessage.OfferedTrait {
+	// due to the bad design of golang, we have to use reflect to get virtual function of this node :(
+	var accept []*MessageTrait
+	var agreedOffer *MessageTrait
+	defer func() {
+		linkPointMessage.C <- agreedOffer
+	}()
+
+	for _, msgType := range s.Self.Accept() {
+		if mt, exist := MessageTraitOfType(msgType); exist {
+			accept = append(accept, mt)
+		} else {
+			logger.Errorf("%v accept non-existent message type %v", s, msgType)
+			return
+		}
+	}
+	for _, agreedOffer = range linkPointMessage.PreferredTrait {
 		// try direct match
-		for _, answer := range s.Trait.Accept {
-			if offer.Match(answer) {
-				linkPointMessage.C <- answer
+		for _, answer := range accept {
+			if agreedOffer.Match(answer) {
 				return
 			}
 		}
 
 		// not match any one, see if conversion is possible
-		for _, answer := range s.Trait.Accept {
-			if CanConvertMessage(offer.TypeId, answer.TypeId) {
+		for _, answer := range accept {
+			if CanConvertMessage(agreedOffer.TypeId, answer.TypeId) {
 				// found a conversion path, setup handler for this message type
 				// sanity check: ensure a handler for answered message type already exist
 				if handler := s.GetMessageHandler(answer.TypeId); handler == nil {
 					logger.Errorf("%v has a nil handler for message type %v, conversion is impossible from %v",
-						s, answer, offer)
+						s, answer, agreedOffer)
 					continue
 				}
 				// really setup handler for offered message type
-				logger.Debugf("node %v create message conversion function from %v -> %v", s, offer.Name(), answer.Name())
-				answer = answer.Clone()
-				s.SetMessageHandler(offer.TypeId, func(_ MessageHandler) MessageHandler {
+				logger.Debugf("node %v create message conversion function from %v -> %v", s, agreedOffer.Name(), answer.Name())
+				s.SetMessageHandler(agreedOffer.TypeId, func(_ MessageHandler) MessageHandler {
 					// create message conversion function
 					return func(evt *event.Event) {
 						msg, ok := EventToMessage[Message](evt)
@@ -166,13 +181,10 @@ func (s *SessionNode) _handleLinkPointRequest(evt *event.Event) {
 						handler(convertedMsg.AsEvent())
 					}
 				})
-				linkPointMessage.C <- offer
 				return
 			}
 		}
 	}
-	linkPointMessage.C <- nil
-	return
 }
 
 func (s *SessionNode) UnInit() {
@@ -254,17 +266,11 @@ func (s *SessionNode) StreamTo(session, name string, preferredOffer []MessageTyp
 			s.SessionId, s.Name, session, name)
 		return
 	}
-	sendFunc := func(msg Message) error {
-		s.messagePostProcessor(msg)
-		if !s.delegate.Deliver(linkId, msg.AsEvent()) {
-			return errors.New("failed to deliver event")
-		}
-		return nil
-	}
+
 	linkIdentity := MakeLinkIdentity(session, name, linkId)
 	newLinkCmd := &LinkPointRequestMessage{
-		OfferedTrait: offeredTraits,
-		LinkIdentity: linkIdentity,
+		PreferredTrait: offeredTraits,
+		LinkIdentity:   linkIdentity,
 	}
 	newLinkCmd.C = make(chan *MessageTrait, 1)
 	evt := newLinkCmd.AsEvent()
@@ -279,6 +285,13 @@ func (s *SessionNode) StreamTo(session, name string, preferredOffer []MessageTyp
 			err = fmt.Errorf("(%v:%v) can not set stream target to (%v:%v) due to offered traits not agreed",
 				s.SessionId, s.Name, session, name)
 			return
+		}
+		sendFunc := func(msg Message) error {
+			s.messagePostProcessor(msg)
+			if !s.delegate.Deliver(linkId, msg.AsEvent()) {
+				return errors.New("failed to deliver event")
+			}
+			return nil
 		}
 		lp = NewLinkPad(s, linkId, linkIdentity, agreedTrait, sendFunc)
 		s.addLinkPoint(lp)

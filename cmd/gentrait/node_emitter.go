@@ -34,6 +34,7 @@ var (
 		`func new{{.NodeType}}() {{.SessionAware}} {
 var exist bool
 node := &{{.NodeType}}{}
+node.Self = node
 if node.Trait,exist = {{.TraitOf}}("{{.NodeSnakeName}}"); !exist {
   panic("node type {{.NodeType}} not exist")
 }

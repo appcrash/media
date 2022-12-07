@@ -70,6 +70,7 @@ func (m *MessageTrait) ConvertFrom(from Message) (to Message, err error) {
 	}
 	// following reflect actions don't check null ptr or any other errors, as the static analysis and start up
 	// code should ensure the correctness. if panic do happens, ask user code author (it's all your faults!)
+
 	method := reflect.ValueOf(from).
 		Convert(m.ConvertType).Method(0) // get the method value of As***()
 	returnValues := method.Call(nil) // Call As***() method to get the required message of this trait's type

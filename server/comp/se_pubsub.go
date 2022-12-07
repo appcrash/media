@@ -36,13 +36,13 @@ func (n *Pubsub) handleLinkPoint(msg *LinkPointRequestMessage) {
 	defer func() {
 		msg.C <- agreedTrait
 	}()
-	if len(msg.OfferedTrait) == 0 {
+	if len(msg.PreferredTrait) == 0 {
 		logger.Errorf("pubsub(%v) get empty offer", n)
 		return
 	}
 	if n.messageTrait != nil {
 		// not the first visitor
-		for _, trait := range msg.OfferedTrait {
+		for _, trait := range msg.PreferredTrait {
 			if n.messageTrait.Match(trait) {
 				logger.Infof("pubsub %v accept more than one nodes of the same message trait", n)
 				return
@@ -54,19 +54,20 @@ func (n *Pubsub) handleLinkPoint(msg *LinkPointRequestMessage) {
 	}
 
 	// find the first eligible trait
-	for _, trait := range msg.OfferedTrait {
+	for _, trait := range msg.PreferredTrait {
 		if trait.PtrType.Implements(cloneableMetaType) {
 			n.messageTrait = trait.Clone()
 			break
 		}
 	}
 	if n.messageTrait == nil {
-		logger.Errorf("pubsub(%v) reject the offer as none of them(%v) is cloneable", n, msg.OfferedTrait)
+		logger.Errorf("pubsub(%v) reject the offer as none of them(%v) is cloneable", n, msg.PreferredTrait)
 		return
 	}
 	agreedTrait = n.messageTrait
 	n.SetMessageHandler(n.messageTrait.TypeId, ChainSetHandler(n.handleInputStream))
 	logger.Debugf("pubsub(%v) accept message type: %v", n, n.messageTrait)
+	logger.Infof("pubsub(%v) accept message type: %v", n, n.messageTrait)
 	return
 }
 
