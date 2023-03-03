@@ -39,6 +39,8 @@ var (
 	messageConvertibilityRegistry = make([]bool, maxMessageType*maxMessageType)
 )
 
+type MessageTraitVisitor func(trait *MessageTrait)
+
 // MessageTrait is used to record all possible message kinds that flow among nodes of known types, ensure node links
 // are compatible, that is Node A output is accepted by Node B input if there would be a link.
 type MessageTrait struct {
@@ -159,6 +161,12 @@ func AddMessageTrait(traits ...*MessageTrait) {
 		messageNameQuery[t.Name()] = t
 		messageTraitRegistry[nbMessageTrait] = t
 		nbMessageTrait++
+	}
+}
+
+func VisitMessageTrait(visitor MessageTraitVisitor) {
+	for _, trait := range messageTraitRegistry {
+		visitor(trait.Clone())
 	}
 }
 

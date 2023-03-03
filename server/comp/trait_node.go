@@ -15,6 +15,8 @@ var (
 // use NodeTo() to quickly convert it
 type NodeTraitTag interface{}
 
+type NodeTraitVisitor func(trait *NodeTrait)
+
 type Channelable[T any] interface {
 	NodeTraitTag
 	ChannelLink(c chan T)
@@ -119,6 +121,12 @@ func RegisterNodeTrait(traits ...*NodeTrait) error {
 		nodeTraitRegistry[name] = trait
 	}
 	return nil
+}
+
+func VisitNodeTrait(visitor NodeTraitVisitor) {
+	for _, trait := range nodeTraitRegistry {
+		visitor(trait.Clone())
+	}
 }
 
 func NodeTraitOfType(name string) (nt *NodeTrait, exist bool) {
