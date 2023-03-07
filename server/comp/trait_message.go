@@ -165,8 +165,8 @@ func AddMessageTrait(traits ...*MessageTrait) {
 }
 
 func VisitMessageTrait(visitor MessageTraitVisitor) {
-	for _, trait := range messageTraitRegistry {
-		visitor(trait.Clone())
+	for i := 0; i < nbMessageTrait; i++ {
+		visitor(messageTraitRegistry[i].Clone())
 	}
 }
 
