@@ -14,7 +14,7 @@ type ChanSink struct {
 }
 
 func (n *ChanSink) handleRawByte(msg *RawByteMessage) {
-	logger.Infof("%v raw byte", n)
+	logger.Tracef("%v raw byte", n)
 	select {
 	case n.C <- msg.Data:
 	default:
