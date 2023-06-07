@@ -30,7 +30,7 @@ type MediaServer struct {
 	rpc.UnimplementedMediaApiServer
 	rtpServerIpString string
 	rtpServerIpAddr   *net.IPAddr
-	portPool          *portPool
+	portPool          *PortPool
 	sessionListener   []SessionListener
 
 	graph *event.Graph
@@ -84,7 +84,7 @@ func NewServer(c *Config) (start StartServerFunc, stop StopServerFunc, err error
 	rtpIp, rtpStartPort, rtpEndPort := c.RtpIp, c.StartPort, c.EndPort
 	server := MediaServer{
 		rtpServerIpString: rtpIp,
-		portPool:          newPortPool(),
+		portPool:          NewPortPool(),
 		sessionListener:   c.SessionListenerList,
 		sessionMap:        make(map[SessionIdType]*MediaSession),
 

@@ -11,7 +11,7 @@ import (
 
 func (srv *MediaServer) init(ip *net.IPAddr, portStart, portEnd uint16) {
 	srv.rtpServerIpAddr = ip
-	srv.portPool.init(portStart, portEnd)
+	srv.portPool.Init(portStart, portEnd)
 	channel.GetSystemChannel().AddListener(srv)
 }
 
@@ -30,12 +30,12 @@ func (srv *MediaServer) removeFromSessionMap(session *MediaSession) {
 }
 
 func (srv *MediaServer) getNextAvailableRtpPort() uint16 {
-	return srv.portPool.get()
+	return srv.portPool.Get()
 }
 
 func (srv *MediaServer) reclaimRtpPort(port uint16) {
 	if port != 0 {
-		srv.portPool.put(port)
+		srv.portPool.Put(port)
 	}
 }
 

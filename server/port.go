@@ -5,20 +5,20 @@ import (
 	"sync"
 )
 
-func newPortPool() *portPool {
-	return &portPool{
+func NewPortPool() *PortPool {
+	return &PortPool{
 		freePortSet: utils.NewSet[uint16](),
 	}
 }
 
-type portPool struct {
+type PortPool struct {
 	mutex sync.Mutex
 
 	freePortSet *utils.Set[uint16] // store rtp ports (even number)
 	start, end  uint16
 }
 
-func (p *portPool) init(start uint16, end uint16) {
+func (p *PortPool) Init(start uint16, end uint16) {
 	// NOTE: rtp use even port
 	if start&0x01 != 0 {
 		start += 1
@@ -36,7 +36,7 @@ func (p *portPool) init(start uint16, end uint16) {
 	p.end = end
 }
 
-func (p *portPool) get() (port uint16) {
+func (p *PortPool) Get() (port uint16) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 	// if pool is empty, return 0 as this port wouldn't be used by applications
@@ -49,7 +49,7 @@ noPort:
 	return
 }
 
-func (p *portPool) put(port uint16) {
+func (p *PortPool) Put(port uint16) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 	if p.freePortSet.Contain(port) {
