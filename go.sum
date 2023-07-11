@@ -6,8 +6,8 @@ github.com/alecthomas/units v0.0.0-20190717042225-c3de453c63f4/go.mod h1:ybxpYRF
 github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d/go.mod h1:rBZYJk541a8SKzHPHnH3zbiI+7dagKZ0cgpgrD7Fyho=
 github.com/antlr/antlr4 v0.0.0-20210311221813-5e5b6d35b418 h1:ucwMkalecAXiZ4PqupNp9NDcadpGCdcaOJnnTypIlD8=
 github.com/antlr/antlr4 v0.0.0-20210311221813-5e5b6d35b418/go.mod h1:T7PbCXFs94rrTttyxjbyT5+/1V8T2TYDejxUfHJjw1Y=
-github.com/appcrash/GoRTP v0.0.0-20220224065656-1143d1af7e14 h1:etRffNWxbBL9DwsZn+fteJO4XpsmcW/dydmWRz0g3fI=
-github.com/appcrash/GoRTP v0.0.0-20220224065656-1143d1af7e14/go.mod h1:hPTHekTEsPTnqVHBkhUfdd9i9PYYwFw6Z/+P36WE3KY=
+github.com/appcrash/GoRTP v0.0.0-20230711081554-5405a5d964e3 h1:Qu+OoEk4VO1MTZMIeBK4SX64Wbc0dFpAYZHQAXEOE9E=
+github.com/appcrash/GoRTP v0.0.0-20230711081554-5405a5d964e3/go.mod h1:hPTHekTEsPTnqVHBkhUfdd9i9PYYwFw6Z/+P36WE3KY=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
