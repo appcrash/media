@@ -17,6 +17,7 @@ enum CodecType {
   AMRNB = 4;
   AMRWB = 5;
   H264 = 6;
+  EVS = 7;
 }
 
 message VersionNumber {

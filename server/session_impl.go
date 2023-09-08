@@ -38,6 +38,8 @@ func profileOfCodec(c rpc.CodecType) (profile string) {
 		profile = "H264"
 	case rpc.CodecType_TELEPHONE_EVENT_8K, rpc.CodecType_TELEPHONE_EVENT_16K:
 		profile = "TELEPHONE-EVENT"
+	case rpc.CodecType_EVS:
+		profile = "EVS"
 	}
 	return
 }
@@ -100,7 +102,7 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (s *MediaSession,
 	}
 	for _, ci := range codecInfos {
 		switch ci.PayloadType {
-		case rpc.CodecType_PCM_ALAW, rpc.CodecType_AMRNB, rpc.CodecType_AMRWB, rpc.CodecType_H264:
+		case rpc.CodecType_PCM_ALAW, rpc.CodecType_AMRNB, rpc.CodecType_AMRWB, rpc.CodecType_H264, rpc.CodecType_EVS:
 			if s.avPayloadNumber != 0 {
 				err = fmt.Errorf("create session with more than one audio/video type:"+
 					" previous number:%v, this number:%v", s.avPayloadNumber, ci.PayloadNumber)
