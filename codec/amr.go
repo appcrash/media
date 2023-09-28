@@ -58,7 +58,7 @@ func AmrRtpPayloadToFrame(payload []byte, isAmrwb bool, isOctetAlignMode bool) (
 	if isOctetAlignMode {
 		return amrOctetModeRtpPayloadToFrame(payload, isAmrwb)
 	} else {
-		return amrBandwidthEfficientModeRtpPayloadToFrame(payload, isAmrwb)
+		return amrBandwidthEfficientModeRtpPayloadToFrames(payload, isAmrwb)
 	}
 
 }
@@ -100,6 +100,7 @@ func amrOctetModeRtpPayloadToFrame(payload []byte, isAmrwb bool) (frames [][]byt
 			return
 		}
 		f := []byte{toc & 0x7c} // keep Q bit
+
 		if frameEnd > speechData {
 			f = append(f, payload[speechData:frameEnd]...)
 		}
@@ -138,14 +139,17 @@ func amrBandwidthEfficientModeRtpPayloadToFrame(payload []byte, isAmrwb bool) (f
 	var frameTypes []uint16
 	payloadBitLen := pl * 8
 	frameStartBit := 4       // skip CMR
+	//cmr:=payload[0:4]
 	var val0xff uint8 = 0xff // keep shift result is of size uint8
 	for frameStartBit < payloadBitLen-8 /* read uint16 wide */ {
 		// count the frames in toc
 		startByte := frameStartBit / 8
-		shift := 16 - 6 - (frameStartBit & 0x07)
+		//shift := 16 - 6 - (frameStartBit & 0x07)
+		shift := 16 - 10 - (frameStartBit & 0x07)
 		twoBytes := binary.BigEndian.Uint16(payload[startByte:])
 		toc := (twoBytes >> shift) & 0x3f
 		ft := (toc >> 1) & 0x0f
+		//logger.Info("ft=",ft,";pl=",pl)
 		frameTypes = append(frameTypes, ft)
 		frameStartBit += 6
 		if toc&0x20 == 0 {
@@ -213,6 +217,191 @@ func amrBandwidthEfficientModeRtpPayloadToFrame(payload []byte, isAmrwb bool) (f
 	}
 	return
 }
+
+
+//edit by sean.only support single channel and single frame or mul-frames in one packet
+//RFC4867+3GPP TS 26.201
+func amrBandwidthEfficientModeRtpPayloadToFrames(payload []byte, isAmrwb bool) (frames [][]byte) {
+	pl := len(payload)
+	if pl <= 2 {
+		logger.Errorln("the length of rtp payload is invalid.len=",pl)
+		return
+	}
+
+	var tocs [] uint8
+
+	start:=0
+	data:=binary.BigEndian.Uint16(payload[start:start+2])
+
+	leftBits:=0
+
+	//handle first toc 4+6+6
+	toc:=uint8((data>>6)&0x3f)
+	tocs=append(tocs,toc)
+	leftBits=6 //maybe speech data
+	toc_f:=toc & 0x20
+	if toc_f==1{
+		toc=uint8(data)&0x3f
+		tocs=append(tocs,toc)
+		toc_f=toc & 0x20
+		leftBits=0
+	}
+
+	//handle other tocs
+	var last_data uint16
+	u16Count:=1
+
+	for toc_f==1{
+		start+=2
+		last_data=data
+		if start>pl{
+			logger.Errorln("the amr header of rtp payload is invalid.")
+			return
+		}
+		data=binary.BigEndian.Uint16(payload[start:start+2])
+		switch leftBits {
+		case 0: //6+6+4
+			toc=uint8(data>>10)&0x3f
+			tocs=append(tocs,toc)
+			if toc&0x20==1{
+				toc=uint8(data>>4)&0x3f
+				tocs=append(tocs,toc)
+			}
+			leftBits=4
+			break
+		case 4: //2+6+6+2
+			high4Bits:=uint8(last_data)&0x0f
+			low2Bits:=uint8(data>>14)&0x03
+			toc=(high4Bits<<2)+low2Bits
+			tocs=append(tocs,toc)
+			if toc&0x20==1{
+				toc=uint8(data>>8)&0x3f
+				tocs=append(tocs,toc)
+				if toc&0x20==1{
+					toc=uint8(data>>2)&0x3f
+					tocs=append(tocs,toc)
+				}
+			}//if
+			leftBits=2
+			break
+		case 2: //4+6+6
+			high2Bits:=uint8(last_data)&0x03
+			low4Bits:=uint8(data>>12)&0x0f
+			toc=(high2Bits<<4)+low4Bits
+			tocs=append(tocs,toc)
+			if toc&0x20==1{
+				toc=uint8(data>>6)&0x3f
+				tocs=append(tocs,toc)
+				if toc&0x20==1{
+					toc=uint8(data)&0x3f
+					tocs=append(tocs,toc)
+				}
+			}
+			leftBits=0
+			break
+		default:
+			logger.Errorln("The data of payload is invalid.it cant parse toc field")
+			break
+		}//switch
+
+		u16Count++
+		if toc&0x20==0{
+			break
+		}
+	}//for
+
+	//logger.Info("-----------------tocs len=",len(tocs),";pl=",pl)
+
+	//speech data
+	frameBitSize := amrnbFrameBit
+	if isAmrwb {
+		frameBitSize = amrwbFrameBit
+	}
+	startBytes:=u16Count*2
+	for _,_toc:=range tocs{
+		ft:=(_toc>>1)&0x0f
+		bitFrame:=frameBitSize[ft] //size of speech data
+		frame:=[]byte{(_toc<<2)&0x7c} //keep the same as octec-align mode
+
+		byteFrame:=bitFrame/8
+		remainBit:=bitFrame%8 //equal &0x07
+
+		if startBytes+byteFrame>pl{
+			logger.Errorln("amr bandwidth efficient mode frame exceeds its payload length")
+			return
+		}
+		//logger.Info("-------toc=",_toc,";ft=",ft)
+		if leftBits==0{ //aligned byte, perfect case
+			frame=append(frame,payload[startBytes:startBytes+byteFrame]...)
+			if remainBit!=0{ //last bits must be in the begin of byte
+				leftMoveBits:=8-remainBit
+				//remainFilter:=uint8(math.Pow(2,float64(remainBit))-1)<<leftMoveBits
+				remainFilter:=uint8(((1<<remainBit)-1)<<leftMoveBits)
+				remainData:=payload[startBytes+byteFrame-1]//end of payload
+				lastByte:=remainData&remainFilter
+				frame=append(frame,lastByte)
+				leftBits=8-remainBit //for next frame
+			}
+		}else{
+			cur:=startBytes-1 //because the byte includes toc and speech data or different frames
+			//logger.Info("-------cur=",cur,";totalBits=",bitFrame,";leftBits=",leftBits)
+			leftShift:=leftBits
+			rightShift:=8-leftShift
+			mask1 := uint8(1<<rightShift - 1)
+			mask2 := uint8(1<<leftShift - 1)
+			for bitFrame>0{
+				if bitFrame>=8{
+					highData:=(payload[cur] & mask2)<<(rightShift)
+					lowData:=(payload[cur+1]>>leftShift) & mask1
+					_data:=highData | lowData
+					frame=append(frame,_data)
+				}else{
+					if bitFrame!=remainBit{
+						logger.Errorln("amr bandwidth efficient frame is invalid.")
+						return
+					}
+					logger.Info("-------cur=",cur,";remainBits=",bitFrame,";leftBits=",leftBits)
+					if bitFrame<=leftBits{//last byte is in one byte
+						usedBits:=8-leftBits
+						_data:=(payload[cur]<<usedBits)&(0xff<<(8-bitFrame))
+						frame=append(frame,_data)
+						leftBits-=bitFrame
+					}else{//last byte crosses tow bytes
+						m1:=uint8(1<<bitFrame-1)
+						highData:=(payload[cur-1] & mask2)<<(rightShift)
+						lowData:=(payload[cur]>>leftBits)&(m1<<(8-leftBits-bitFrame))
+						_data:=highData | lowData
+						frame=append(frame,_data)
+						leftBits=8-(bitFrame-leftBits) //for next frame
+					}
+
+					//if leftBits+bitFrame>8{//one byte,bitFrame must be in the last byte
+					//	usedBits:=8-leftBits
+					//	_data:=(payload[cur]<<usedBits)&(0xff<<(8-bitFrame))
+					//	frame=append(frame,_data)
+					//	leftBits-=remainBit //for next frame
+					//}else{//last byte crosses two byte
+					//	m1:=uint8(1<<bitFrame-1)
+					//	highData:=(payload[cur-1] & mask2)<<(rightShift)
+					//	lowData:=(payload[cur]>>leftBits)&(m1<<(8-leftBits-bitFrame))
+					//	_data:=highData | lowData
+					//	frame=append(frame,_data)
+					//	leftBits=8-remainBit //for next frame
+					//}
+				}
+				bitFrame-=8
+				cur++ //update payload current
+			}//for
+		}//else
+		//logger.Info("-----------------frame size=",len(frame))
+		frames=append(frames,frame)
+		startBytes+=byteFrame//update startByte
+	}//for
+
+	return
+}
+
+
 
 func amrBandwidthEfficientModeFrameToRtpPayload(frames [][]byte, isAmrwb bool) (rtpPayload [][]byte) {
 	var hasExtraByte bool
