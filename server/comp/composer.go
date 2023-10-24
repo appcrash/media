@@ -6,6 +6,7 @@ import (
 	"github.com/appcrash/media/server/event"
 	"github.com/appcrash/media/server/utils"
 	"reflect"
+	"strings"
 )
 
 var (
@@ -73,7 +74,7 @@ func (c *Composer) GetNode(name string) SessionAware {
 
 func (c *Composer) ParseGraphDescription(desc string) (err error) {
 	gt := nmd.NewGraphTopology()
-	err = gt.ParseGraph(c.sessionId, desc)
+	err = gt.ParseGraph(c.sessionId, desc, filterGatewayNode)
 	c.gt = gt
 	return
 }
@@ -88,6 +89,13 @@ func (c *Composer) Connect(sender, receiver SessionAware, preferredOffer []Messa
 
 	lp, err = sender.StreamTo(receiverSession, receiverName, preferredOffer)
 	return
+}
+
+// currently, only allow gateway nodes to create loops in the graph, all you have to do is name the node with
+// "gateway" suffix. gateway node diffs from default filter node by acting as a message exchanger to outside,
+// so a node or a sub-graph can write message to gateway and read from it at the same time.
+func filterGatewayNode(nodeName string) bool {
+	return strings.HasSuffix(strings.ToLower(nodeName), "gateway")
 }
 
 func (c *Composer) preConnectNodes() error {

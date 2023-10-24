@@ -115,12 +115,38 @@ func newPrintHeaderNode() comp.SessionAware {
 	return p
 }
 
+type fakeGateway struct {
+	comp.SessionNode
+}
+
+func (n *fakeGateway) Accept() []comp.MessageType {
+	return []comp.MessageType{
+		comp.MtRawByte,
+	}
+}
+
+func (n *fakeGateway) Offer() []comp.MessageType {
+	return []comp.MessageType{comp.MtRawByte}
+}
+
+func (n *fakeGateway) handleRawByteEvent(evt *event.Event) {
+}
+
+func newFakeGatewayNode() comp.SessionAware {
+	n := &fakeGateway{}
+	n.Self = n
+	n.Trait, _ = comp.NodeTraitOfType("fake_gateway")
+	n.SetMessageHandler(comp.MtRawByte, comp.ChainSetHandler(n.handleRawByteEvent))
+	return n
+}
+
 func initComposer() {
 	comp.AddMessageTrait(comp.MT[customMessage](comp.MetaType[customMessageConvertable]()))
 	comp.SetMessageConvertable(mtCustom, comp.MtRawByte)
 	comp.RegisterNodeTrait(comp.NT[printNode]("print", newPrintNode))
 	comp.RegisterNodeTrait(comp.NT[printHeaderNode]("print_header", newPrintHeaderNode))
 	comp.RegisterNodeTrait(comp.NT[fireNode]("fire", newFireNode))
+	comp.RegisterNodeTrait(comp.NT[fakeGateway]("fake_gateway", newFakeGatewayNode))
 }
 
 func composeIt(session, gd string) (*comp.Composer, error) {
@@ -155,6 +181,14 @@ func TestComposerBasic(t *testing.T) {
 	d := <-outputC2
 	if bytes.Compare(d, testBytes) != 0 {
 		t.Fatal("send/recv message not equal for output2")
+	}
+}
+
+func TestLoop(t *testing.T) {
+	gd := `[input:chan_src] -> [abc:fake_gateway] ->[cba:fake_gateway] -> {[output1:chan_sink],[output2:chan_sink]};`
+	_, err := composeIt("test_session", gd)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

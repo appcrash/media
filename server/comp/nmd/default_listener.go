@@ -147,7 +147,6 @@ func (l *Listener) ExitEndpoint(c *EndpointContext) {
 
 	if len(l.endpointStack) == 2 {
 		// a link is found
-		// TODO: prematurely check circle link
 		from, to := l.endpointStack[0], l.endpointStack[1]
 		for _, f := range from.Nodes {
 			for _, t := range to.Nodes {
