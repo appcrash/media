@@ -15,7 +15,7 @@ func (sc *BuiltinCommandHandler) Execute(s *MediaSession, _ string, args string)
 	}
 	sessionId := s.GetSessionId().String()
 	gt := nmd.NewGraphTopology()
-	if err = gt.ParseGraph(sessionId, args); err != nil {
+	if err = gt.ParseGraph(sessionId, args, nil); err != nil {
 		return
 	}
 	ctrl := s.GetController()
@@ -56,7 +56,7 @@ func (sc *BuiltinCommandHandler) ExecuteWithNotify(s *MediaSession, args string,
 	}
 	sessionId := s.GetSessionId().String()
 	gt := nmd.NewGraphTopology()
-	if err := gt.ParseGraph(sessionId, args); err != nil {
+	if err := gt.ParseGraph(sessionId, args, nil); err != nil {
 		return
 	}
 	sinkAction := gt.GetSinkActions()
