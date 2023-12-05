@@ -194,6 +194,7 @@ struct RecordContext *record_init_context(const char *file_path,const char *para
     }
     if (avformat_write_header(ctx,NULL) < 0) {
         PERR("record_ctx: avformat_write_header failed");
+        goto cleanup;
     }
 
     record_ctx = av_malloc(sizeof(struct RecordContext));
