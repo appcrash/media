@@ -26,6 +26,7 @@ type MediaSession struct {
 	localIp, remoteIp     *net.IPAddr
 	localPort, remotePort uint16
 	rtpSession            *rtp.Session
+	rtpSessionLocalId	  uint32 //rtpSession id which update rtp params
 	instanceId            string // which instance created this session
 
 	avPayloadNumber uint8

@@ -44,6 +44,7 @@ message UpdateParam {
   string session_id = 1;
   string peer_ip = 2;
   uint32 peer_port = 3;
+  int32  payload_number = 4; //add by sean. disable when <0
 }
 
 message StartParam {
