@@ -45,6 +45,7 @@ struct TranscodeContext
 
     struct DataBuffer *out_buffer;
     uint8_t is_draining;
+
 };
 
 /*

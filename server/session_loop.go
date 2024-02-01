@@ -142,12 +142,13 @@ func (s *MediaSession) sendRtpLoop(ctx context.Context) {
 			// send all packets based on RtpPacketList
 			// for video, a frame can have more than one packet with same timestamp
 			packetList.Iterate(func(p *utils.RtpPacketList) {
-				payload, ptype, pts, mark := p.Payload, p.PayloadType, p.Pts, p.Marker
+				payload, _, pts, mark := p.Payload, p.PayloadType, p.Pts, p.Marker
 				if payload != nil {
 					packet := s.rtpSession.NewDataPacket(pts)
 					packet.SetMarker(mark)
 					packet.SetPayload(payload)
-					packet.SetPayloadType(ptype)
+					//maybe update pt by sip/sdp after create graph
+					packet.SetPayloadType(s.avPayloadNumber)
 					if _, err := s.rtpSession.WriteData(packet); err != nil {
 						s.watchdog.reportLoopError(sendLoop, err)
 					}

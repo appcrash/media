@@ -6,6 +6,8 @@ import (
 
 // shamelessly copied from ffmpeg(amr.c)  :)
 // packedSize = frameSize + 1byte(toc), used in octet-align mode and storage format
+//sean:ffmpeg rtpdec_amr.c give the array for speech data.there is different in wb and ft=10 (5)
+//but here is 1 (should be 6 ?) but it does not matter because ft=10 is not useful class
 var amrnbPackedSize = [16]int{
 	13, 14, 16, 18, 20, 21, 27, 32, 6 /*SID*/, 1, 1, 1, 1, 1, 1, 1,
 }
@@ -14,6 +16,9 @@ var amrwbPackedSize = [16]int{
 }
 
 // bandwidth efficient mode bits for each mode
+//sean:rfc4867 page32:
+//compare with octetAlign and bandwidth-efficient when ft=5 indicate array as follow for speech data
+//or consult from rfc3867 page8 table1 for speech data
 var amrnbFrameBit = [16]int{
 	95, 103, 118, 134, 148, 159, 204, 244, 39 /*SID*/, 0, 0, 0, 0, 0, 0, 0,
 }
@@ -50,7 +55,7 @@ func AmrFrameToRtpPayload(frames [][]byte, isAmrwb bool, isOctetAlignMode bool) 
 	if isOctetAlignMode {
 		return amrOctetModeFrameToRtpPayload(frames)
 	}
-	return amrBandwidthEfficientModeFrameToRtpPayload(frames, isAmrwb)
+	return amrBandwidthEfficientModeFrameToRtpPayloads(frames, isAmrwb)
 }
 
 // AmrRtpPayloadToFrame skip the header, count the frames in the index, then extract each frame data
@@ -360,7 +365,7 @@ func amrBandwidthEfficientModeRtpPayloadToFrames(payload []byte, isAmrwb bool) (
 						logger.Errorln("amr bandwidth efficient frame is invalid.")
 						return
 					}
-					logger.Info("-------cur=",cur,";remainBits=",bitFrame,";leftBits=",leftBits)
+					//logger.Info("-------cur=",cur,";remainBits=",bitFrame,";leftBits=",leftBits)
 					if bitFrame<=leftBits{//last byte is in one byte
 						usedBits:=8-leftBits
 						_data:=(payload[cur]<<usedBits)&(0xff<<(8-bitFrame))
@@ -400,7 +405,6 @@ func amrBandwidthEfficientModeRtpPayloadToFrames(payload []byte, isAmrwb bool) (
 
 	return
 }
-
 
 
 func amrBandwidthEfficientModeFrameToRtpPayload(frames [][]byte, isAmrwb bool) (rtpPayload [][]byte) {
@@ -453,3 +457,64 @@ func amrBandwidthEfficientModeFrameToRtpPayload(frames [][]byte, isAmrwb bool) (
 	}
 	return
 }
+
+
+//author:sean consult RFC4867+3GPP TS 26.201
+//input frames:toc+speech_data with octetAlign arrays.output:cmr+toc+speech_data for bandwidth-efficient
+func amrBandwidthEfficientModeFrameToRtpPayloads(frames [][]byte, isAmrwb bool) (rtpPayload [][]byte){
+	frameBitSize := amrnbFrameBit
+	if isAmrwb {
+		frameBitSize = amrwbFrameBit
+	}
+
+	for _,frm:= range frames{
+		mode := (frm[0] >> 3) & 0x0f
+		frmBitSize := frameBitSize[mode]
+		totalBit := frmBitSize + 4 + 6 /* extra CMR and TOC */
+		if totalBit<=10{ //speech_data=nullptr //consider especial situation silence voice
+			logger.Warnln("The data of frame is invalid this time and will ignore")
+			continue
+		}
+
+		needBytes:=totalBit/8
+		extraBits:=totalBit%8
+
+		if extraBits>0{
+			needBytes++ //for extra data
+		}
+
+		//4+6=8+2 left:2  right:6
+		rp:=make([]byte,needBytes)
+		cmrAndToc := 0xf0 | ((mode >> 1) & 0x07) // CMR=15, F-bit=0, 3-bit of toc
+		//cmrAndToc := (mode<<4)  | ((mode >> 1) & 0x07) // CMR=ft, F-bit=0, 3-bit of toc
+		remainToc := ((mode & 0x01) << 7) | 0x40 // 1-bit of toc, Q-bit=1
+		copy(rp[:2], []byte{cmrAndToc, remainToc})
+		rightShift := 2 /* (4+6) mod 8 */
+		leftShift := 6
+		leftPart := rp[1] & 0xc0 //
+
+		//load speech_data
+		for i:=1;i<len(frm);i++{
+			d:=frm[i]
+			rp[i]=leftPart | (d>>rightShift)
+			leftPart=(d&0x03) << leftShift
+		}
+
+		//handle last byte of frm
+		pad:=(len(frm)-1)*8-frmBitSize
+		if pad<2{ //extra byte to hold leftPart but less than two bits
+			rp[needBytes-1]=leftPart & 0xc0
+		}
+
+		rtpPayload = append(rtpPayload, rp)
+
+	}//for frames
+
+
+	return
+}
+
+
+
+
+

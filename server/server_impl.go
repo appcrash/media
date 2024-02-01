@@ -111,6 +111,19 @@ func (srv *MediaServer) updateSession(param *rpc.UpdateParam) (err error) {
 		logger.Infof("update session(%v) with param:%v", sessionId, param)
 		session.remoteIp = remoteIp
 		session.remotePort = uint16(param.GetPeerPort())
+
+		//update rtp params when necessary
+		pt:=param.GetPayloadNumber()
+		if pt>0{ // ignore pt==0(PCMU) static payload type/default value
+			_pt:=uint8(pt)
+			if _pt!=session.avPayloadNumber{ //whether update
+				logger.Infof("update payload number from previous=%v,to current=%v",session.avPayloadNumber,pt)
+				session.avPayloadNumber=_pt
+				//session.UpdateRtpParams()
+			}
+
+		}
+
 		srv.invokeSessionListener(session, sessionStatusUpdated)
 	} else {
 		err = errors.New("session not exist")

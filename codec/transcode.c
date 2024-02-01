@@ -314,7 +314,6 @@ struct TranscodeContext *transcode_init_context(const char *params_string,int le
     trans_ctx->fifo_queue = fifo;
     trans_ctx->out_buffer = data_buff;
     trans_ctx->is_draining = 0;
-
     if (init_transcode_filter_graph(trans_ctx,filter_graph_desc) < 0) {
         goto error;
     }
@@ -396,6 +395,11 @@ void transcode_free(struct TranscodeContext *trans_ctx)
     if (!trans_ctx) {
         PERR("free NULL transcode context");
         return;
+    }
+    if(trans_ctx->is_draining==0){//release encoder queue
+        int r;
+        transcode_iterate(trans_ctx,NULL,0,&r);
+        trans_ctx->is_draining=1;
     }
     if (trans_ctx->decode_ctx) {
         avcodec_free_context(&trans_ctx->decode_ctx);
