@@ -69,6 +69,7 @@ func (s *MediaSession) receiveRtpLoop(ctx context.Context) {
 		return
 	}
 
+	s.watchdog.reportLoopInfo(receiveLoop)
 	rtpSession := s.rtpSession
 	dataReceiver := rtpSession.CreateDataReceiveChan()
 	cancelC := ctx.Done()
