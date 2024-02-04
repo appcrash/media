@@ -26,7 +26,7 @@ type MediaSession struct {
 	localIp, remoteIp     *net.IPAddr
 	localPort, remotePort uint16
 	rtpSession            *rtp.Session
-	rtpSessionLocalId	  uint32 //rtpSession id which update rtp params
+	rtpSessionLocalId     uint32 //rtpSession id which update rtp params
 	instanceId            string // which instance created this session
 
 	avPayloadNumber uint8
@@ -153,6 +153,10 @@ func (s *MediaSession) Stop() {
 		}
 		if nbDone != 3 {
 			logger.Errorf("session(%v) loops don't stop normally, finished number:%v", s.sessionId, nbDone)
+		}
+		if s.doneC != nil {
+			close(s.doneC)
+			s.doneC = nil
 		}
 	}
 

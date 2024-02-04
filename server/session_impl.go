@@ -181,7 +181,7 @@ func (s *MediaSession) activate() (err error) {
 	}
 	if profile := profileOfCodec(s.avPayloadCodec); profile != "" {
 		s.rtpSession.SsrcStreamOutForIndex(strLocalIdx).SetProfile(profile, byte(s.avPayloadNumber))
-		s.rtpSessionLocalId=strLocalIdx //add by sean
+		s.rtpSessionLocalId = strLocalIdx //add by sean
 	} else {
 		return errors.New("unsupported rtp payload profile")
 	}
@@ -190,23 +190,21 @@ func (s *MediaSession) activate() (err error) {
 }
 
 //author:sean. purpose:update rtp params.but does not use
-func (s* MediaSession) UpdateRtpParams() (err error){
-	if s.rtpSession==nil{
+func (s *MediaSession) UpdateRtpParams() (err error) {
+	if s.rtpSession == nil {
 		logger.Errorln("Please initialize mediaSession before update payload")
 	}
 
 	if profile := profileOfCodec(s.avPayloadCodec); profile != "" {
-		ssrcStream:=s.rtpSession.SsrcStreamOutForIndex(s.rtpSessionLocalId)
+		ssrcStream := s.rtpSession.SsrcStreamOutForIndex(s.rtpSessionLocalId)
 		ssrcStream.SetProfile(profile, byte(s.avPayloadNumber))
-		logger.Infof("update payload_number.current=%v",ssrcStream.PayloadTypeNumber())
+		logger.Infof("update payload_number.current=%v", ssrcStream.PayloadTypeNumber())
 	} else {
 		return errors.New("unsupported rtp payload profile")
 	}
 
 	return nil
 }
-
-
 
 // release all resources this session occupied
 func (s *MediaSession) finalize() {
@@ -215,6 +213,7 @@ func (s *MediaSession) finalize() {
 	}
 	if s.rtpSession != nil {
 		s.rtpSession.CloseSession()
+		s.status = sessionStatusStopped
 	}
 	if s.localPort != 0 {
 		s.server.reclaimRtpPort(s.localPort)

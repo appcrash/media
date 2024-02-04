@@ -263,6 +263,11 @@ func (srv *MediaServer) SystemChannel(stream rpc.MediaApi_SystemChannelServer) e
 			if err != nil {
 				break
 			}
+			_, ok := <-fromC
+			if !ok {
+				// Channel is closed
+				break
+			}
 			select {
 			case fromC <- in:
 			default:
