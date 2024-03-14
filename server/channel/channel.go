@@ -189,6 +189,7 @@ func (sc *Channel) startReceiveLoop(instanceId string) {
 				logger.Errorf("server channel for instance(%v) keep-alive times out, close it", instanceId)
 				sc.mutex.Lock()
 				is.close()
+				delete(sc.instanceStateMap, instanceId)
 				sc.mutex.Unlock()
 				return
 			}
