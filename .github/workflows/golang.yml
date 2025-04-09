@@ -19,6 +19,7 @@ jobs:
           go-version: '1.24.2'
 
       - name: Dependency
+      - run: |
         apt-get update -qq && \
         apt-get install -y --no-install-recommends \
         ffmpeg \
