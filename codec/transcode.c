@@ -164,13 +164,10 @@ static int encode_append(struct TranscodeContext *trans_ctx,AVFrame *frame)
 {
     struct DataBuffer *outbuff = trans_ctx->out_buffer;
     AVCodecContext *enc_ctx = trans_ctx->encode_ctx;
-    AVPacket pkt;
+    AVPacket *pkt = NULL;
     int ret;
 
-    av_init_packet(&pkt);
-    pkt.buf = NULL;
-    pkt.data = NULL;
-    pkt.size = 0;
+    pkt = av_packet_alloc();
     /*
      * got all samples, start encoding until EOF or EAGAIN is met,
      * collect all encoded data
@@ -182,7 +179,7 @@ static int encode_append(struct TranscodeContext *trans_ctx,AVFrame *frame)
     }
 
     while(1) {
-        ret = avcodec_receive_packet(enc_ctx, &pkt);
+        ret = avcodec_receive_packet(enc_ctx, pkt);
         if (AVERROR(EAGAIN) == ret) {
             break;
         } else if (AVERROR_EOF == ret) {
@@ -193,19 +190,15 @@ static int encode_append(struct TranscodeContext *trans_ctx,AVFrame *frame)
             goto error;
         } else {
             //printf("encoded packet size is %d\n",pkt.size);
-            buffer_append(outbuff,(const char*)pkt.data,pkt.size);
-            av_packet_unref(&pkt);
+            buffer_append(outbuff,(const char*)pkt->data,pkt->size);
+            av_packet_unref(pkt);
         }
     }
 
-    if (pkt.buf) {
-        av_packet_unref(&pkt);
-    }
+    av_packet_free(&pkt);
     return 0;
 error:
-    if (pkt.buf) {
-        av_packet_unref(&pkt);
-    }
+    av_packet_free(&pkt);
     return -1;
 }
 
@@ -358,7 +351,6 @@ void transcode_iterate(struct TranscodeContext *trans_ctx,char *compressed_data,
         *reason = -1;
         return;
     }
-    av_init_packet(packet);
     packet->data = (uint8_t*)compressed_data;
     packet->size = compressed_size;
 

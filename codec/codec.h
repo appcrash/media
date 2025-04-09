@@ -74,7 +74,7 @@ struct RecordContext
 
 
 
-
+#define POUT(format, ...) fprintf(stdout,"(%s:%d)#%s: "#format"\n",__FILE__,__LINE__,__FUNCTION__,## __VA_ARGS__)
 #define PERR(format, ...) fprintf(stderr,"(%s:%d)#%s: "#format"\n",__FILE__,__LINE__,__FUNCTION__,## __VA_ARGS__)
 
 /*

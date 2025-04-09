@@ -14,9 +14,11 @@ import (
 	"unsafe"
 )
 
-type (
-	RecordContext = C.struct_RecordContext
-)
+// NOTE: set PKG_CONFIG_PATH env variable to use custom ffmpeg build
+
+type RecordContext struct {
+	cobj *C.struct_RecordContext
+}
 
 func GetPayloadFromFile(fp string) []byte {
 	cfp := C.CString(fp)
@@ -55,7 +57,7 @@ func NewRecordContext(fileName, params string) *RecordContext {
 	defer C.free(unsafe.Pointer(fp))
 	ctx := C.record_init_context(fp, p)
 	if ctx != nil {
-		return (*RecordContext)(ctx)
+		return &RecordContext{ctx}
 	} else {
 		return nil
 	}
@@ -78,10 +80,10 @@ func (ctx *RecordContext) Iterate(frames [][]byte) {
 	if len(frameDelimits) == 0 {
 		return
 	}
-	C.record_iterate(ctx, (*C.char)(unsafe.Pointer(&data[0])),
+	C.record_iterate(ctx.cobj, (*C.char)(unsafe.Pointer(&data[0])),
 		(*C.int)(unsafe.Pointer(&frameDelimits[0])), C.int(len(frameDelimits)))
 }
 
 func (ctx *RecordContext) Free() {
-	C.record_free(ctx)
+	C.record_free(ctx.cobj)
 }

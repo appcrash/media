@@ -82,10 +82,9 @@ int write_media_file(char *payload,int length,const char *file_path,int codec_id
 {
     AVFormatContext *ctx = NULL;
     AVStream *ostream = NULL;
-    AVPacket pkt;
+    AVPacket *pkt = NULL;
     int ret;
 
-    av_init_packet(&pkt);
     ret = avformat_alloc_output_context2(&ctx,NULL,NULL,file_path);
     if (ret < 0) {
         PERR("avformat_alloc_output_context2 failed");
@@ -123,18 +122,20 @@ int write_media_file(char *payload,int length,const char *file_path,int codec_id
         goto error;
     }
 
-    pkt.data = (uint8_t*)payload;
-    pkt.size = length;
-    pkt.stream_index = 0;
-    pkt.duration = duration;
+    pkt = av_packet_alloc();
+    pkt->data = (uint8_t*)payload;
+    pkt->size = length;
+    pkt->stream_index = 0;
+    pkt->duration = duration;
 
-    ret = av_write_frame(ctx, &pkt);
+    ret = av_write_frame(ctx, pkt);
     if (ret < 0) {
         PERR("av_write_frame failed");
         goto error;
     }
     av_write_trailer(ctx);
     avformat_free_context(ctx);
+    av_packet_free(&pkt);
 
     return 0;
 
@@ -142,6 +143,7 @@ error:
     if (ctx) {
         avformat_free_context(ctx);
     }
+    av_packet_free(&pkt);
     return -1;
 }
 
@@ -181,9 +183,9 @@ struct RecordContext *record_init_context(const char *file_path,const char *para
         }
     }
 
-    printf("record_ctx: channels=%d\n",cp->channels);
-    printf("record_ctx: sample_rate=%d\n",cp->sample_rate);
-    printf("record_ctx: codec_id=%d\n",cp->codec_id);
+    POUT("record_ctx: channels=%d\n",cp->channels);
+    POUT("record_ctx: sample_rate=%d\n",cp->sample_rate);
+    POUT("record_ctx: codec_id=%d\n",cp->codec_id);
     if (!(ctx->oformat->flags & AVFMT_NOFILE)) {
         //printf("record_ctx:oformat flags is %x\n",ctx->oformat->flags);
         ret = avio_open(&ctx->pb, file_path, AVIO_FLAG_WRITE);
@@ -193,7 +195,7 @@ struct RecordContext *record_init_context(const char *file_path,const char *para
         }
     }
     if (avformat_write_header(ctx,NULL) < 0) {
-        PERR("record_ctx: avformat_write_header failed");
+        PERR("record_ctx: avformat_write_header failed for file %s",file_path);
         goto cleanup;
     }
 
@@ -212,27 +214,28 @@ done:
 void record_iterate(struct RecordContext *ctx,const char *buff,int32_t frame_delimits[],int nb_frame)
 {
     int i,frame_start,frame_len;
-    AVPacket pkt;
+    AVPacket *pkt = NULL;
 
     if (nb_frame <= 0) {
         return;
     }
-    av_init_packet(&pkt);
-    pkt.stream_index = 0;
+    pkt = av_packet_alloc();
+    pkt->stream_index = 0;
     frame_start = 0;
     for (i = 0; i < nb_frame; i++) {
         frame_len = frame_delimits[i] - frame_start;
-        av_init_packet(&pkt);
-        pkt.data = (uint8_t*)&buff[frame_start];
-        pkt.size = frame_len;
+        av_packet_unref(pkt);
+        pkt->data = (uint8_t*)&buff[frame_start];
+        pkt->size = frame_len;
         frame_start = frame_delimits[i];
-        if (av_write_frame(ctx->ctx, &pkt) < 0) {
+        if (av_write_frame(ctx->ctx, pkt) < 0) {
             PERR("av_write_frame failed");
             goto error;
         }
     }
 
 error:
+    av_packet_free(&pkt);
     return;
 }
 
