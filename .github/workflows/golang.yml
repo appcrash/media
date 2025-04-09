@@ -27,7 +27,7 @@ jobs:
           libx264-dev libx265-dev libfdk-aac-dev
 
       - name: Test
-        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./codec ./server/event ./server/comp/...
+        run: CGO_ENABLED=1 go test -v -race -coverprofile=coverage.txt -covermode=atomic ./codec ./server/event ./server/comp/...
 
       - uses: codecov/codecov-action@v1.5.2
         with:
