@@ -23,7 +23,7 @@ jobs:
           apt-get update -qq && \
           apt-get install -y --no-install-recommends \
           ca-certificates \
-          gcc \
+          build-essential \
           ffmpeg \
           libavcodec-dev libavformat-dev libavutil-dev libswresample-dev libswscale-dev libavcodec-extra \
           libx264-dev libx265-dev libfdk-aac-dev
