@@ -11,7 +11,7 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
-    container: ubuntu:24.04
+    container: appcrash/ffmpeg:rhel8
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
