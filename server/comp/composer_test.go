@@ -222,7 +222,7 @@ func TestChanSrcSink(t *testing.T) {
 	}
 }
 
-func ExampleMessagePostProcessor() {
+func Example_messagePostProcessor() {
 	gd := `[input:chan_src trackable=true] -> [pubsub] -> [p1:print_header];`
 	c, err := composeIt("test_session", gd)
 	if err != nil {
@@ -237,7 +237,7 @@ func ExampleMessagePostProcessor() {
 	// p1 print origin input
 }
 
-func ExampleComposerPubSub() {
+func Example_composerPubSub() {
 	gd := `[input:chan_src] -> [pubsub] -> {[p1:print], [ps:pubsub]};
           [ps] -> {[p2:print], [p3:print],[output:chan_sink]}`
 	c, err := composeIt("test_session", gd)
@@ -260,7 +260,7 @@ func ExampleComposerPubSub() {
 	// channel got foobar
 }
 
-func ExampleComposerMessageConvert() {
+func Example_composerMessageConvert() {
 	gd := `[fire] -> [pubsub] -> [p1:print];[fire1:fire]`
 	c, err := composeIt("test_session", gd)
 	if err != nil {
@@ -283,7 +283,7 @@ func ExampleComposerMessageConvert() {
 	// p1 print cast_action
 }
 
-func ExampleComposerBuiltInCommand() {
+func Example_composerBuiltInCommand() {
 	gd1 := `[fire] -> [pubsub] -> [p1:print];`
 	gd2 := `[src:chan_src] -> [pubsub] -> {[p2:print],[output:chan_sink]};`
 	c1 := comp.NewSessionComposer("session1", "")
