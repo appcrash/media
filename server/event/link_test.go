@@ -6,10 +6,9 @@ import (
 	"math/rand"
 	"strconv"
 	"sync"
-	"time"
 )
 
-func ExampleSendEvent() {
+func Example_sendEvent() {
 	done := make(chan int)
 	node1 := &testNode{scope: "scope1", name: "node1",
 		onEvent: func(t *testNode, evt *event.Event) {
@@ -48,7 +47,7 @@ func ExampleSendEvent() {
 	// duplicated link scope1:node1
 }
 
-func ExampleLinkDownNonExistent() {
+func Example_linkDownNonExistent() {
 	const loopNum = 5
 	wg := &sync.WaitGroup{}
 	wg.Add(loopNum)
@@ -91,7 +90,7 @@ func ExampleLinkDownNonExistent() {
 	// linkdown: non-existent link
 }
 
-func ExampleLinkDuplicated() {
+func Example_linkDuplicated() {
 	done := make(chan int)
 	downnode := &testNode{scope: "downscope", name: "downnode"}
 	baseNode := &testNode{scope: "ask_linkdown", name: "down_same_link",
@@ -126,8 +125,7 @@ func ExampleLinkDuplicated() {
 	// linkdown: link already down
 }
 
-func ExampleMoreLink() {
-	rand.Seed(time.Now().UTC().UnixNano())
+func Example_moreLink() {
 	done := make(chan int)
 	n1 := &testNode{scope: "target", name: "node1"}
 	n2 := &testNode{scope: "target", name: "node2"}
@@ -175,8 +173,7 @@ func ExampleMoreLink() {
 
 // test when receiving node exit, all senders would fail to deliver events
 // and get link-down notification, the receiving node also gets OnExit callback
-func ExampleReceiverExit() {
-	rand.Seed(time.Now().UTC().UnixNano())
+func Example_receiverExit() {
 	wg := &sync.WaitGroup{}
 	wg.Add(5) // 5 = aim x 2 + shotdown x 2 + bombExit x 1
 	s1 := testNode{scope: "shoot", name: "shooter1",

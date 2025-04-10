@@ -17,8 +17,7 @@ type crashNode struct {
 	i, n int
 }
 
-func ExampleExceptionNodeOnEvent() {
-	rand.Seed(time.Now().UTC().UnixNano())
+func Example_exceptionNodeOnEvent() {
 	wg := &sync.WaitGroup{}
 	wg.Add(6)
 	excpNode1 := testNode{scope: "exception", name: "node1",
@@ -79,7 +78,7 @@ func ExampleExceptionNodeOnEvent() {
 	// node2 exited
 }
 
-func ExampleExceptionNodeOnControl() {
+func Example_exceptionNodeOnControl() {
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
 	panicNode := &testNode{scope: "panic", name: "panic",
@@ -249,7 +248,6 @@ func TestSyncEvent(t *testing.T) {
 }
 
 func TestOnExit(t *testing.T) {
-	rand.Seed(time.Now().UTC().UnixNano())
 	n := 50000 + rand.Intn(50000)
 	var count int
 	done := make(chan int)
@@ -280,7 +278,6 @@ func TestOnExit(t *testing.T) {
 }
 
 func TestOnExitUnderConcurrentDeliver(t *testing.T) {
-	rand.Seed(time.Now().UTC().UnixNano())
 	concurrent := 500
 	done := make(chan int)
 	wg := &sync.WaitGroup{}
