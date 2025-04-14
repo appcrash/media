@@ -36,6 +36,7 @@ type messageTypeInfo struct {
 	structType  types.Object
 	spec        *ast.TypeSpec
 	convertedTo []*messageTypeInfo // destination message types this type can convert to
+	inPackage   *packages.Package
 }
 
 func (i *messageTypeInfo) isGeneric() bool {
@@ -80,11 +81,10 @@ func (i *messageTypeInfo) fullTypeName() string {
 
 func (i *messageTypeInfo) enumName() string {
 	if currentGeneratingPackage.PkgPath != i.packagePath() {
-		return "comp." + msgEnumPrefix + i.baseName()
+		return i.packageName() + "." + msgEnumPrefix + i.baseName()
 	} else {
 		return msgEnumPrefix + i.baseName()
 	}
-
 }
 
 func (i *messageTypeInfo) convertInterfaceName() string {
@@ -99,23 +99,11 @@ type messageTraitInterfaceInfo struct {
 	id            uint16
 	objectType    types.Object
 	interfaceType *types.Interface
+	inPackage     *packages.Package
 }
 
 func (i *messageTraitInterfaceInfo) enumName() string {
 	return msgTraitEnumPrefix + i.objectType.Name()
-}
-
-func generateMessageTrait() {
-	if len(userPackage) > 0 {
-		for _, p := range userPackage {
-			currentGeneratingPackage = p
-			inspectPackageForMessage(p)
-		}
-	} else {
-		currentGeneratingPackage = rootPackage
-		inspectPackageForMessage(rootPackage)
-	}
-	msgEmitAll()
 }
 
 func inspectPackageForMessage(pkg *packages.Package) {
@@ -131,6 +119,7 @@ func msgPassFindImplementer(pkg *packages.Package) {
 			id:         msgIdGen,
 			structType: object,
 			spec:       ts,
+			inPackage:  pkg,
 		})
 		msgIdGen++
 	})
@@ -159,6 +148,7 @@ func msgPassFindTraitInterface(pkg *packages.Package) {
 					id:            msgTraitIdGen,
 					objectType:    objectType,
 					interfaceType: inf,
+					inPackage:     pkg,
 				}
 				msgTraitInfInfos = append(msgTraitInfInfos, info)
 				msgTraitIdGen++

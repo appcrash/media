@@ -161,6 +161,7 @@ func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error)
 // ComposeNodes create node instances by type, add them to graph, and link them
 func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 	var nodeIds []*Id
+	var ok bool
 	nodeDefs := c.gt.GetSortedNodeDefs()
 
 	defer func() {
@@ -186,8 +187,16 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 		returnValues := utils.AopCall(sn, nil, initializingNodeType, "Init")
 		for _, rv := range returnValues {
 			// any Init error would prevent composing
-			if !rv[0].IsNil() {
-				logger.Errorf("node %v init failed with error: %v", sn, rv[0])
+			initRetValue := rv[0]
+			if !initRetValue.IsNil() {
+				if initRetValue.IsValid() && initRetValue.CanInterface() {
+					if err, ok = initRetValue.Interface().(error); !ok {
+						err = fmt.Errorf("node init error: %v", initRetValue)
+					}
+				} else {
+					err = fmt.Errorf("node init problem: %v", initRetValue)
+				}
+				logger.Errorf("node %v init failed with error: %v", sn, initRetValue)
 				return
 			}
 		}

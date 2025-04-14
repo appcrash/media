@@ -7,6 +7,7 @@ import (
 	"go/format"
 	"io"
 	"os"
+	"path/filepath"
 	"text/template"
 )
 
@@ -64,20 +65,36 @@ func (m *{{.Name}}) AsEvent() *event.Event {
 var emitMtis []*messageTypeInfo
 var emitMriis []*messageTraitInterfaceInfo
 
-func msgEmitAll() {
+func msgEmitOnePackage() {
 	if isGenForUser() {
-		emitMtis = userMessageTypeInfo
-		emitMriis = msgUserTraitInfInfos
+		emitMtis = nil
+		emitMriis = nil
+		// filter out the message types that are not in the current package
+		for _, m := range userMessageTypeInfo {
+			if m.inPackage == currentGeneratingPackage {
+				emitMtis = append(emitMtis, m)
+			}
+		}
+		for _, m := range msgUserTraitInfInfos {
+			if m.inPackage == currentGeneratingPackage {
+				emitMriis = append(emitMriis, m)
+			}
+		}
 	} else {
 		emitMtis = concreteMessageTypeInfo
 		emitMriis = msgTraitInfInfos
 	}
 	if len(emitMtis) == 0 {
-		panic("no concrete message to generate")
+		log.Debugf("no concrete message to generate for package %v", currentGeneratingPackage.PkgPath)
+		return
 	}
 
-	file, err := os.Create(genFile)
-	defer func() { file.Close() }()
+	destFile := filepath.Join(currentGeneratingPackage.Dir, genFile)
+	file, err := os.Create(destFile)
+	defer func() {
+		file.Close()
+		log.Infof("generated file is written to  %v", destFile)
+	}()
 	if err != nil {
 		panic(err)
 	}
@@ -86,6 +103,7 @@ func msgEmitAll() {
 	defer func() {
 		w.Flush()
 		if formatted, err1 := format.Source(b.Bytes()); err1 != nil {
+			file.Write(b.Bytes())
 			panic(err1)
 		} else {
 			file.Write(formatted)
@@ -107,13 +125,13 @@ func msgEmitAll() {
 }
 
 func msgEmitPackage(w io.Writer) {
-	packageName := workingPackageName
+	packageName := currentGeneratingPackage.Name
 	if !isGenForUser() {
 		// generate for media project itself
 		packageName = "comp"
 	}
 	tempPackage.Execute(w, templateName{packageName})
-	if packageName != "comp" {
+	if isGenForUser() {
 		// user package needs import the root package
 		tempImport.Execute(w, struct{ Import string }{rootPackageName})
 	}
@@ -214,7 +232,7 @@ func msgEmitConvertableMappingFunc(w *bufio.Writer) {
 
 func msgEmitInitFunc(w *bufio.Writer) {
 	w.Write([]byte(`
-func initMessage() {
+func InitMessage() {
     initMessageTraits()
     initMessageConversion()
 }`))

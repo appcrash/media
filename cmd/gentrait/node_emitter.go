@@ -6,6 +6,7 @@ import (
 	"go/format"
 	"io"
 	"os"
+	"path/filepath"
 	"text/template"
 )
 
@@ -54,22 +55,34 @@ return node
 
 var emitNtis []*nodeTypeInfo
 
-func nodeEmitAll() {
+func nodeEmitOnePackage() {
 	enableFormat := true
 	if isGenForUser() {
-		emitNtis = userNodeTypeInfo
+		emitNtis = nil
+		// filter out the node types that are not in the current package
+		for _, p := range userNodeTypeInfo {
+			if p.inPackage == currentGeneratingPackage {
+				emitNtis = append(emitNtis, p)
+			}
+		}
 	} else {
 		emitNtis = concreteNodeTypeInfo
 	}
 	if len(emitNtis) == 0 {
-		panic("no concrete node to generate")
+		log.Debugf("no concrete node to generate for package %v", currentGeneratingPackage.PkgPath)
+		return
 	}
 
-	file, err := os.Create(genFile)
+	destFile := filepath.Join(currentGeneratingPackage.Dir, genFile)
+	file, err := os.Create(destFile)
+
 	if err != nil {
 		panic(err)
 	}
-	defer func() { file.Close() }()
+	defer func() {
+		file.Close()
+		log.Infof("generated file is written to %v", destFile)
+	}()
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -90,7 +103,7 @@ func nodeEmitAll() {
 	}()
 
 	nodeEmitPackage(w)
-
+	nodeEmitImport(w)
 	nodeEmitTraitDefs(w)
 	nodeEmitMessageHandler(w)
 	nodeEmitFactoryFunc(w)
@@ -98,22 +111,47 @@ func nodeEmitAll() {
 }
 
 func nodeEmitPackage(w io.Writer) {
-	packageName := workingPackageName
+	packageName := currentGeneratingPackage.Name
 	if !isGenForUser() {
 		// generate for media project itself
 		packageName = "comp"
 	}
 	tempPackage.Execute(w, templateName{packageName})
-	if packageName != "comp" {
-		// user package needs import the root package
-		tempImport.Execute(w, struct{ Import string }{rootPackageName})
+}
+
+// import dependent message packages
+func nodeEmitImport(w io.Writer) {
+	var totalAcceptMessageNumber int
+	importMsgPkg := make(map[string]struct{})
+	if isGenForUser() {
+		importMsgPkg[rootPackageName] = struct{}{}
 	}
-	tempImport.Execute(w, struct{ Import string }{"github.com/appcrash/media/server/event"})
+
+	for _, ni := range emitNtis {
+		for _, mi := range ni.acceptMessageTypes {
+			msgPkgPath := mi.packagePath()
+			totalAcceptMessageNumber++
+			if _, exists := importMsgPkg[msgPkgPath]; !exists {
+				if msgPkgPath != currentGeneratingPackage.PkgPath {
+					// only import message package if it is not in the current package
+					importMsgPkg[msgPkgPath] = struct{}{}
+				}
+
+			}
+		}
+	}
+	if totalAcceptMessageNumber > 0 {
+		// if the package don't have any message handle, event package should not be imported
+		importMsgPkg["github.com/appcrash/media/server/event"] = struct{}{}
+	}
+	for pkg, _ := range importMsgPkg {
+		tempImport.Execute(w, struct{ Import string }{pkg})
+	}
 }
 
 func nodeEmitInitFunc(w *bufio.Writer) {
 	w.Write([]byte(`
-func initNode() {
+func InitNode() {
 initNodeTraits()
 }`))
 }

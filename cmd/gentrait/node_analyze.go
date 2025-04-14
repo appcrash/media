@@ -32,6 +32,7 @@ type nodeTypeInfo struct {
 	acceptMessageTypes []*messageTypeInfo
 	acceptOverridden   bool
 	handlers           []string
+	inPackage          *packages.Package
 }
 
 func (i *nodeTypeInfo) isGeneric() bool {
@@ -75,19 +76,6 @@ type nodeTraitInterfaceInfo struct {
 
 func (i *nodeTraitInterfaceInfo) enumName() string {
 	return nodeTraitEnumPrefix + i.objectType.Name()
-}
-
-func generateNodeTrait() {
-	if len(userPackage) > 0 {
-		for _, p := range userPackage {
-			currentGeneratingPackage = p
-			inspectPackageForNode(p)
-		}
-	} else {
-		currentGeneratingPackage = rootPackage
-		inspectPackageForNode(rootPackage)
-	}
-	nodeEmitAll()
 }
 
 func getAnalyzeNodeInfos() []*nodeTypeInfo {
@@ -150,7 +138,7 @@ func nodePassFindMessageHandler(p *packages.Package) {
 			case *ast.StarExpr:
 				// paramExpr value type must be one-level ptr type
 				switch typedExpr := expr.X.(type) {
-				case *ast.SelectorExpr: // in case of comp.X
+				case *ast.SelectorExpr: // in case of comp.X ...
 					ident = typedExpr.Sel
 				case *ast.Ident:
 					ident = typedExpr
@@ -164,7 +152,11 @@ func nodePassFindMessageHandler(p *packages.Package) {
 					if types.Implements(ptrType, messageInterfaceType) {
 						// partially initialized msgTypeInfo, only use it to get kinds of message names
 						msgTypeInfo := &messageTypeInfo{structType: paramType}
-						// TODO: check duplicated handler (with same type of message)
+						for _, t := range info.acceptMessageTypes {
+							if types.Identical(t.structType.Type(), msgTypeInfo.structType.Type()) {
+								panic("==> node " + info.typeName() + " has duplicated message handler for " + t.typeName())
+							}
+						}
 						//log.Debugf("%v --- %v", info.typeName(), paramType)
 						info.acceptMessageTypes = append(info.acceptMessageTypes, msgTypeInfo)
 						info.handlers = append(info.handlers, d.Name.Name)
@@ -196,6 +188,7 @@ func nodePassFindImplementer(p *packages.Package) {
 			id:         nodeIdGen,
 			structType: object,
 			spec:       ts,
+			inPackage:  p,
 		})
 		nodeIdGen++
 	})

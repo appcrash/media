@@ -7,6 +7,7 @@ import (
 	"go/types"
 	"golang.org/x/tools/go/packages"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -47,10 +48,17 @@ func initPackage() {
 	loadConfig.Mode = loadMode
 	loadConfig.Fset = token.NewFileSet()
 
-	// delete previously generated file so that package loader wouldn't load it
-	os.Remove(genFile)
+	// delete previously generated file recursively so that package loader wouldn't load it
+	filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
+		if !d.IsDir() && d.Name() == genFile {
+			log.Debugf("==> remove previously generated file %v", path)
+			os.Remove(path)
+		}
+		return nil
+	})
 
-	pkgs, err := packages.Load(loadConfig, rootPackageName, ".")
+	// load packages and sub-packages from the current working directory
+	pkgs, err := packages.Load(loadConfig, rootPackageName, "./...")
 	log.Debugf("==> total loaded packages length is %v", len(pkgs))
 	if err != nil {
 		panic(err)
@@ -65,6 +73,11 @@ func initPackage() {
 				messageTypeInterfaceType = scope.Lookup("MessageType").Type().(*types.Named)
 				sessionAwareInterfaceType = scope.Lookup("SessionAware").Type().Underlying().(*types.Interface)
 				eventToMessageFunc = scope.Lookup("EventToMessage").(*types.Func)
+
+				// special case: if we are developing the root package itself, then we need to treat it as user package
+				if genForRoot {
+					userPackage = append(userPackage, p)
+				}
 			} else {
 				userPackage = append(userPackage, p)
 			}
@@ -130,7 +143,7 @@ func findConstInPackage[T any](p *packages.Package, constName string) (returnVal
 }
 
 func isGenForUser() bool {
-	return currentGeneratingPackage.PkgPath != rootPackageName
+	return !genForRoot && currentGeneratingPackage.PkgPath != rootPackageName
 }
 
 func _V(name string) string {
@@ -201,6 +214,7 @@ func findClassImplements(pkg *packages.Package, implemented *types.Interface, f 
 				if ts, ok1 := spec.(*ast.TypeSpec); ok1 {
 					var isStruct bool
 					structType, _ := pkg.TypesInfo.Defs[ts.Name]
+					//log.Debugf("checking strtuctType: ts:%v %v",ts.Name,structType)
 					if _, isStruct = structType.Type().Underlying().(*types.Struct); !isStruct {
 						// not a struct type
 						continue

@@ -7,8 +7,8 @@ import (
 )
 
 // CAVEAT: always generate message trait first, as node analysis depends on message types
-//go:generate go run ../../cmd/gentrait -t message -o trait_message_generated.go
-//go:generate go run ../../cmd/gentrait -t node -o trait_node_generated.go
+//go:generate go run ../../cmd/gentrait -gen-root -t message -o trait_message_generated.go -v
+//go:generate go run ../../cmd/gentrait -gen-root -t node -o trait_node_generated.go -v
 
 var logger *logrus.Entry
 
