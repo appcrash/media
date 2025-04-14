@@ -17,8 +17,8 @@ func InitLogger(gl *logrus.Logger) {
 }
 
 func InitBuiltIn() {
-	initMessage()
-	initNode()
+	InitMessage()
+	InitNode()
 }
 
 // MetaType return the type of type/interface object

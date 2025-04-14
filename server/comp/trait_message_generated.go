@@ -72,7 +72,7 @@ func initMessageTraits() {
 func initMessageConversion() {
 }
 
-func initMessage() {
+func InitMessage() {
 	initMessageTraits()
 	initMessageConversion()
 }

@@ -104,6 +104,6 @@ func newPubsub() SessionAware {
 
 // Node Factory Method End
 
-func initNode() {
+func InitNode() {
 	initNodeTraits()
 }
