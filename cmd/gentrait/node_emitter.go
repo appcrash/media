@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"text/template"
 )
 
@@ -144,7 +145,13 @@ func nodeEmitImport(w io.Writer) {
 		// if the package don't have any message handle, event package should not be imported
 		importMsgPkg["github.com/appcrash/media/server/event"] = struct{}{}
 	}
-	for pkg, _ := range importMsgPkg {
+	// order the import packages so that the md5sum is stable
+	pkgs := make([]string, 0, len(importMsgPkg))
+	for pkg := range importMsgPkg {
+		pkgs = append(pkgs, pkg)
+	}
+	sort.Strings(pkgs)
+	for _, pkg := range pkgs {
 		tempImport.Execute(w, struct{ Import string }{pkg})
 	}
 }
