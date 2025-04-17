@@ -3,7 +3,7 @@ package event_test
 import (
 	"fmt"
 	"github.com/appcrash/media/server/event"
-	"math/rand"
+	"math/rand/v2"
 	"strconv"
 	"sync"
 )
@@ -137,7 +137,7 @@ func Example_moreLink() {
 			f := func(nd *event.NodeDelegate, id int) {
 				for {
 					// fire!
-					bullets := 10000 + rand.Intn(50000)
+					bullets := 10000 + rand.IntN(50000)
 					for bullets > 0 {
 						bullets--
 						evt := event.NewEvent(cmd_nothing, nil)
@@ -184,7 +184,7 @@ func Example_receiverExit() {
 				for {
 					// fire!
 					var evt *event.Event
-					criticalHit := 10000 + rand.Intn(50000)
+					criticalHit := 10000 + rand.IntN(50000)
 					i := 0
 					for {
 						if i == criticalHit {

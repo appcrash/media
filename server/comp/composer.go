@@ -35,7 +35,7 @@ type Composer struct {
 	sessionId  string
 	instanceId string
 
-	gt             *nmd.GraphTopology
+	graphTopo      *nmd.GraphTopology
 	nodeSortedList []SessionAware // topographical sorted nodes, first one has no receiver
 	nodeMap        map[string]SessionAware
 
@@ -69,13 +69,17 @@ func (c *Composer) GetInstanceId() string {
 }
 
 func (c *Composer) GetNode(name string) SessionAware {
-	return c.nodeMap[name]
+	if sa, exist := c.nodeMap[name]; exist {
+		return sa
+	} else {
+		return nil
+	}
 }
 
 func (c *Composer) ParseGraphDescription(desc string) (err error) {
 	gt := nmd.NewGraphTopology()
 	err = gt.ParseGraph(c.sessionId, desc, filterGatewayNode)
-	c.gt = gt
+	c.graphTopo = gt
 	return
 }
 
@@ -91,7 +95,7 @@ func (c *Composer) Connect(sender, receiver SessionAware, preferredOffer []Messa
 	return
 }
 
-// currently, only allow gateway nodes to create loops in the graph, all you have to do is name the node with
+// currently, only allow gateway nodes to create loops in the graph, all you have to do is NAME the node with
 // "gateway" suffix. gateway node diffs from default filter node by acting as a message exchanger to outside,
 // so a node or a sub-graph can write message to gateway and read from it at the same time.
 func filterGatewayNode(nodeName string) bool {
@@ -113,7 +117,7 @@ func (c *Composer) postConnectNodes() error {
 }
 
 func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error) {
-	nodeDefs := c.gt.GetSortedNodeDefs()
+	nodeDefs := c.graphTopo.GetSortedNodeDefs()
 	// add all nodes to graph
 	var lp LinkPoint
 	for _, node := range c.nodeSortedList {
@@ -162,7 +166,7 @@ func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error)
 func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 	var nodeIds []*Id
 	var ok bool
-	nodeDefs := c.gt.GetSortedNodeDefs()
+	nodeDefs := c.graphTopo.GetSortedNodeDefs()
 
 	defer func() {
 		if err != nil {
@@ -221,7 +225,7 @@ func (c *Composer) ComposeNodes(graph *event.Graph) (err error) {
 }
 
 func (c *Composer) GetSortedNodes() (ni []*nmd.NodeDef) {
-	return c.gt.GetSortedNodeDefs()
+	return c.graphTopo.GetSortedNodeDefs()
 }
 
 func (c *Composer) GetCommandInitiator() CommandInitiator {

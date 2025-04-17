@@ -9,7 +9,7 @@ import (
 // BuiltinCommandHandler provides built-in command to interact with graph by executing nmd script
 type BuiltinCommandHandler struct{}
 
-func (sc *BuiltinCommandHandler) Execute(s *MediaSession, _ string, args string) (result []string, err error) {
+func (sc *BuiltinCommandHandler) Execute(s *RtpMediaSession, _ string, args string) (result []string, err error) {
 	if args == "" {
 		return
 	}
@@ -49,7 +49,7 @@ func (sc *BuiltinCommandHandler) Execute(s *MediaSession, _ string, args string)
 	return
 }
 
-func (sc *BuiltinCommandHandler) ExecuteWithNotify(s *MediaSession, args string, ctx context.Context, ctrlOut ExecuteCtrlChan) {
+func (sc *BuiltinCommandHandler) ExecuteWithNotify(s *RtpMediaSession, args string, ctx context.Context, ctrlOut ExecuteCtrlChan) {
 	defer func() { close(ctrlOut) }()
 	if args == "" {
 		return
@@ -102,7 +102,7 @@ func (sc *BuiltinCommandHandler) ExecuteWithNotify(s *MediaSession, args string,
 	}
 }
 
-func (sc *BuiltinCommandHandler) ExecuteWithPush(s *MediaSession, dataIn ExecuteDataChan) {
+func (sc *BuiltinCommandHandler) ExecuteWithPush(s *RtpMediaSession, dataIn ExecuteDataChan) {
 	firstPacket := <-dataIn
 
 	// search the given name node and ensure it is a ChanSrc node

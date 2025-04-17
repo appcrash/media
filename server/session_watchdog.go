@@ -30,7 +30,7 @@ const (
 //
 // if any of above reported timestamp timeout, watchdog will end this session
 type WatchDog struct {
-	session *MediaSession
+	session *RtpMediaSession
 
 	mutex                  sync.Mutex
 	started                bool
@@ -42,7 +42,7 @@ type WatchDog struct {
 	cancel                 context.CancelFunc
 }
 
-func newWatchDog(s *MediaSession) *WatchDog {
+func newWatchDog(s *RtpMediaSession) *WatchDog {
 	now := time.Now()
 	return &WatchDog{
 		session:         s,

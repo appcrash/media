@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/appcrash/GoRTP/rtp"
 	"github.com/appcrash/media/server/comp"
-	"github.com/appcrash/media/server/prom"
+	"github.com/appcrash/media/server/event"
 	"github.com/appcrash/media/server/rpc"
 	"net"
 	"strconv"
@@ -44,62 +44,31 @@ func profileOfCodec(c rpc.CodecType) (profile string) {
 	return
 }
 
-func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (s *MediaSession, err error) {
-	var localPort, remotePort uint16
-	var remoteIp *net.IPAddr
-
-	defer func() {
-		// if create session failed, avoid port leaking
-		if err != nil && localPort > 0 {
-			srv.reclaimRtpPort(localPort)
-		}
-	}()
-
-	if localPort = srv.getNextAvailableRtpPort(); localPort == 0 {
-		err = errors.New("server runs out of port resource")
-		return
-	}
-	instanceId := mediaParam.InstanceId
-	//if !channel.GetSystemChannel().HasInstance(instanceId) {
-	//	return nil, fmt.Errorf("the instance %v not registered, cannot create session", instanceId)
-	//}
-	if remoteIp, err = net.ResolveIPAddr("ip", mediaParam.GetPeerIp()); err != nil {
-		return nil, fmt.Errorf("invalid peer ip address: %v", mediaParam.GetPeerIp())
-	}
-	if mediaParam.GetPeerPort()&0xffff0000 != 0 {
-		// not a uint16 port number
-		return nil, fmt.Errorf("invalid peer port: %v", mediaParam.GetPeerPort())
-	}
-	remotePort = uint16(mediaParam.GetPeerPort())
+func NewRtpMediaSession(localIp, remoteIp *net.IPAddr, localPort, remotePort uint16,
+	codecInfos []*rpc.CodecInfo, gd string, graph *event.Graph) (s *RtpMediaSession, err error) {
 	sid := SessionIdType(atomic.AddUint32(&sessionIdCounter, 1))
 
-	gd := mediaParam.GetGraphDesc()
-	composer := comp.NewSessionComposer(sid.String(), instanceId)
+	composer := comp.NewSessionComposer(sid.String(), "")
 	if err = composer.ParseGraphDescription(gd); err != nil {
 		logger.Errorf("parse graph error: %v", err)
 		return nil, errors.New("composer parse graph description failed")
 	}
-	s = &MediaSession{
-		server:     srv,
+	s = &RtpMediaSession{
 		sessionId:  sid,
-		localIp:    srv.rtpServerIpAddr,
+		localIp:    localIp,
 		localPort:  localPort,
 		remoteIp:   remoteIp,
 		remotePort: remotePort,
-		instanceId: instanceId,
+		instanceId: "",
 
 		// use buffered version to avoid deadlock
 		doneC:  make(chan string, 3),
 		status: sessionStatusCreated,
 
 		composer: composer,
+		graph:    graph,
 	}
 
-	codecInfos := mediaParam.GetCodecs()
-	if len(codecInfos) == 0 {
-		err = errors.New("create session without any codec info")
-		return
-	}
 	for _, ci := range codecInfos {
 		switch ci.PayloadType {
 		case rpc.CodecType_PCM_ALAW, rpc.CodecType_AMRNB, rpc.CodecType_AMRWB, rpc.CodecType_H264, rpc.CodecType_EVS:
@@ -126,8 +95,8 @@ func newSession(srv *MediaServer, mediaParam *rpc.CreateParam) (s *MediaSession,
 	return
 }
 
-func (s *MediaSession) setupGraph() error {
-	if err := s.composer.ComposeNodes(s.server.graph); err != nil {
+func (s *RtpMediaSession) setupGraph() error {
+	if err := s.composer.ComposeNodes(s.graph); err != nil {
 		return err
 	}
 	// search rtp packet provider and consumer, this is the edge between rtp stack and graph
@@ -160,7 +129,7 @@ func (s *MediaSession) setupGraph() error {
 
 // activate carry out actual work, such as listen on udp port, create rtp stream, create event node instances and
 // add them to graph
-func (s *MediaSession) activate() (err error) {
+func (s *RtpMediaSession) activate() (err error) {
 	var tpLocal *rtp.TransportUDP
 	var localPort = int(s.localPort)
 	if err = s.setupGraph(); err != nil {
@@ -185,12 +154,13 @@ func (s *MediaSession) activate() (err error) {
 	} else {
 		return errors.New("unsupported rtp payload profile")
 	}
-	s.watchdog.start()
+
+	//s.watchdog.start()
 	return nil
 }
 
 //author:sean. purpose:update rtp params.but does not use
-func (s *MediaSession) UpdateRtpParams() (err error) {
+func (s *RtpMediaSession) UpdateRtpParams() (err error) {
 	if s.rtpSession == nil {
 		logger.Errorln("Please initialize mediaSession before update payload")
 	}
@@ -206,24 +176,7 @@ func (s *MediaSession) UpdateRtpParams() (err error) {
 	return nil
 }
 
-// release all resources this session occupied
-func (s *MediaSession) finalize() {
-	if s.composer != nil {
-		s.composer.ExitGraph()
-	}
-	if s.rtpSession != nil {
-		s.rtpSession.CloseSession()
-		s.status = sessionStatusStopped
-	}
-	if s.localPort != 0 {
-		s.server.reclaimRtpPort(s.localPort)
-		s.localPort = 0
-	}
-	prom.StartedSession.Dec()
-	s.server.removeFromSessionMap(s)
-}
-
-func (s *MediaSession) onSystemEvent(se *rpc.SystemEvent) {
+func (s *RtpMediaSession) onSystemEvent(se *rpc.SystemEvent) {
 	switch se.Cmd {
 	case rpc.SystemCommand_USER_EVENT:
 		// TODO: use user event

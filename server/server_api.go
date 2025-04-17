@@ -8,10 +8,9 @@ import (
 	"github.com/appcrash/media/server/rpc"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"sync"
-	"time"
 )
 
 var logger *logrus.Entry
@@ -21,12 +20,10 @@ func init() {
 	// Initialize all packages logger
 	InitServerLogger(gl)
 
-	// Randomize session id count
-	rand.Seed(time.Now().UnixNano())
 	sessionIdCounter = rand.Uint32()
 }
 
-type MediaServer struct {
+type GrpcServer struct {
 	rpc.UnimplementedMediaApiServer
 	rtpServerIpString string
 	rtpServerIpAddr   *net.IPAddr
@@ -36,7 +33,7 @@ type MediaServer struct {
 	graph *event.Graph
 
 	sessionMutex sync.Mutex
-	sessionMap   map[SessionIdType]*MediaSession
+	sessionMap   map[SessionIdType]*RtpMediaSession
 
 	simpleExecutorMap map[string]CommandExecute
 	streamExecutorMap map[string]CommandExecute
@@ -54,26 +51,26 @@ type Config struct {
 }
 
 type RegisterMore func(s grpc.ServiceRegistrar)
-type StartServerFunc func()
+type StartServerFunc func() error
 type StopServerFunc func()
 
 // SessionListener methods are called concurrently, so it must be goroutine safe
 type SessionListener interface {
-	OnSessionCreated(s *MediaSession)
-	OnSessionUpdated(s *MediaSession)
-	OnSessionStarted(s *MediaSession)
-	OnSessionStopped(s *MediaSession)
+	OnSessionCreated(s *RtpMediaSession)
+	OnSessionUpdated(s *RtpMediaSession)
+	OnSessionStarted(s *RtpMediaSession)
+	OnSessionStopped(s *RtpMediaSession)
 }
 
 // BaseSessionListener facilitates building listener if not interested in all events
 type BaseSessionListener struct{}
 
-func (b *BaseSessionListener) OnSessionCreated(s *MediaSession) {}
-func (b *BaseSessionListener) OnSessionUpdated(s *MediaSession) {}
-func (b *BaseSessionListener) OnSessionStarted(s *MediaSession) {}
-func (b *BaseSessionListener) OnSessionStopped(s *MediaSession) {}
+func (b *BaseSessionListener) OnSessionCreated(_ *RtpMediaSession) {}
+func (b *BaseSessionListener) OnSessionUpdated(_ *RtpMediaSession) {}
+func (b *BaseSessionListener) OnSessionStarted(_ *RtpMediaSession) {}
+func (b *BaseSessionListener) OnSessionStopped(_ *RtpMediaSession) {}
 
-func NewServer(c *Config) (start StartServerFunc, stop StopServerFunc, err error) {
+func NewGrpcServer(c *Config) (start StartServerFunc, stop StopServerFunc, err error) {
 	var lis net.Listener
 	var ip *net.IPAddr
 
@@ -82,11 +79,11 @@ func NewServer(c *Config) (start StartServerFunc, stop StopServerFunc, err error
 		return
 	}
 	rtpIp, rtpStartPort, rtpEndPort := c.RtpIp, c.StartPort, c.EndPort
-	server := MediaServer{
+	server := GrpcServer{
 		rtpServerIpString: rtpIp,
 		portPool:          NewPortPool(),
 		sessionListener:   c.SessionListenerList,
-		sessionMap:        make(map[SessionIdType]*MediaSession),
+		sessionMap:        make(map[SessionIdType]*RtpMediaSession),
 
 		// read-only maps once executors registered
 		simpleExecutorMap: make(map[string]CommandExecute),
@@ -98,9 +95,12 @@ func NewServer(c *Config) (start StartServerFunc, stop StopServerFunc, err error
 		return
 	}
 	server.init(ip, rtpStartPort, rtpEndPort)
-	server.registerCommandExecutor(&BuiltinCommandHandler{}) // built-in script executor
+	_ = server.registerCommandExecutor(&BuiltinCommandHandler{}) // built-in script executor
 	for _, e := range c.ExecutorList {
-		server.registerCommandExecutor(e)
+		if err = server.registerCommandExecutor(e); err != nil {
+			logger.Errorf("failed to register command executor: %v", err)
+			return
+		}
 	}
 
 	var opts []grpc.ServerOption
@@ -110,14 +110,14 @@ func NewServer(c *Config) (start StartServerFunc, stop StopServerFunc, err error
 		c.GrpcRegisterMore(grpcServer)
 	}
 
-	start = func() {
-		logger.Infof("starting media server")
-		grpcServer.Serve(lis)
+	start = func() error {
+		logger.Infof("starting GRPC/RTP endpoint")
+		return grpcServer.Serve(lis)
 	}
 	stop = func() {
-		logger.Infof("try to gracefully stop media server")
+		logger.Infof("try to gracefully stop GRPC/RTP endpoint")
 		grpcServer.GracefulStop()
-		logger.Infof("media server has stopped")
+		logger.Infof("GRPC/RTP endpoint has stopped")
 	}
 	return
 }

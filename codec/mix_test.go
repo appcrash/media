@@ -2,13 +2,11 @@ package codec_test
 
 import (
 	"github.com/appcrash/media/codec"
-	"math/rand"
+	"math/rand/v2"
 	"testing"
-	"time"
 )
 
 func TestMix(t *testing.T) {
-	rand.Seed(time.Now().UTC().UnixNano())
 	testWithSampleRate(t, 8000, 8000, 8000)
 	testWithSampleRate(t, 8000, 8000, 16000)
 	testWithSampleRate(t, 16000, 16000, 8000)
@@ -20,9 +18,9 @@ func TestMix(t *testing.T) {
 }
 
 func testWithSampleRate(t *testing.T, rate1 int, rate2 int, outRate int) {
-	hz1 := rand.Intn(18_000) + 440
-	hz2 := rand.Intn(18_000) + 440
-	sampleNum := rand.Intn(1000) + 10000
+	hz1 := rand.IntN(18_000) + 440
+	hz2 := rand.IntN(18_000) + 440
+	sampleNum := rand.IntN(1000) + 10000
 	samples1 := generateSample(float64(hz1), sampleNum, rate1)
 	samples2 := generateSample(float64(hz2), sampleNum, rate2)
 

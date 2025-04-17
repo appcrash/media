@@ -10,9 +10,9 @@ import (
 )
 
 // receive rtcp packet
-func (s *MediaSession) receiveRtcpLoop(ctx context.Context) {
+func (s *RtpMediaSession) receiveRtcpLoop(ctx context.Context) {
 	rtcpReceiver := s.rtpSession.CreateCtrlEventChan()
-	gauge := prom.SessionGoroutine.With(prometheus.Labels{"type": "recv_ctrl"})
+	gauge := prom.RtpSessionGoroutine.With(prometheus.Labels{"type": "recv_ctrl"})
 	gauge.Inc()
 
 	defer func() {
@@ -42,8 +42,8 @@ func (s *MediaSession) receiveRtcpLoop(ctx context.Context) {
 	}
 }
 
-func (s *MediaSession) receiveRtpLoop(ctx context.Context) {
-	gauge := prom.SessionGoroutine.With(prometheus.Labels{"type": "recv"})
+func (s *RtpMediaSession) receiveRtpLoop(ctx context.Context) {
+	gauge := prom.RtpSessionGoroutine.With(prometheus.Labels{"type": "recv"})
 	gauge.Inc()
 	// Create and store the data receive channel.
 	defer func() {
@@ -103,8 +103,8 @@ func (s *MediaSession) receiveRtpLoop(ctx context.Context) {
 	}
 }
 
-func (s *MediaSession) sendRtpLoop(ctx context.Context) {
-	gauge := prom.SessionGoroutine.With(prometheus.Labels{"type": "send"})
+func (s *RtpMediaSession) sendRtpLoop(ctx context.Context) {
+	gauge := prom.RtpSessionGoroutine.With(prometheus.Labels{"type": "send"})
 	gauge.Inc()
 
 	defer func() {

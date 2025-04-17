@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"github.com/appcrash/media/codec"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"testing"
-	"time"
 )
 
 const (
@@ -92,9 +91,8 @@ func generateSample(hz float64, sampleNum int, sampleRate int) (s []byte) {
 }
 
 func TestTranscode(t *testing.T) {
-	rand.Seed(time.Now().UTC().UnixNano())
-	hz := rand.Intn(18_000) + 440
-	sampleNum := rand.Intn(10_000) + 10_000
+	hz := rand.IntN(18_000) + 440
+	sampleNum := rand.IntN(10_000) + 10_000
 	samples := generateSample(float64(hz), sampleNum, 8000)
 	t.Logf("sample Hz: %v,  number is %v", hz, sampleNum)
 	var decoders []codecConfig

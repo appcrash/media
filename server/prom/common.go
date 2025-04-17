@@ -21,31 +21,34 @@ var (
 		Name: "node_graph_links",
 		Help: "Link number in all graph",
 	})
-	CreatedSession = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "created_session",
+	RtpCreatedSession = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "rtp_created_session",
 		Help: "Created session",
 	})
-	StartedSession = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "started_session",
+	RtpStartedSession = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "rtp_started_session",
 		Help: "Created as well as started session",
 	})
-	AllSession = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "all_session",
+	RtpAllSession = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "rtp_all_session",
 		Help: "Total created sessions since start-up",
 	})
-
-	SessionAction = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "session_action",
-		Help: "Executed action on session",
-	}, []string{"cmd", "type"})
-	SessionGoroutine = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "session_goroutine",
+	RtpAbnormalSession = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "rtp_abnormal_session",
+		Help: "Abnormal exited rtp session(rtp/rtcp loops not fully exited)",
+	})
+	RtpSessionGoroutine = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "rtp_session_goroutine",
 		Help: "goroutine for session(send,recv,recv_ctrl)",
 	}, []string{"type"})
-	UsedPortPair = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "used_port_pair",
-		Help: "Port pairs allocated",
+	RtpUsedPortPair = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "rtp_used_port_pair",
+		Help: "Port pairs(rtp/rtcp) allocated",
 	})
+	GrpcSessionAction = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "grpc_session_action",
+		Help: "Executed action on session",
+	}, []string{"cmd", "type"})
 )
 
 func InitCollector() {
@@ -55,12 +58,13 @@ func InitCollector() {
 		NodeGraphNodes,
 		NodeGraphLinks,
 
-		CreatedSession,
-		StartedSession,
-		AllSession,
-		SessionAction,
-		SessionGoroutine,
-		UsedPortPair,
+		RtpCreatedSession,
+		RtpStartedSession,
+		RtpAllSession,
+		RtpAbnormalSession,
+		GrpcSessionAction,
+		RtpSessionGoroutine,
+		RtpUsedPortPair,
 	}
 	for _, c := range cs {
 		prometheus.MustRegister(c)

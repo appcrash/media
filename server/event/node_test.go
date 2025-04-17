@@ -3,7 +3,7 @@ package event_test
 import (
 	"fmt"
 	"github.com/appcrash/media/server/event"
-	"math/rand"
+	"math/rand/v2"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -37,8 +37,8 @@ func Example_exceptionNodeOnEvent() {
 	excpNode2 := excpNode1
 	excpNode2.name = "node2"
 	cn1, cn2 := crashNode{excpNode1, 0, 0}, crashNode{excpNode2, 0, 0}
-	cn1.n = 10000 + rand.Intn(20000)
-	cn2.n = 10000 + rand.Intn(20000)
+	cn1.n = 10000 + rand.IntN(20000)
+	cn2.n = 10000 + rand.IntN(20000)
 
 	normalNode := testNode{scope: "test", name: "normal",
 		onEnter: func(t *testNode) {
@@ -248,7 +248,7 @@ func TestSyncEvent(t *testing.T) {
 }
 
 func TestOnExit(t *testing.T) {
-	n := 50000 + rand.Intn(50000)
+	n := 50000 + rand.IntN(50000)
 	var count int
 	done := make(chan int)
 	tn := &testNode{scope: "exit", name: "exit",
@@ -309,7 +309,7 @@ func TestOnExitUnderConcurrentDeliver(t *testing.T) {
 		}()
 	}
 	go func() {
-		delay := 5 + rand.Intn(5)
+		delay := 5 + rand.IntN(5)
 		<-time.After(time.Duration(delay) * time.Second)
 		tn.delegate.RequestNodeExit()
 	}()

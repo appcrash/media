@@ -133,7 +133,7 @@ func AopCall(obj interface{}, args []interface{}, interfaceType reflect.Type, me
 			if !field.IsExported() || fieldType.Kind() != reflect.Struct {
 				continue
 			}
-			ptrType = reflect.PtrTo(fieldType)
+			ptrType = reflect.PointerTo(fieldType)
 		}
 
 		if ptrType.Implements(interfaceType) {

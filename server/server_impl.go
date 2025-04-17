@@ -9,37 +9,37 @@ import (
 	"net"
 )
 
-func (srv *MediaServer) init(ip *net.IPAddr, portStart, portEnd uint16) {
+func (srv *GrpcServer) init(ip *net.IPAddr, portStart, portEnd uint16) {
 	srv.rtpServerIpAddr = ip
 	srv.portPool.Init(portStart, portEnd)
 	channel.GetSystemChannel().AddListener(srv)
 }
 
-func (srv *MediaServer) addToSessionMap(session *MediaSession) {
+func (srv *GrpcServer) addToSessionMap(session *RtpMediaSession) {
 	srv.sessionMutex.Lock()
 	defer srv.sessionMutex.Unlock()
 	srv.sessionMap[session.sessionId] = session
-	prom.CreatedSession.Inc()
+	prom.RtpCreatedSession.Inc()
 }
 
-func (srv *MediaServer) removeFromSessionMap(session *MediaSession) {
+func (srv *GrpcServer) removeFromSessionMap(session *RtpMediaSession) {
 	srv.sessionMutex.Lock()
 	defer srv.sessionMutex.Unlock()
 	delete(srv.sessionMap, session.sessionId)
-	prom.CreatedSession.Dec()
+	prom.RtpCreatedSession.Dec()
 }
 
-func (srv *MediaServer) getNextAvailableRtpPort() uint16 {
+func (srv *GrpcServer) getNextAvailableRtpPort() uint16 {
 	return srv.portPool.Get()
 }
 
-func (srv *MediaServer) reclaimRtpPort(port uint16) {
+func (srv *GrpcServer) reclaimRtpPort(port uint16) {
 	if port != 0 {
 		srv.portPool.Put(port)
 	}
 }
 
-func (srv *MediaServer) invokeSessionListener(session *MediaSession, status int) {
+func (srv *GrpcServer) invokeSessionListener(session *RtpMediaSession, status int) {
 	switch status {
 	case sessionStatusCreated:
 		for _, listener := range srv.sessionListener {
@@ -60,15 +60,45 @@ func (srv *MediaServer) invokeSessionListener(session *MediaSession, status int)
 	}
 }
 
-func (srv *MediaServer) createSession(param *rpc.CreateParam) (session *MediaSession, err error) {
+func (srv *GrpcServer) createSession(param *rpc.CreateParam) (session *RtpMediaSession, err error) {
+	var localIp, remoteIp *net.IPAddr
+	var localPort, remotePort uint16
 	defer func() {
-		if err != nil && session != nil {
-			session.finalize()
+		if err != nil {
+			if localPort > 0 {
+				// if create session failed, avoid port leaking
+				srv.reclaimRtpPort(localPort)
+			}
+			if session != nil {
+				session.Stop()
+			}
 		}
 	}()
 
-	logger.Infof("create session param: %v", param)
-	if session, err = newSession(srv, param); err != nil {
+	logger.Infof("create rtp session param: %v", param)
+
+	if localPort = srv.getNextAvailableRtpPort(); localPort == 0 {
+		err = errors.New("grpc server runs out of port resource")
+		return
+	}
+	if param.GetPeerPort()&0xffff0000 != 0 {
+		// not an uint16 port number
+		err = fmt.Errorf("invalid peer port: %v", param.GetPeerPort())
+		return
+	}
+	remotePort = uint16(param.GetPeerPort())
+	if remoteIp, err = net.ResolveIPAddr("ip", param.GetPeerIp()); err != nil {
+		return
+	}
+	codecInfos := param.GetCodecs()
+	if len(codecInfos) == 0 {
+		err = errors.New("create session without any codec info")
+		return
+	}
+	localIp = srv.rtpServerIpAddr
+	gd := param.GetGraphDesc()
+
+	if session, err = NewRtpMediaSession(localIp, remoteIp, localPort, remotePort, codecInfos, gd, srv.graph); err != nil {
 		return
 	}
 
@@ -77,13 +107,13 @@ func (srv *MediaServer) createSession(param *rpc.CreateParam) (session *MediaSes
 	if err = session.activate(); err != nil {
 		return
 	}
-	prom.AllSession.Inc()
+	prom.RtpAllSession.Inc()
 	srv.addToSessionMap(session)
 	srv.invokeSessionListener(session, sessionStatusCreated)
 	return session, nil
 }
 
-func (srv *MediaServer) updateSession(param *rpc.UpdateParam) (err error) {
+func (srv *GrpcServer) updateSession(param *rpc.UpdateParam) (err error) {
 	var sessionId SessionIdType
 	if sessionId, err = SessionIdFromString(param.GetSessionId()); err != nil {
 		err = errors.New("invalid session id")
@@ -113,12 +143,12 @@ func (srv *MediaServer) updateSession(param *rpc.UpdateParam) (err error) {
 		session.remotePort = uint16(param.GetPeerPort())
 
 		//update rtp params when necessary
-		pt:=param.GetPayloadNumber()
-		if pt>0{ // ignore pt==0(PCMU) static payload type/default value
-			_pt:=uint8(pt)
-			if _pt!=session.avPayloadNumber{ //whether update
-				logger.Infof("update payload number from previous=%v,to current=%v",session.avPayloadNumber,pt)
-				session.avPayloadNumber=_pt
+		pt := param.GetPayloadNumber()
+		if pt > 0 { // ignore pt==0(PCMU) static payload type/default value
+			_pt := uint8(pt)
+			if _pt != session.avPayloadNumber { //whether update
+				logger.Infof("update payload number from previous=%v,to current=%v", session.avPayloadNumber, pt)
+				session.avPayloadNumber = _pt
 				//session.UpdateRtpParams()
 			}
 
@@ -131,7 +161,7 @@ func (srv *MediaServer) updateSession(param *rpc.UpdateParam) (err error) {
 	return
 }
 
-func (srv *MediaServer) startSession(param *rpc.StartParam) (err error) {
+func (srv *GrpcServer) startSession(param *rpc.StartParam) (err error) {
 	var sessionId SessionIdType
 	if sessionId, err = SessionIdFromString(param.GetSessionId()); err != nil {
 		err = errors.New("invalid session id")
@@ -148,11 +178,20 @@ func (srv *MediaServer) startSession(param *rpc.StartParam) (err error) {
 	}
 	if err == nil {
 		srv.invokeSessionListener(session, sessionStatusStarted)
+	} else {
+		if exist {
+			// session exists but start failed, reclaim resource
+			srv.sessionMutex.Lock()
+			delete(srv.sessionMap, sessionId)
+			srv.sessionMutex.Unlock()
+			srv.reclaimRtpPort(session.localPort)
+			srv.invokeSessionListener(session, sessionStatusStopped)
+		}
 	}
 	return
 }
 
-func (srv *MediaServer) stopSession(param *rpc.StopParam) (err error) {
+func (srv *GrpcServer) stopSession(param *rpc.StopParam) (err error) {
 	var sessionId SessionIdType
 	if sessionId, err = SessionIdFromString(param.GetSessionId()); err != nil {
 		err = errors.New("invalid session id")
@@ -164,6 +203,9 @@ func (srv *MediaServer) stopSession(param *rpc.StopParam) (err error) {
 	srv.sessionMutex.Unlock()
 	if exist {
 		session.Stop()
+		srv.sessionMutex.Lock()
+		delete(srv.sessionMap, sessionId)
+		srv.sessionMutex.Unlock()
 		srv.invokeSessionListener(session, sessionStatusStopped)
 	} else {
 		err = errors.New("session not exist")
@@ -175,7 +217,7 @@ func (srv *MediaServer) stopSession(param *rpc.StopParam) (err error) {
 // 1. handle command(take new actions), listen to state change
 // 2. pull data from media server
 // 3. push data to media server
-func (srv *MediaServer) registerCommandExecutor(e CommandExecute) (err error) {
+func (srv *GrpcServer) registerCommandExecutor(e CommandExecute) (err error) {
 	cmdTrait := e.GetCommandTrait()
 	var cm map[string]CommandExecute
 
@@ -200,7 +242,7 @@ func (srv *MediaServer) registerCommandExecutor(e CommandExecute) (err error) {
 	return
 }
 
-func (srv *MediaServer) getExecutorFor(cmd string) (needNotify bool, ce CommandExecute) {
+func (srv *GrpcServer) getExecutorFor(cmd string) (needNotify bool, ce CommandExecute) {
 	if e, ok := srv.simpleExecutorMap[cmd]; ok {
 		needNotify = false
 		ce = e.(CommandExecute)
@@ -215,9 +257,9 @@ func (srv *MediaServer) getExecutorFor(cmd string) (needNotify bool, ce CommandE
 }
 
 // OnChannelEvent just forwards system event to session
-func (srv *MediaServer) OnChannelEvent(e *rpc.SystemEvent) {
+func (srv *GrpcServer) OnChannelEvent(e *rpc.SystemEvent) {
 	var exist bool
-	var session *MediaSession
+	var session *RtpMediaSession
 	var sessionId SessionIdType
 	var err error
 	if sessionId, err = SessionIdFromString(e.SessionId); err != nil {

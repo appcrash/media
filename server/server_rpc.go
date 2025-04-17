@@ -15,12 +15,12 @@ import (
 	"time"
 )
 
-func (srv *MediaServer) GetVersion(_ context.Context, _ *rpc.Empty) (*rpc.VersionNumber, error) {
+func (srv *GrpcServer) GetVersion(_ context.Context, _ *rpc.Empty) (*rpc.VersionNumber, error) {
 	return &rpc.VersionNumber{Ver: rpc.Version_DEFAULT}, nil
 }
 
-func (srv *MediaServer) PrepareSession(_ context.Context, param *rpc.CreateParam) (*rpc.Session, error) {
-	var session *MediaSession
+func (srv *GrpcServer) PrepareSession(_ context.Context, param *rpc.CreateParam) (*rpc.Session, error) {
+	var session *RtpMediaSession
 	var err error
 	if session, err = srv.createSession(param); err != nil {
 		logger.Errorf("fail to prepare session with error:%v", err)
@@ -38,18 +38,18 @@ func (srv *MediaServer) PrepareSession(_ context.Context, param *rpc.CreateParam
 	return &rpcSession, nil
 }
 
-func (srv *MediaServer) UpdateSession(_ context.Context, param *rpc.UpdateParam) (*rpc.Status, error) {
+func (srv *GrpcServer) UpdateSession(_ context.Context, param *rpc.UpdateParam) (*rpc.Status, error) {
 	// only remote (ip, port) can be updated
 	err := srv.updateSession(param)
 	return &rpc.Status{Status: "ok"}, err
 }
 
-func (srv *MediaServer) StartSession(_ context.Context, param *rpc.StartParam) (*rpc.Status, error) {
+func (srv *GrpcServer) StartSession(_ context.Context, param *rpc.StartParam) (*rpc.Status, error) {
 	err := srv.startSession(param)
 	return &rpc.Status{Status: "ok"}, err
 }
 
-func (srv *MediaServer) StopSession(_ context.Context, param *rpc.StopParam) (*rpc.Status, error) {
+func (srv *GrpcServer) StopSession(_ context.Context, param *rpc.StopParam) (*rpc.Status, error) {
 	if err := srv.stopSession(param); err != nil {
 		return nil, err
 	} else {
@@ -57,7 +57,7 @@ func (srv *MediaServer) StopSession(_ context.Context, param *rpc.StopParam) (*r
 	}
 }
 
-func (srv *MediaServer) ExecuteAction(_ context.Context, action *rpc.Action) (*rpc.ActionResult, error) {
+func (srv *GrpcServer) ExecuteAction(_ context.Context, action *rpc.Action) (*rpc.ActionResult, error) {
 	var sessionId SessionIdType
 	var err error
 	if sessionId, err = SessionIdFromString(action.SessionId); err != nil {
@@ -84,7 +84,7 @@ func (srv *MediaServer) ExecuteAction(_ context.Context, action *rpc.Action) (*r
 		exec, exist := srv.simpleExecutorMap[cmd]
 		if exist {
 			re, err1 := exec.Execute(session, cmd, arg)
-			prom.SessionAction.With(prometheus.Labels{"cmd": cmd, "type": "simple"}).Inc()
+			prom.GrpcSessionAction.With(prometheus.Labels{"cmd": cmd, "type": "simple"}).Inc()
 			result.State = strings.Join(re, " ")
 			return &result, err1
 		}
@@ -93,7 +93,7 @@ func (srv *MediaServer) ExecuteAction(_ context.Context, action *rpc.Action) (*r
 	return &result, nil
 }
 
-func (srv *MediaServer) ExecuteActionWithNotify(action *rpc.Action, stream rpc.MediaApi_ExecuteActionWithNotifyServer) error {
+func (srv *GrpcServer) ExecuteActionWithNotify(action *rpc.Action, stream rpc.MediaApi_ExecuteActionWithNotifyServer) error {
 	var sessionId SessionIdType
 	var err error
 	if sessionId, err = SessionIdFromString(action.SessionId); err != nil {
@@ -118,7 +118,7 @@ func (srv *MediaServer) ExecuteActionWithNotify(action *rpc.Action, stream rpc.M
 			ctx, cancel := context.WithCancel(context.Background())
 			ctrlOut := make(ExecuteCtrlChan, 32)
 			defer func() {
-				prom.SessionAction.With(prometheus.Labels{"cmd": cmd, "type": "pull_stream"}).Inc()
+				prom.GrpcSessionAction.With(prometheus.Labels{"cmd": cmd, "type": "pull_stream"}).Inc()
 				// notify executor loop to exit
 				cancel()
 			}()
@@ -150,7 +150,7 @@ func (srv *MediaServer) ExecuteActionWithNotify(action *rpc.Action, stream rpc.M
 	return errors.New("cmd not exist")
 }
 
-func (srv *MediaServer) ExecuteActionWithPush(stream rpc.MediaApi_ExecuteActionWithPushServer) error {
+func (srv *GrpcServer) ExecuteActionWithPush(stream rpc.MediaApi_ExecuteActionWithPushServer) error {
 	var sessionId SessionIdType
 	var dataIn chan *rpc.PushData
 
@@ -163,7 +163,7 @@ func (srv *MediaServer) ExecuteActionWithPush(stream rpc.MediaApi_ExecuteActionW
 			return errors.New("push action with empty session id")
 		}
 		if sessionId, err = SessionIdFromString(sidStr); err != nil {
-			return errors.New("push action with invalid sessin id")
+			return errors.New("push action with invalid session id")
 		}
 		srv.sessionMutex.Lock()
 		session, ok := srv.sessionMap[sessionId]
@@ -183,7 +183,7 @@ func (srv *MediaServer) ExecuteActionWithPush(stream rpc.MediaApi_ExecuteActionW
 	}
 
 	defer func() {
-		prom.SessionAction.With(prometheus.Labels{"type": "push_stream"}).Inc()
+		prom.GrpcSessionAction.With(prometheus.Labels{"type": "push_stream"}).Inc()
 		// let push loop stop
 		if dataIn != nil {
 			close(dataIn)
@@ -209,7 +209,7 @@ func (srv *MediaServer) ExecuteActionWithPush(stream rpc.MediaApi_ExecuteActionW
 }
 
 // SystemChannel is long-keepalive connection to ease bidirectional system-level message exchange
-func (srv *MediaServer) SystemChannel(stream rpc.MediaApi_SystemChannelServer) error {
+func (srv *GrpcServer) SystemChannel(stream rpc.MediaApi_SystemChannelServer) error {
 	wg := &sync.WaitGroup{}
 	var instanceId string
 	var errorLogged bool
