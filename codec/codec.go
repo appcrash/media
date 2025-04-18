@@ -33,7 +33,11 @@ func NewTranscodeContext(param *TranscodeParam) *TranscodeContext {
 	}
 	p := C.CString(*desc)
 	defer C.free(unsafe.Pointer(p))
-	return &TranscodeContext{C.transcode_init_context(p, C.int(len(*desc)))}
+	cobj := C.transcode_init_context(p, C.int(len(*desc)))
+	if cobj == nil {
+		return nil
+	}
+	return &TranscodeContext{cobj}
 }
 
 // Iterate
@@ -73,7 +77,11 @@ func (context *TranscodeContext) Free() {
 func NewMixContext(param string) *MixContext {
 	p := C.CString(param)
 	defer C.free(unsafe.Pointer(p))
-	return &MixContext{C.mix_init_context(p, C.int(len(param)))}
+	cobj := C.mix_init_context(p, C.int(len(param)))
+	if cobj == nil {
+		return nil
+	}
+	return &MixContext{cobj}
 }
 
 func (context *MixContext) Iterate(data1 []byte, data2 []byte, samples1 int, samples2 int) (mixed []byte, reason int) {
