@@ -17,11 +17,16 @@ func (np *NodeProp) FormalizeKey() {
 	np.Key = utils.SnakeToCamelCase(np.Key)
 }
 
+type LinkOperator struct {
+	LinkTo      *NodeDef // which node link to
+	PreferOffer []string // preferred offer connecting node suggests
+}
+
 type NodeDef struct {
 	Index             int
 	Name, Scope, Type string
 	Props             []*NodeProp
-	Deps              []*NodeDef // record receivers of this node
+	Deps              []*LinkOperator // record receivers of this node
 }
 
 func (nd *NodeDef) String() string {
@@ -33,7 +38,8 @@ func (nd *NodeDef) String() string {
 }
 
 type EndpointDefs struct {
-	Nodes []*NodeDef
+	Nodes       []*NodeDef
+	PreferOffer []string
 }
 
 type CallActionDefs struct {

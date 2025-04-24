@@ -7,7 +7,8 @@ import (
 )
 
 func TestNodeDef_Link(t *testing.T) {
-	testStr := `[a@mya:ofa aa='\'oiow' aa=''] -> {[b c='http://iow.com' cc=.89] ,[c]} -> {[d], [e@ff:io ew=23]}`
+	testStr := `[a@mya:ofa aa='\'oiow' aa=''] <msg1,msg2> {[b c='http://iow.com' cc=.89] ,[c]}
+		<msg3,msg4> {[d], [e@ff:io ew=23]} -> [f]`
 	input := antlr.NewInputStream(testStr)
 	lexer := nmd.NewnmdLexer(input)
 	stream := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
@@ -20,11 +21,26 @@ func TestNodeDef_Link(t *testing.T) {
 			if n.Type != "ofa" && n.Scope != "mya" {
 				t.Fatal("parse node def failed")
 			}
+			if n.Deps == nil {
+				t.Fatal("parse link operator failed")
+			}
+			preferOffer := n.Deps[0].PreferOffer
+			if preferOffer[0] != "msg1" || preferOffer[1] != "msg2" {
+				t.Fatal("parse msg type list failed")
+			}
 		case "b":
 			for _, to := range n.Deps {
-				if to.Name != "e" && to.Name != "d" {
+				if to.LinkTo.Name != "e" && to.LinkTo.Name != "d" {
 					t.Fatal("parse link statement failed")
 				}
+			}
+		case "c":
+			if n.Deps == nil {
+				t.Fatal("parse link operator failed")
+			}
+			preferOffer := n.Deps[0].PreferOffer
+			if preferOffer[0] != "msg3" || preferOffer[1] != "msg4" {
+				t.Fatal("parse msg type list failed")
 			}
 		}
 

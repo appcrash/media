@@ -86,6 +86,18 @@ func (s *BasenmdListener) EnterNode_prop(ctx *Node_propContext) {}
 // ExitNode_prop is called when production node_prop is exited.
 func (s *BasenmdListener) ExitNode_prop(ctx *Node_propContext) {}
 
+// EnterMsg_type_list is called when production msg_type_list is entered.
+func (s *BasenmdListener) EnterMsg_type_list(ctx *Msg_type_listContext) {}
+
+// ExitMsg_type_list is called when production msg_type_list is exited.
+func (s *BasenmdListener) ExitMsg_type_list(ctx *Msg_type_listContext) {}
+
+// EnterLink_operator is called when production link_operator is entered.
+func (s *BasenmdListener) EnterLink_operator(ctx *Link_operatorContext) {}
+
+// ExitLink_operator is called when production link_operator is exited.
+func (s *BasenmdListener) ExitLink_operator(ctx *Link_operatorContext) {}
+
 // EnterPropQuoteString is called when production PropQuoteString is entered.
 func (s *BasenmdListener) EnterPropQuoteString(ctx *PropQuoteStringContext) {}
 

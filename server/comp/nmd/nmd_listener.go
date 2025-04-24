@@ -40,6 +40,12 @@ type nmdListener interface {
 	// EnterNode_prop is called when entering the node_prop production.
 	EnterNode_prop(c *Node_propContext)
 
+	// EnterMsg_type_list is called when entering the msg_type_list production.
+	EnterMsg_type_list(c *Msg_type_listContext)
+
+	// EnterLink_operator is called when entering the link_operator production.
+	EnterLink_operator(c *Link_operatorContext)
+
 	// EnterPropQuoteString is called when entering the PropQuoteString production.
 	EnterPropQuoteString(c *PropQuoteStringContext)
 
@@ -84,6 +90,12 @@ type nmdListener interface {
 
 	// ExitNode_prop is called when exiting the node_prop production.
 	ExitNode_prop(c *Node_propContext)
+
+	// ExitMsg_type_list is called when exiting the msg_type_list production.
+	ExitMsg_type_list(c *Msg_type_listContext)
+
+	// ExitLink_operator is called when exiting the link_operator production.
+	ExitLink_operator(c *Link_operatorContext)
 
 	// ExitPropQuoteString is called when exiting the PropQuoteString production.
 	ExitPropQuoteString(c *PropQuoteStringContext)

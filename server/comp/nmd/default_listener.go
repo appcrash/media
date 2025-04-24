@@ -89,6 +89,12 @@ func (l *Listener) EnterEndpoint(c *EndpointContext) {
 	l.nodeDefStack = nil
 }
 
+func (l *Listener) EnterMsg_type_list(c *Msg_type_listContext) {
+	for _, id := range c.AllID() {
+		l.currentEndpoint.PreferOffer = append(l.currentEndpoint.PreferOffer, id.GetText())
+	}
+}
+
 func (l *Listener) EnterNode_id(c *Node_idContext) {
 	var name, scope, typ string
 	name = c.GetName().GetText()
@@ -148,9 +154,14 @@ func (l *Listener) ExitEndpoint(c *EndpointContext) {
 	if len(l.endpointStack) == 2 {
 		// a link is found
 		from, to := l.endpointStack[0], l.endpointStack[1]
+		preferOffer := from.PreferOffer
 		for _, f := range from.Nodes {
 			for _, t := range to.Nodes {
-				f.Deps = append(f.Deps, t)
+				linkOperator := &LinkOperator{
+					LinkTo:      t,
+					PreferOffer: preferOffer,
+				}
+				f.Deps = append(f.Deps, linkOperator)
 			}
 		}
 		// discard the first endpoint

@@ -17,7 +17,7 @@ type GraphTopology struct {
 
 	// topographical sorted, filter node with less dependency comes first
 	// all loop nodes come last
-	// i.e. first filter node in the list has not any receiver
+	// i.e., first filter node in the list has not any receiver
 	sortedNodeDefs []*NodeDef
 	nbParseError   int
 }
@@ -95,8 +95,8 @@ func (gt *GraphTopology) topographicalSort(loopFilter LoopNodeFilter) (err error
 			continue
 		}
 		for _, tn := range fn.Deps {
-			to := tn.Index
-			if loopFilter(tn.Name) {
+			to := tn.LinkTo.Index
+			if loopFilter(tn.LinkTo.Name) {
 				loopNodeSet.Add(to)
 				continue
 			}

@@ -83,15 +83,55 @@ func (c *Composer) ParseGraphDescription(desc string) (err error) {
 	return
 }
 
-func (c *Composer) Connect(sender, receiver SessionAware, preferredOffer []MessageType) (lp LinkPoint, err error) {
+func (c *Composer) Connect(sender, receiver SessionAware, preferredOffer []string) (lps []LinkPoint, err error) {
 	receiverSession := receiver.GetNodeScope()
 	receiverName := receiver.GetNodeName()
 
-	if preferredOffer == nil {
-		preferredOffer = sender.Offer()
+	var requiredOffer []MessageType
+	var msgId MessageType
+	var lp LinkPoint
+	allOffer := sender.Offer()
+	if len(preferredOffer) > 0 {
+		// check preferred message type offer is within all offers
+		for _, offer := range preferredOffer {
+			inAllOffer := false
+			if msgTrait, exist := MessageTraitOfName(offer); !exist {
+				return nil, fmt.Errorf("node[%v] prefer offer msg type %s that is not defined", sender, offer)
+			} else {
+				msgId = msgTrait.TypeId
+				for _, offerId := range allOffer {
+					if msgId == offerId {
+						inAllOffer = true
+						break
+					}
+				}
+			}
+			if !inAllOffer {
+				return nil, fmt.Errorf("node[%v] prefer offer msg type %s that is not in its Offer()", sender, offer)
+			}
+			requiredOffer = append(requiredOffer, msgId)
+		}
 	}
 
-	lp, err = sender.StreamTo(receiverSession, receiverName, preferredOffer)
+	// the behaviour is:
+	// 1. if no preferred offer provided in link operator (use '->'), we try to create only
+	// one link with negotiated message type from sender all possible offer
+	// 2. otherwise, we create same number of links as preferred message type number, one by one
+	if len(requiredOffer) > 0 {
+		for _, offer := range requiredOffer {
+			senderOffer := []MessageType{offer} // restrict to the exact message type
+			if lp, err = sender.StreamTo(receiverSession, receiverName, senderOffer); err != nil {
+				return
+			}
+			lps = append(lps, lp)
+		}
+
+	} else {
+		if lp, err = sender.StreamTo(receiverSession, receiverName, allOffer); err != nil {
+			return
+		}
+		lps = append(lps, lp)
+	}
 	return
 }
 
@@ -116,10 +156,10 @@ func (c *Composer) postConnectNodes() error {
 	return nil
 }
 
-func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error) {
+func (c *Composer) connectNodes(graph *event.Graph) (allLps []LinkPoint, err error) {
 	nodeDefs := c.graphTopo.GetSortedNodeDefs()
 	// add all nodes to graph
-	var lp LinkPoint
+	var lps []LinkPoint
 	for _, node := range c.nodeSortedList {
 		if !graph.AddNode(node) {
 			err = fmt.Errorf("failed to add node %v to graph", node.GetNodeName())
@@ -132,17 +172,17 @@ func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error)
 	// receivers(at the start of sorted list), so iterate the sorted list reversely until all message types are
 	// determined as required by link creation
 	for i := len(c.nodeSortedList) - 1; i >= 0; i-- {
-		var slps []LinkPoint = nil
+		var senderLps []LinkPoint = nil
 		sender := c.nodeSortedList[i]
-		for _, receiverDef := range nodeDefs[i].Deps {
-			receiver := c.nodeMap[receiverDef.Name]
-			// TODO: nmd language add support for specifying preferred offer
+		for _, linkOperator := range nodeDefs[i].Deps {
+			receiver := c.nodeMap[linkOperator.LinkTo.Name]
+			preferOffer := linkOperator.PreferOffer
 			// TODO: use ssa to analyze Offer() of every node, check the message type is statically or dynamically defined
-			if lp, err = c.Connect(sender, receiver, nil); err != nil {
+			if lps, err = c.Connect(sender, receiver, preferOffer); err != nil {
 				return
 			} else {
-				lps = append(lps, lp)
-				slps = append(slps, lp)
+				allLps = append(allLps, lps...)
+				senderLps = append(senderLps, lps...)
 			}
 		}
 		// the sender has created link points, check the node's field and try to inject them to field variables
@@ -152,7 +192,7 @@ func (c *Composer) connectNodes(graph *event.Graph) (lps []LinkPoint, err error)
 			field := typ.Field(j)
 			if field.Type == linkPointType {
 				if tag, exist := field.Tag.Lookup(structTagKey); exist {
-					if err = injectLinkPoint(field, value.Field(j), slps, tag); err != nil {
+					if err = injectLinkPoint(field, value.Field(j), senderLps, tag); err != nil {
 						return
 					}
 				}

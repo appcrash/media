@@ -162,7 +162,7 @@ func composeIt(session, gd string) (*comp.Composer, error) {
 }
 
 func TestComposerBasic(t *testing.T) {
-	gd := `[input:chan_src] -> [pubsub] -> {[output1:chan_sink],[output2:chan_sink]};`
+	gd := `[input:chan_src] -> [pubsub] <raw_byte> {[output1:chan_sink],[output2:chan_sink]};`
 	c, err := composeIt("test_session", gd)
 	if err != nil {
 		t.Fatal(err)
